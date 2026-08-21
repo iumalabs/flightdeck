@@ -5,6 +5,7 @@ import { ingestRoutes } from "./modules/ingest/routes.ts";
 import { issuesRoutes } from "./modules/issues/routes.ts";
 import { projectsRoutes } from "./modules/projects/routes.ts";
 import { githubRoutes } from "./modules/github/routes.ts";
+import { pruneOldEvents } from "./modules/ingest/retention.ts";
 import type { SessionIdentity } from "./auth/session.ts";
 import { RateLimiter } from "./durable-objects/rate-limiter.ts";
 
@@ -54,10 +55,10 @@ export default {
     return env.ASSETS.fetch(request);
   },
 
-  scheduled(_controller: ScheduledController, _env: Env, _ctx: ExecutionContext): void {
-    // Daily retention prune (constitution Principle IX) lands in the Polish phase (T043,
-    // specs/002-error-monitoring/tasks.md) — this Foundational-phase stub exists so the
-    // wrangler.jsonc cron trigger and the handler shape are in place before that task needs them.
+  scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
+    // Daily retention prune (constitution Principle IX, spec FR-015) — deletes events past the
+    // default 90-day window (research.md §8); the owning issue's summary row is untouched.
+    ctx.waitUntil(pruneOldEvents(env.DB).then(() => undefined));
   },
 } satisfies ExportedHandler<Env>;
 

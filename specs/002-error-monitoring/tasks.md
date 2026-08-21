@@ -264,19 +264,19 @@ confirm the suspect commit shown matches the actual most recent commit touching 
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T043 Implement `worker/modules/ingest/retention.ts` and wire it into T008's `scheduled()`
+- [X] T043 Implement `worker/modules/ingest/retention.ts` and wire it into T008's `scheduled()`
       handler — deletes `events` rows older than the default window (90 days) without touching
       their owning `issues` row's summary fields (constitution Principle IX, spec FR-015)
-- [ ] T044 [P] Write a unit test for the retention job's query logic (prunes old events, preserves
+- [X] T044 [P] Write a unit test for the retention job's query logic (prunes old events, preserves
       issue rows and their summary fields) in `tests/unit/retention.test.ts`
-- [ ] T045 [P] Write `tests/e2e/issues-list-and-detail.spec.ts` — pre-authenticated context (Module
+- [X] T045 [P] Write `tests/e2e/issues-list-and-detail.spec.ts` — pre-authenticated context (Module
       1's pattern) plus seeded D1 data, covering navigation from the issues list into an issue's
       detail
-- [ ] T046 [P] Run `deno fmt` and `deno lint` across `worker/`, `app/`, `tests/`; fix violations
-- [ ] T047 [P] Run `deno check` (typecheck) across every new/changed `.ts`/`.tsx` file
-- [ ] T048 Run the full `quickstart.md` validation end-to-end (all four user stories) and record
+- [X] T046 [P] Run `deno fmt` and `deno lint` across `worker/`, `app/`, `tests/`; fix violations
+- [X] T047 [P] Run `deno check` (typecheck) across every new/changed `.ts`/`.tsx` file
+- [X] T048 Run the full `quickstart.md` validation end-to-end (all four user stories) and record
       results
-- [ ] T049 Update `README.md`'s Status section to reference `specs/002-error-monitoring`; document
+- [X] T049 Update `README.md`'s Status section to reference `specs/002-error-monitoring`; document
       the new `GITHUB_APP_ID`/`GITHUB_APP_PRIVATE_KEY` secrets in the Environment table
 
 ---

@@ -4,3 +4,7 @@ POLICY_AUD=<Access application AUD tag for FlightDeck itself>
 # HMAC key FlightDeck signs its own fd_session cookie with (constitution Principle II step 2).
 # Any random string is fine for local dev — generate with `openssl rand -base64 32`.
 SESSION_SECRET=<random local-only value>
+# GitHub App used for User Story 4's suspect-commit lookups (specs/002-error-monitoring/research.md
+# §10) — not required to validate User Stories 1-3.
+GITHUB_APP_ID=<GitHub App ID>
+GITHUB_APP_PRIVATE_KEY=<PEM-encoded RSA private key>
