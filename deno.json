@@ -29,6 +29,7 @@
     "deploy:preview": "deno run -A npm:wrangler versions upload --env preview",
     "test": "deno test -A tests/unit/",
     "test:e2e": "deno run -A npm:playwright test",
+    "test:contract": "deno run -A npm:playwright test --config=playwright.contract.config.ts",
     "test:e2e:install": "deno run -A npm:playwright install --with-deps chromium",
     "db:migrations:apply:local": "deno run -A npm:wrangler d1 migrations apply flightdeck-production --local --env production",
     "db:migrations:apply:remote": "deno run -A npm:wrangler d1 migrations apply flightdeck-production --remote --env production",

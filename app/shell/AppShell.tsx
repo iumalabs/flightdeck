@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { Session } from "../lib/use-session.ts";
 import { OverviewScreen } from "./OverviewScreen.tsx";
 import { IssuesScreen } from "./IssuesScreen.tsx";
+import { IssueDetailScreen } from "./IssueDetailScreen.tsx";
 import { TracesScreen } from "./TracesScreen.tsx";
 import { LogsScreen } from "./LogsScreen.tsx";
 import { ReleasesScreen } from "./ReleasesScreen.tsx";
@@ -63,12 +64,22 @@ const FOOTER_ITEMS: NavItem[] = [
   { screen: "setup", label: "Install SDK" },
 ];
 
-function renderScreen(screen: string, session: Session) {
+function renderScreen(
+  screen: string,
+  session: Session,
+  selectedIssueId: string | null,
+  onSelectIssue: (id: string) => void,
+  onBackToIssues: () => void,
+) {
   switch (screen) {
     case "overview":
       return <OverviewScreen session={session} />;
     case "issues":
-      return <IssuesScreen />;
+      return <IssuesScreen onSelectIssue={onSelectIssue} />;
+    case "issue-detail":
+      return selectedIssueId
+        ? <IssueDetailScreen issueId={selectedIssueId} onBack={onBackToIssues} />
+        : <IssuesScreen onSelectIssue={onSelectIssue} />;
     case "traces":
       return <TracesScreen />;
     case "logs":
@@ -92,7 +103,17 @@ function renderScreen(screen: string, session: Session) {
 
 export function AppShell({ session, signOut, navigate }: AppShellProps) {
   const [screen, setScreen] = useState("overview");
+  const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[] | null>(null);
+
+  const onSelectIssue = (id: string) => {
+    setSelectedIssueId(id);
+    setScreen("issue-detail");
+  };
+  const onBackToIssues = () => {
+    setSelectedIssueId(null);
+    setScreen("issues");
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -179,22 +200,31 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
               >
                 {group.label}
               </div>
-              {group.items.map((item) => (
-                <div
-                  key={item.screen}
-                  onClick={() => setScreen(item.screen)}
-                  style={{
-                    padding: "8px 10px",
-                    borderRadius: 6,
-                    fontSize: 13.5,
-                    cursor: "pointer",
-                    color: screen === item.screen ? "var(--accent)" : "var(--fg2)",
-                    background: screen === item.screen ? "rgba(184,241,53,.08)" : "transparent",
-                  }}
-                >
-                  {item.label}
-                </div>
-              ))}
+              {group.items.map((item) => {
+                // "issue-detail" is conceptually a sub-screen of "issues" — keep the nav item
+                // highlighted while viewing a specific issue.
+                const isActive = screen === item.screen ||
+                  (item.screen === "issues" && screen === "issue-detail");
+                return (
+                  <div
+                    key={item.screen}
+                    onClick={() => {
+                      setSelectedIssueId(null);
+                      setScreen(item.screen);
+                    }}
+                    style={{
+                      padding: "8px 10px",
+                      borderRadius: 6,
+                      fontSize: 13.5,
+                      cursor: "pointer",
+                      color: isActive ? "var(--accent)" : "var(--fg2)",
+                      background: isActive ? "rgba(184,241,53,.08)" : "transparent",
+                    }}
+                  >
+                    {item.label}
+                  </div>
+                );
+              })}
             </div>
           ))}
 
@@ -265,7 +295,7 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
       </div>
 
       <div style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: 32 }}>
-        {renderScreen(screen, session)}
+        {renderScreen(screen, session, selectedIssueId, onSelectIssue, onBackToIssues)}
       </div>
     </div>
   );

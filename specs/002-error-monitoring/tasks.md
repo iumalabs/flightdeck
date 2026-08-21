@@ -94,18 +94,18 @@ event-count increment, and DSN-auth/rate-limit rejection.
 
 ### Tests for User Story 1
 
-- [ ] T010 [P] [US1] Write `tests/unit/dsn-auth.test.ts` (resolves a valid `sentry_key` from either
+- [X] T010 [P] [US1] Write `tests/unit/dsn-auth.test.ts` (resolves a valid `sentry_key` from either
       the header or query-string form per research.md §1; rejects missing/unknown/mismatched keys;
       rejects `project_id: "internal"` outright) — expect it to fail until T014 lands
-- [ ] T011 [P] [US1] Write `tests/unit/envelope.test.ts` (parses a well-formed multi-item envelope,
+- [X] T011 [P] [US1] Write `tests/unit/envelope.test.ts` (parses a well-formed multi-item envelope,
       extracts `event`-type items, correctly skips unrecognized item types using their `length`
       header per research.md §2, rejects a malformed/truncated envelope without throwing
       unhandled) — expect it to fail until T015 lands
-- [ ] T012 [P] [US1] Write `tests/unit/fingerprint.test.ts` (explicit `fingerprint` field wins;
+- [X] T012 [P] [US1] Write `tests/unit/fingerprint.test.ts` (explicit `fingerprint` field wins;
       stacktrace-based grouping for events with a stack trace; message-based fallback for
       stack-trace-less events; two events with identical stack shape produce the same fingerprint)
       — expect it to fail until T016 lands
-- [ ] T013 [P] [US1] Write `tests/contract/ingest-envelope.spec.ts` (against real `wrangler dev`:
+- [X] T013 [P] [US1] Write `tests/contract/ingest-envelope.spec.ts` (against real `wrangler dev`:
       hand-crafted envelope bodies matching contracts/ingest-api.md for both a JS-shaped and a
       Python-shaped event payload; asserts `200` + resulting issue/event rows; asserts `403` for a
       bad DSN key; asserts `429` + `X-Sentry-Rate-Limits` header format once past the rate limit)
@@ -113,29 +113,29 @@ event-count increment, and DSN-auth/rate-limit rejection.
 
 ### Implementation for User Story 1
 
-- [ ] T014 [P] [US1] Implement DSN resolution in `worker/modules/ingest/routes.ts`'s auth helper
+- [X] T014 [P] [US1] Implement DSN resolution in `worker/modules/ingest/routes.ts`'s auth helper
       (header + query-string, per contracts/ingest-api.md) (depends on T010, T005)
-- [ ] T015 [P] [US1] Implement `worker/modules/ingest/envelope.ts` — envelope grammar parser per
+- [X] T015 [P] [US1] Implement `worker/modules/ingest/envelope.ts` — envelope grammar parser per
       research.md §2 (depends on T011)
-- [ ] T016 [P] [US1] Implement `worker/modules/ingest/fingerprint.ts` — pure functions per
+- [X] T016 [P] [US1] Implement `worker/modules/ingest/fingerprint.ts` — pure functions per
       research.md §5 (explicit → stacktrace → message order); include a `resolveSourceMap` call
       site in the pipeline's intended position (before fingerprinting) that calls a stub
       (`worker/modules/ingest/sourcemap.ts` exporting a function that always returns "no
       resolution" for now — User Story 3 fills in the real implementation without needing to
       rewire this call site) (depends on T012)
-- [ ] T017 [US1] Implement `POST /api/:projectId/envelope/` in `worker/modules/ingest/routes.ts`:
+- [X] T017 [US1] Implement `POST /api/:projectId/envelope/` in `worker/modules/ingest/routes.ts`:
       rate-limit check (T006's DO) → DSN auth (T014) → envelope parse (T015) → per `event` item:
       dedupe on `(project_id, sdk_event_id)`, fingerprint (T016), upsert `issue`, insert `event`
       (depends on T014, T015, T016, T006, T007)
-- [ ] T018 [P] [US1] Implement `GET /api/internal/issues` in `worker/modules/issues/routes.ts`,
+- [X] T018 [P] [US1] Implement `GET /api/internal/issues` in `worker/modules/issues/routes.ts`,
       gated by `sessionAuth` (mirrors Module 1's `identityRoutes` pattern) (depends on T005)
-- [ ] T019 [US1] Wire `issuesRoutes` into `worker/index.ts` under `/api/internal/issues` (depends
+- [X] T019 [US1] Wire `issuesRoutes` into `worker/index.ts` under `/api/internal/issues` (depends
       on T018)
-- [ ] T020 [US1] Replace `app/shell/IssuesScreen.tsx`'s static empty state with a real list backed
+- [X] T020 [US1] Replace `app/shell/IssuesScreen.tsx`'s static empty state with a real list backed
       by `GET /api/internal/issues` (title/culprit/level/event count columns, per contracts/
       internal-api.md), keeping an honest "No issues yet" state when the list is genuinely empty
       (depends on T019)
-- [ ] T021 [US1] Run T010-T013's tests, confirm all pass (depends on T014-T020)
+- [X] T021 [US1] Run T010-T013's tests, confirm all pass (depends on T014-T020)
 
 **Checkpoint**: A real SDK's error reliably becomes a visible, correctly-grouped issue.
 
@@ -152,21 +152,21 @@ detail and confirm stack trace/breadcrumbs/context are present and correctly att
 
 ### Tests for User Story 2
 
-- [ ] T022 [P] [US2] Write a unit test for the issue-detail response shaping (stack trace frame
+- [X] T022 [P] [US2] Write a unit test for the issue-detail response shaping (stack trace frame
       mapping, breadcrumb ordering) in `tests/unit/issue-detail.test.ts` — expect it to fail until
       T023 lands
 
 ### Implementation for User Story 2
 
-- [ ] T023 [US2] Implement `GET /api/internal/issues/:id` in `worker/modules/issues/routes.ts` per
+- [X] T023 [US2] Implement `GET /api/internal/issues/:id` in `worker/modules/issues/routes.ts` per
       contracts/internal-api.md (stack trace, breadcrumbs, tags/context from the latest event;
       `suspectCommit: null` for now — User Story 4 fills this in) (depends on T019, T022)
-- [ ] T024 [P] [US2] Create `app/shell/IssueDetailScreen.tsx` — stack trace, breadcrumbs,
+- [X] T024 [P] [US2] Create `app/shell/IssueDetailScreen.tsx` — stack trace, breadcrumbs,
       tags/context display
-- [ ] T025 [US2] Add `selectedIssueId` state to `app/shell/AppShell.tsx` (research.md §11); wire
+- [X] T025 [US2] Add `selectedIssueId` state to `app/shell/AppShell.tsx` (research.md §11); wire
       clicking an issue in `IssuesScreen.tsx` to set `screen: "issue-detail"` +
       `selectedIssueId`; route to `IssueDetailScreen` (depends on T020, T024)
-- [ ] T026 [US2] Run T022's test, confirm it passes (depends on T023)
+- [X] T026 [US2] Run T022's test, confirm it passes (depends on T023)
 
 **Checkpoint**: Issues are independently diagnosable from their detail view.
 

@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { loginRoute } from "./auth/login-route.ts";
 import { identityRoutes } from "./modules/identity/routes.ts";
 import { ingestRoutes } from "./modules/ingest/routes.ts";
+import { issuesRoutes } from "./modules/issues/routes.ts";
 import type { SessionIdentity } from "./auth/session.ts";
 import { RateLimiter } from "./durable-objects/rate-limiter.ts";
 
@@ -9,7 +10,7 @@ interface Env {
   ASSETS: Fetcher;
   DB: D1Database;
   SOURCE_MAPS: R2Bucket;
-  RATE_LIMITER: DurableObjectNamespace;
+  RATE_LIMITER: DurableObjectNamespace<RateLimiter>;
   TEAM_DOMAIN: string;
   POLICY_AUD: string;
   CF_ACCOUNT_ID: string;
@@ -27,6 +28,7 @@ app.route("/", loginRoute);
 // Every other control-plane route is gated by sessionAuth (mounted inside identityRoutes) instead
 // of Access directly, since Access doesn't inject its header outside /login.
 app.route("/api/internal", identityRoutes);
+app.route("/api/internal/issues", issuesRoutes);
 
 // Public, DSN-key-authenticated ingest (constitution Principle III) — deliberately NOT behind
 // sessionAuth or Access. Registered as a sibling to /api/internal, not nested inside it; Hono
