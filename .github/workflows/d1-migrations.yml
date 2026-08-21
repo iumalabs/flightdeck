@@ -1,0 +1,48 @@
+name: D1 migrations
+
+# Applies pending worker/db/migrations/*.sql to both remote D1 databases on every merge to main —
+# Cloudflare Workers Builds deploys the Worker itself, but never runs D1 migrations on its own.
+# Confirmed live: the 0001_baseline.sql migration was applied locally (--local) during development
+# but never against the remote flightdeck-production database, so the real Cloudflare Access login
+# flow 500'd on its first-ever real run (upsertUser hit "no such table: users"). Scoped to path
+# changes under worker/db/migrations/ so unrelated merges don't trigger a run. Also runnable on
+# demand (workflow_dispatch) for cases like this workflow's own launch, where an already-merged
+# migration predates the workflow and so never touched this path filter.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "worker/db/migrations/**"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: d1-migrations-${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: apply pending migrations
+    # Production-mutating (wrangler d1 migrations apply --remote against flightdeck-production/
+    # -preview) — deploy tier, not general. No pull_request trigger on this workflow (push to
+    # main, path-filtered, plus workflow_dispatch), so the fork-safe conditional ci.yml uses isn't
+    # needed here — see maksimyugai/github-runners's deploy/RUNBOOK.md.
+    runs-on: [self-hosted, deploy]
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - run: deno install
+
+      - name: apply production migrations
+        run: deno task db:migrations:apply:remote
+
+      - name: apply preview migrations
+        run: deno task db:migrations:apply:preview:remote
