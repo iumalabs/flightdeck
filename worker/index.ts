@@ -4,6 +4,7 @@ import { identityRoutes } from "./modules/identity/routes.ts";
 import { ingestRoutes } from "./modules/ingest/routes.ts";
 import { issuesRoutes } from "./modules/issues/routes.ts";
 import { projectsRoutes } from "./modules/projects/routes.ts";
+import { githubRoutes } from "./modules/github/routes.ts";
 import type { SessionIdentity } from "./auth/session.ts";
 import { RateLimiter } from "./durable-objects/rate-limiter.ts";
 
@@ -31,6 +32,7 @@ app.route("/", loginRoute);
 app.route("/api/internal", identityRoutes);
 app.route("/api/internal/issues", issuesRoutes);
 app.route("/api/internal/projects", projectsRoutes);
+app.route("/api/internal/projects", githubRoutes);
 
 // Public, DSN-key-authenticated ingest (constitution Principle III) — deliberately NOT behind
 // sessionAuth or Access. Registered as a sibling to /api/internal, not nested inside it; Hono

@@ -233,30 +233,30 @@ confirm the suspect commit shown matches the actual most recent commit touching 
 
 ### Tests for User Story 4
 
-- [ ] T036 [P] [US4] Write `tests/unit/github-app-auth.test.ts` (signs a valid App JWT from a test
+- [X] T036 [P] [US4] Write `tests/unit/github-app-auth.test.ts` (signs a valid App JWT from a test
       private key; the installation-token exchange call shape matches research.md §10 — mock the
       GitHub API boundary, don't hit the real network in a unit test) — expect it to fail until
       T037 lands
 
 ### Implementation for User Story 4
 
-- [ ] T037 [US4] Implement `worker/modules/github/app-auth.ts` — App JWT signing (via the existing
+- [X] T037 [US4] Implement `worker/modules/github/app-auth.ts` — App JWT signing (via the existing
       `jose` dependency) + installation-access-token exchange, per research.md §10's exact flow
       (never persists the resulting token) (depends on T036, T003)
-- [ ] T038 [US4] Implement `POST /api/internal/projects/:id/github/connect` and
+- [X] T038 [US4] Implement `POST /api/internal/projects/:id/github/connect` and
       `DELETE /api/internal/projects/:id/github` in `worker/modules/github/routes.ts` per
       contracts/internal-api.md, including `audit_log` entries on both connect and disconnect
       (constitution Principle X) (depends on T037, T005)
-- [ ] T039 [US4] Implement the suspect-commit lookup (`GET /repos/{owner}/{repo}/commits?
+- [X] T039 [US4] Implement the suspect-commit lookup (`GET /repos/{owner}/{repo}/commits?
       path={file}` via T037's on-demand token) and wire it into `GET /api/internal/issues/:id`'s
       `suspectCommit` field (currently `null` per T023), returning `null` (not an error) when no
       repo is connected, the file isn't found, or the credential exchange fails (spec FR-011)
       (depends on T037, T023)
-- [ ] T040 [US4] Add a "Connect GitHub" UI (installation-flow entry point + connected-repo display)
+- [X] T040 [US4] Add a "Connect GitHub" UI (installation-flow entry point + connected-repo display)
       to `app/shell/SettingsScreen.tsx` (depends on T038)
-- [ ] T041 [US4] Update `app/shell/IssueDetailScreen.tsx` to show the suspect commit when present
+- [X] T041 [US4] Update `app/shell/IssueDetailScreen.tsx` to show the suspect commit when present
       (depends on T024, T039)
-- [ ] T042 [US4] Run T036's test, confirm it passes (depends on T037-T041)
+- [X] T042 [US4] Run T036's test, confirm it passes (depends on T037-T041)
 
 **Checkpoint**: All four user stories are independently functional.
 

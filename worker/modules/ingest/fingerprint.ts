@@ -52,11 +52,17 @@ export function deriveTitle(event: EventPayload): string {
   return messageText(event);
 }
 
-export function deriveCulprit(event: EventPayload): string | null {
+// The innermost (last) relevant frame — where the exception was actually raised. Shared by
+// deriveCulprit (the function/module name shown as the issue's culprit) and User Story 4's
+// suspect-commit lookup (which needs this same frame's file path).
+export function deriveCulpritFrame(event: EventPayload): StackFrame | null {
   const frames = primaryException(event)?.stacktrace?.frames;
   if (!frames || frames.length === 0) return null;
-  // The innermost (last) relevant frame — where the exception was actually raised.
-  const top = relevantFrames(frames).at(-1);
+  return relevantFrames(frames).at(-1) ?? null;
+}
+
+export function deriveCulprit(event: EventPayload): string | null {
+  const top = deriveCulpritFrame(event);
   if (!top) return null;
   return top.function ?? top.module ?? top.filename ?? null;
 }

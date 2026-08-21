@@ -53,6 +53,18 @@ test("uploading a source map for a not-yet-seen release implicitly creates the r
 
 test("an uploaded map is actually used to resolve a subsequently ingested event's stack trace", async ({ request }) => {
   const release = `contract-test-${crypto.randomUUID()}`;
+  const eventId = crypto.randomUUID();
+  // Resolution runs before fingerprinting (research.md §5), so the resolved function name IS part
+  // of the issue's identity — a fixed name here would collide with every other run of this test
+  // against the same fingerprint, updating an existing issue's event_count instead of creating a
+  // fresh one this test can unambiguously look up by title.
+  const resolvedName = `render_${eventId}`;
+  const sourceMap = JSON.stringify({
+    version: 3,
+    sources: ["app.js"],
+    names: [resolvedName],
+    mappings: "AAAAA",
+  });
 
   const upload = await request.post(`/api/internal/projects/${DEMO_PROJECT_ID}/source-maps`, {
     headers: { Cookie: await sessionCookie() },
@@ -62,7 +74,7 @@ test("an uploaded map is actually used to resolve a subsequently ingested event'
       file: {
         name: "app.min.js.map",
         mimeType: "application/json",
-        buffer: Buffer.from(REAL_SOURCE_MAP),
+        buffer: Buffer.from(sourceMap),
       },
     },
   });
@@ -70,7 +82,6 @@ test("an uploaded map is actually used to resolve a subsequently ingested event'
 
   const dsnKey = await getDsnKey();
 
-  const eventId = crypto.randomUUID();
   const uniqueMessage = `boom-${eventId}`;
   const eventJson = JSON.stringify({
     event_id: eventId,
@@ -110,5 +121,5 @@ test("an uploaded map is actually used to resolve a subsequently ingested event'
   const frame = detailBody.latestEvent.stacktrace.frames[0];
   expect(frame.resolved).toBe(true);
   expect(frame.filename).toBe("app.js");
-  expect(frame.function).toBe("render");
+  expect(frame.function).toBe(resolvedName);
 });

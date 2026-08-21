@@ -2,9 +2,13 @@ import { Hono } from "hono";
 import { sessionAuth } from "../../auth/session.ts";
 import type { SessionIdentity } from "../../auth/session.ts";
 import type { Breadcrumb, EventPayload, StackFrame } from "../ingest/types.ts";
+import { deriveCulpritFrame } from "../ingest/fingerprint.ts";
+import { lookupSuspectCommit } from "../github/suspect-commit.ts";
 
 interface Env {
   DB: D1Database;
+  GITHUB_APP_ID: string;
+  GITHUB_APP_PRIVATE_KEY: string;
 }
 
 export const issuesRoutes = new Hono<
@@ -15,6 +19,7 @@ issuesRoutes.use("*", sessionAuth);
 
 interface IssueRow {
   id: string;
+  project_id: string;
   title: string;
   culprit: string | null;
   level: string;
@@ -74,13 +79,13 @@ export function shapeLatestEvent(payload: EventPayload): LatestEvent {
 }
 
 // contracts/internal-api.md's GET /api/internal/issues/{id} — the latest event's stack trace,
-// breadcrumbs, and tags/context. suspectCommit is always null until User Story 4 (research.md §10)
-// wires the GitHub lookup in.
+// breadcrumbs, and tags/context, plus the suspect commit (spec FR-011, research.md §10) when a
+// GitHub repo is connected.
 issuesRoutes.get("/:id", async (c) => {
   const id = c.req.param("id");
   const issue = await c.env.DB
     .prepare(
-      `SELECT id, title, culprit, level, event_count, first_seen, last_seen
+      `SELECT id, project_id, title, culprit, level, event_count, first_seen, last_seen
        FROM issues WHERE id = ?1`,
     )
     .bind(id)
@@ -98,13 +103,23 @@ issuesRoutes.get("/:id", async (c) => {
     .first<EventRow>();
 
   let latestEvent: LatestEvent | null = null;
+  let culpritFrame: StackFrame | null = null;
   if (latestEventRow) {
     try {
-      latestEvent = shapeLatestEvent(JSON.parse(latestEventRow.payload) as EventPayload);
+      const payload = JSON.parse(latestEventRow.payload) as EventPayload;
+      latestEvent = shapeLatestEvent(payload);
+      culpritFrame = deriveCulpritFrame(payload);
     } catch {
       latestEvent = null;
     }
   }
+
+  const suspectCommit = await lookupSuspectCommit(
+    c.env.DB,
+    c.env,
+    issue.project_id,
+    culpritFrame?.filename,
+  );
 
   return c.json({
     id: issue.id,
@@ -115,6 +130,6 @@ issuesRoutes.get("/:id", async (c) => {
     firstSeen: issue.first_seen,
     lastSeen: issue.last_seen,
     latestEvent,
-    suspectCommit: null,
+    suspectCommit,
   });
 });

@@ -88,6 +88,103 @@ function SourceMapUpload({ project }: { project: Project | null }) {
   );
 }
 
+type ConnectStatus = { kind: "idle" } | { kind: "connected" } | { kind: "disconnected" } | {
+  kind: "error";
+};
+
+// contracts/internal-api.md deliberately has no endpoint to browse/select repos or read back the
+// current connection (non-goal) — FlightDeck records the result of GitHub's own App installation
+// flow, it doesn't build a repo picker. In a real deployment `installationId`/`owner`/`repo` come
+// from that installation flow's callback; this form accepts them directly as this module's minimal
+// stand-in for wiring up that redirect.
+function GitHubConnect({ project }: { project: Project | null }) {
+  const [installationId, setInstallationId] = useState("");
+  const [owner, setOwner] = useState("");
+  const [repo, setRepo] = useState("");
+  const [status, setStatus] = useState<ConnectStatus>({ kind: "idle" });
+
+  const connect = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!project) return;
+
+    const res = await fetch(`/api/internal/projects/${project.id}/github/connect`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ installationId, owner, repo }),
+    });
+    setStatus(res.ok ? { kind: "connected" } : { kind: "error" });
+  };
+
+  const disconnect = async () => {
+    if (!project) return;
+    const res = await fetch(`/api/internal/projects/${project.id}/github`, {
+      method: "DELETE",
+      credentials: "same-origin",
+    });
+    setStatus(res.ok ? { kind: "disconnected" } : { kind: "error" });
+  };
+
+  return (
+    <div
+      style={{
+        border: "1px solid var(--line)",
+        background: "var(--panel)",
+        maxWidth: 480,
+        padding: 18,
+        marginTop: 20,
+      }}
+    >
+      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Connect GitHub</div>
+      <form onSubmit={connect} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <input
+          placeholder="Installation ID"
+          value={installationId}
+          onChange={(e) => setInstallationId(e.target.value)}
+          required
+          style={inputStyle}
+        />
+        <input
+          placeholder="Owner (e.g. iumalabs)"
+          value={owner}
+          onChange={(e) => setOwner(e.target.value)}
+          required
+          style={inputStyle}
+        />
+        <input
+          placeholder="Repo (e.g. flightdeck)"
+          value={repo}
+          onChange={(e) => setRepo(e.target.value)}
+          required
+          style={inputStyle}
+        />
+        <div style={{ display: "flex", gap: 8 }}>
+          <button type="submit" disabled={!project} style={buttonStyle}>
+            Connect
+          </button>
+          <button
+            type="button"
+            onClick={disconnect}
+            disabled={!project}
+            style={secondaryButtonStyle}
+          >
+            Disconnect
+          </button>
+        </div>
+        {status.kind === "connected" && (
+          <span style={{ color: "var(--accent)", fontSize: 12.5 }}>Repository connected.</span>
+        )}
+        {status.kind === "disconnected" && (
+          <span style={{ color: "var(--fg2)", fontSize: 12.5 }}>Repository disconnected.</span>
+        )}
+        {status.kind === "error" && (
+          <span style={{ color: "#FF4D4D", fontSize: 12.5 }}>Request failed.</span>
+        )}
+      </form>
+    </div>
+  );
+}
+
 const inputStyle: React.CSSProperties = {
   fontSize: 13,
   padding: "6px 10px",
@@ -106,6 +203,16 @@ const buttonStyle: React.CSSProperties = {
   borderRadius: 4,
   cursor: "pointer",
   fontWeight: 600,
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  fontSize: 13,
+  padding: "6px 10px",
+  background: "transparent",
+  color: "var(--fg2)",
+  border: "1px solid var(--line2)",
+  borderRadius: 4,
+  cursor: "pointer",
 };
 
 export function SettingsScreen({ session }: { session: Session }) {
@@ -169,6 +276,7 @@ export function SettingsScreen({ session }: { session: Session }) {
       </div>
 
       <SourceMapUpload project={project} />
+      <GitHubConnect project={project} />
 
       <p style={{ fontSize: 13, color: "var(--fg3)", marginTop: 16, maxWidth: 480 }}>
         Member management, project settings and billing are not part of this workspace yet.
