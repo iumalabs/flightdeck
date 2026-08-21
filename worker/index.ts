@@ -1,15 +1,25 @@
 import { Hono } from "hono";
 import { loginRoute } from "./auth/login-route.ts";
 import { identityRoutes } from "./modules/identity/routes.ts";
+import { ingestRoutes } from "./modules/ingest/routes.ts";
+import { issuesRoutes } from "./modules/issues/routes.ts";
+import { projectsRoutes } from "./modules/projects/routes.ts";
+import { githubRoutes } from "./modules/github/routes.ts";
+import { pruneOldEvents } from "./modules/ingest/retention.ts";
 import type { SessionIdentity } from "./auth/session.ts";
+import { RateLimiter } from "./durable-objects/rate-limiter.ts";
 
 interface Env {
   ASSETS: Fetcher;
   DB: D1Database;
+  SOURCE_MAPS: R2Bucket;
+  RATE_LIMITER: DurableObjectNamespace<RateLimiter>;
   TEAM_DOMAIN: string;
   POLICY_AUD: string;
   CF_ACCOUNT_ID: string;
   SESSION_SECRET: string;
+  GITHUB_APP_ID: string;
+  GITHUB_APP_PRIVATE_KEY: string;
 }
 
 const app = new Hono<{ Bindings: Env; Variables: { identity: SessionIdentity } }>();
@@ -21,6 +31,18 @@ app.route("/", loginRoute);
 // Every other control-plane route is gated by sessionAuth (mounted inside identityRoutes) instead
 // of Access directly, since Access doesn't inject its header outside /login.
 app.route("/api/internal", identityRoutes);
+app.route("/api/internal/issues", issuesRoutes);
+app.route("/api/internal/projects", projectsRoutes);
+app.route("/api/internal/projects", githubRoutes);
+
+// Public, DSN-key-authenticated ingest (constitution Principle III) — deliberately NOT behind
+// sessionAuth or Access. Registered as a sibling to /api/internal, not nested inside it; Hono
+// resolves the literal "internal" path segment ahead of the dynamic :projectId segment at the same
+// position, and the ingest handler itself defensively rejects project_id "internal" regardless
+// (research.md §3, specs/002-error-monitoring). Mounted at "/api" (not "/api/:projectId") so the
+// full ":projectId/envelope" pattern is defined directly inside ingestRoutes, rather than relying
+// on Hono's cross-router param propagation.
+app.route("/api", ingestRoutes);
 
 export default {
   fetch(request: Request, env: Env, ctx: ExecutionContext): Response | Promise<Response> {
@@ -32,6 +54,13 @@ export default {
     }
     return env.ASSETS.fetch(request);
   },
+
+  scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
+    // Daily retention prune (constitution Principle IX, spec FR-015) — deletes events past the
+    // default 90-day window (research.md §8); the owning issue's summary row is untouched.
+    ctx.waitUntil(pruneOldEvents(env.DB).then(() => undefined));
+  },
 } satisfies ExportedHandler<Env>;
 
 export { app };
+export { RateLimiter };

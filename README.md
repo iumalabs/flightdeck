@@ -20,11 +20,15 @@ README covers day-to-day setup and operation only.
 
 ## Status
 
-Module 1 (**Landing site, Access login, and app-shell skeleton**) is implemented — see
-[`specs/001-landing-access-login/`](specs/001-landing-access-login/) for its spec, plan, and tasks.
-This is the first module in the constitution's product scope (§2); no ingest endpoint, real
-telemetry data, or DSN issuance exists yet. Not yet deployed — see [Deployment](#deployment) for the
-one-time Cloudflare-dashboard step that has to happen before `release` builds go live.
+Module 1 (**Landing site, Access login, and app-shell skeleton**) and Module 2 (**Error
+monitoring**) are implemented — see
+[`specs/001-landing-access-login/`](specs/001-landing-access-login/) and
+[`specs/002-error-monitoring/`](specs/002-error-monitoring/) for their specs, plans, and tasks.
+Module 2 adds the platform's first public, DSN-authenticated ingest surface (Sentry envelope
+protocol), issue grouping with source-map-aware fingerprinting, source map upload/resolution, and
+GitHub App-based suspect commits — see the constitution for the full trust-surface split. Not yet
+deployed — see [Deployment](#deployment) for the one-time Cloudflare-dashboard step that has to
+happen before `release` builds go live.
 
 ## Authentication
 
@@ -34,9 +38,9 @@ one origin, so Access cannot gate "the app-shell part" directly without a distin
 path. `/login` verifies the `Cf-Access-Jwt-Assertion` header Access injects there, then mints
 FlightDeck's own signed `fd_session` cookie, which is what every other control-plane request
 (`/api/internal/*`) is verified against. Both steps fail closed on any verification error
-(constitution Principle II). Future ingest endpoints (`/api/{project_id}/envelope/` etc.) will be
-public by design, authenticated by each project's DSN key instead — see the constitution for the
-full trust-surface split.
+(constitution Principle II). The ingest endpoint (`/api/{project_id}/envelope`) is public by design,
+authenticated by each project's DSN key instead — see the constitution for the full trust-surface
+split.
 
 **Required manual post-deploy step**: Preview URLs default to public. Restrict them via **Workers &
 Pages → flightdeck → Access tab → Protect this Worker behind Access**, scope set to **Previews
@@ -46,12 +50,14 @@ setup flow either, for the same reason — it is not scoped to previews-only the
 
 ## Environment
 
-| Variable         | Example                              | Notes                                                                                                                                                                                                     |
-| ---------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TEAM_DOMAIN`    | `https://yugai.cloudflareaccess.com` | Cloudflare Access team domain; enables JWT verification. Non-secret.                                                                                                                                      |
-| `POLICY_AUD`     | _(Access application AUD tag)_       | Expected audience claim of `Cf-Access-Jwt-Assertion`. Non-secret.                                                                                                                                         |
-| `CF_ACCOUNT_ID`  | `8b655d0dde6d223b9ce11116a014973a`   | Cloudflare account id. Non-secret.                                                                                                                                                                        |
-| `SESSION_SECRET` | _(random string)_                    | **Secret** — HMAC key `/login` signs the `fd_session` cookie with. Set via `wrangler versions secret put SESSION_SECRET` (no `--env` flag — see the comment in `wrangler.jsonc`), never as a plain `var`. |
+| Variable                 | Example                              | Notes                                                                                                                                                                                                       |
+| ------------------------ | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TEAM_DOMAIN`            | `https://yugai.cloudflareaccess.com` | Cloudflare Access team domain; enables JWT verification. Non-secret.                                                                                                                                        |
+| `POLICY_AUD`             | _(Access application AUD tag)_       | Expected audience claim of `Cf-Access-Jwt-Assertion`. Non-secret.                                                                                                                                           |
+| `CF_ACCOUNT_ID`          | `8b655d0dde6d223b9ce11116a014973a`   | Cloudflare account id. Non-secret.                                                                                                                                                                          |
+| `SESSION_SECRET`         | _(random string)_                    | **Secret** — HMAC key `/login` signs the `fd_session` cookie with. Set via `wrangler versions secret put SESSION_SECRET` (no `--env` flag — see the comment in `wrangler.jsonc`), never as a plain `var`.   |
+| `GITHUB_APP_ID`          | _(GitHub App ID)_                    | Non-secret. Identifies the GitHub App used for User Story 4's suspect-commit lookups (specs/002-error-monitoring/research.md §10).                                                                          |
+| `GITHUB_APP_PRIVATE_KEY` | _(PEM-encoded RSA private key)_      | **Secret** — signs short-lived App JWTs on demand; installation access tokens exchanged from it are never persisted. Set via `wrangler versions secret put GITHUB_APP_PRIVATE_KEY`, never as a plain `var`. |
 
 Copy `.dev.vars.example` to `.dev.vars` (gitignored) for local `deno task dev`.
 
