@@ -3,11 +3,13 @@ import type { ReactElement } from "react";
 import { useSession } from "./lib/use-session.ts";
 import { MarketingNav } from "./components/MarketingNav.tsx";
 import { Footer } from "./components/Footer.tsx";
+import { SignInModal } from "./components/SignInModal.tsx";
 import { HomePage } from "./pages/HomePage.tsx";
 import { ProductPage } from "./pages/ProductPage.tsx";
 import { DocsPage } from "./pages/DocsPage.tsx";
 import { SelfHostingPage } from "./pages/SelfHostingPage.tsx";
 import { ChangelogPage } from "./pages/ChangelogPage.tsx";
+import { AppShell } from "./shell/AppShell.tsx";
 
 // Hand-rolled router (research.md §4): a pathname → screen lookup table, driven by real
 // history.pushState/popstate so deep links and browser back/forward work. Not a router library —
@@ -53,16 +55,26 @@ function renderMarketingPage(
 
 export function App() {
   const [pathname, navigate] = usePathname();
-  const { loading, session } = useSession();
+  const { loading, session, signOut } = useSession();
   const [signInOpen, setSignInOpen] = useState(false);
 
   if (loading) {
     return null;
   }
 
+  // A session is authoritative regardless of pathname — a returning user with a still-valid
+  // fd_session lands in the app shell even at "/" (spec US2 AC4), not only at /web-app/*.
   if (session) {
-    // Wired in by User Story 2/3 — the authenticated app-shell branch.
-    return <div>Loading FlightDeck…</div>;
+    return (
+      <AppShell
+        session={session}
+        signOut={() => {
+          signOut();
+          navigate("/");
+        }}
+        navigate={navigate}
+      />
+    );
   }
 
   return (
@@ -85,8 +97,7 @@ export function App() {
       />
       {renderMarketingPage(pathname, navigate, () => setSignInOpen(true), false)}
       <Footer navigate={navigate} />
-      {/* SignInModal wired in by User Story 2 */}
-      {signInOpen && null}
+      <SignInModal open={signInOpen} onClose={() => setSignInOpen(false)} />
     </div>
   );
 }

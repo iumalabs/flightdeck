@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { E2E_SESSION_SECRET } from "./tests/e2e/support/constants.ts";
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -17,9 +18,13 @@ export default defineConfig({
     // 404s), while a real build served through `wrangler dev` correctly falls back to
     // index.html, matching production (Workers Builds) behavior. Building first and driving
     // e2e against `wrangler dev` is what actually exercises the SPA-fallback behavior spec
-    // FR-002 requires — `--env preview` so the preview D1 binding/vars are available once
-    // later modules add them.
-    command: "deno run -A npm:vite build && deno run -A npm:wrangler dev --port 8787 --env preview",
+    // FR-002 requires — `--env preview` so the preview D1 binding/vars are available. SESSION_SECRET
+    // is declared as a required *secret* (constitution Principle IX) so it's deliberately absent
+    // from wrangler.jsonc/committed config; CI has no `.dev.vars` file (gitignored), so it's passed
+    // here instead — a fixed, e2e-only value, never a real credential — matching the constant
+    // tests/e2e/support/session.ts uses to mint pre-authenticated cookies.
+    command:
+      `deno run -A npm:vite build && deno run -A npm:wrangler dev --port 8787 --env preview --var SESSION_SECRET:${E2E_SESSION_SECRET}`,
     port: 8787,
     reuseExistingServer: !Deno.env.get("CI"),
     timeout: 60_000,

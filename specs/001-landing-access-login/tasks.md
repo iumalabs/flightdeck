@@ -154,55 +154,57 @@ Story 2").
 
 ### Tests for User Story 2
 
-- [ ] T027 [P] [US2] Write `tests/unit/access-jwt.test.ts` (`verifyAccessJwt`: valid signed JWT
+- [X] T027 [P] [US2] Write `tests/unit/access-jwt.test.ts` (`verifyAccessJwt`: valid signed JWT
       against a test JWKS → returns identity; missing header → rejected; invalid signature →
       rejected; wrong audience/issuer → rejected; expired token → rejected) and
       `tests/unit/session.test.ts` (`mintSession`/`sessionAuth`: a minted token verifies and
       round-trips `sub`/`email`/`role`; a tampered/expired/missing `fd_session` cookie → 403) — per
       contracts/internal-api.md — expect both to fail until T031a/T031b land
-- [ ] T028 [P] [US2] Write `tests/unit/identity-users.test.ts` (first call for a `sub` inserts a
+- [X] T028 [P] [US2] Write `tests/unit/identity-users.test.ts` (first call for a `sub` inserts a
       user with default role and `created_at`/`last_seen_at`; a second call updates `email` and
       `last_seen_at` while preserving `created_at`/`role` — per data-model.md) — expect it to fail
       until T032 lands
 
 ### Implementation for User Story 2
 
-- [ ] T029 [US2] Create `worker/db/migrations/0001_baseline.sql` (`users` table, `sub`-keyed, per
+- [X] T029 [US2] Create `worker/db/migrations/0001_baseline.sql` (`users` table, `sub`-keyed, per
       data-model.md; seed one `projects` row per research.md §7)
-- [ ] T030 [US2] Apply the migration locally: `deno task db:migrations:apply:local` (depends on
+- [X] T030 [US2] Apply the migration locally: `deno task db:migrations:apply:local` (depends on
       T029)
-- [ ] T031a [P] [US2] Create `worker/auth/access-jwt.ts` — `verifyAccessJwt(request, env)` (`jose`
+- [X] T031a [P] [US2] Create `worker/auth/access-jwt.ts` — `verifyAccessJwt(request, env)` (`jose`
       `createRemoteJWKSet` cached per team domain, `jwtVerify` with issuer=`TEAM_DOMAIN`/
       audience=`POLICY_AUD` against the `Cf-Access-Jwt-Assertion` header, fail-closed on any
       failure) — adapt (do not copy verbatim) the pattern in
       `/home/max/projects/iumalabs/cf/flaretower/worker/auth/access-jwt.ts`. Per research.md §1
       this is used ONLY by the `/login` route below, not by every control-plane request (depends
       on T030)
-- [ ] T031b [P] [US2] Create `worker/auth/session.ts` — `mintSession({sub, email, role}, env)` and
+- [X] T031b [P] [US2] Create `worker/auth/session.ts` — `mintSession({sub, email, role}, env)` and
       `sessionAuth` Hono middleware verifying the `fd_session` cookie (`jose` `SignJWT`/
       `jwtVerify`, HMAC signed with the `SESSION_SECRET` Worker secret), fail-closed 403 on
       missing/invalid/expired/tampered token (depends on T030)
-- [ ] T032 [P] [US2] Create `worker/modules/identity/users.ts` — `upsertUser(db, {sub, email,
+- [X] T032 [P] [US2] Create `worker/modules/identity/users.ts` — `upsertUser(db, {sub, email,
       idp})` per data-model.md (depends on T030)
-- [ ] T032b [US2] Create `worker/auth/login-route.ts` — `GET /login`: calls `verifyAccessJwt`, on
+- [X] T032b [US2] Create `worker/auth/login-route.ts` — `GET /login`: calls `verifyAccessJwt`, on
       success calls `upsertUser` then `mintSession` and sets the `fd_session` cookie
       (`HttpOnly`/`Secure`/`SameSite=Lax`) with a `302` to `/web-app/`; on failure, `403` with no
-      cookie set (depends on T031a, T032)
-- [ ] T033 [US2] Create `worker/modules/identity/routes.ts` — `GET /api/internal/me`,
+      cookie set. Also `POST /logout` in the same file: overwrites `fd_session` with an expired
+      cookie, `204` — needed because an `HttpOnly` cookie can't be cleared from client JS
+      (research.md §3 correction) (depends on T031a, T032)
+- [X] T033 [US2] Create `worker/modules/identity/routes.ts` — `GET /api/internal/me`,
       `GET /api/internal/projects`, gated by `sessionAuth` — per contracts/internal-api.md
       (depends on T031b, T032)
-- [ ] T034 [US2] Wire the `/login` route and the `sessionAuth`-gated identity routes into
+- [X] T034 [US2] Wire the `/login` route and the `sessionAuth`-gated identity routes into
       `worker/index.ts` (depends on T032b, T033, T012)
-- [ ] T035 [US2] Implement `app/lib/use-session.ts` fully — calls `GET /api/internal/me`, exposes
+- [X] T035 [US2] Implement `app/lib/use-session.ts` fully — calls `GET /api/internal/me`, exposes
       `{ loading, session }` (depends on T034, T016)
-- [ ] T036 [P] [US2] Create `app/components/SignInModal.tsx` — "Sign in" modal matching the
+- [X] T036 [P] [US2] Create `app/components/SignInModal.tsx` — "Sign in" modal matching the
       design's copy/layout; "Continue with Cloudflare Access" performs a real full-page browser
       navigation to `/login` (the one path Access actually protects — no simulated timer)
-- [ ] T037 [US2] Create a minimal `app/shell/AppShell.tsx` (topbar + sidebar nav links + a basic
+- [X] T037 [US2] Create a minimal `app/shell/AppShell.tsx` (topbar + sidebar nav links + a basic
       landing panel showing the signed-in identity) and wire `App.tsx`'s router to switch between
       marketing site and shell based on `use-session.ts`'s session state (depends on T035, T036,
       T015)
-- [ ] T038 [US2] Run `tests/unit/access-jwt.test.ts`, `tests/unit/session.test.ts`, and
+- [X] T038 [US2] Run `tests/unit/access-jwt.test.ts`, `tests/unit/session.test.ts`, and
       `tests/unit/identity-users.test.ts`, confirm all pass (depends on T031a, T031b, T032-T034)
 - [ ] T039 [US2] Manually verify the real end-to-end Access redirect against the deployed preview
       environment per quickstart.md (research.md §5 — not automatable in CI); record the outcome

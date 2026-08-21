@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 export interface Session {
   sub: string;
   email: string;
@@ -12,8 +14,40 @@ export interface UseSessionResult {
   signOut: () => void;
 }
 
-// Stub for Phase 2 (Foundational) — App.tsx compiles against this shape ahead of the real
-// implementation, which lands in User Story 2 (worker/auth + GET /api/internal/me wiring).
 export function useSession(): UseSessionResult {
-  return { loading: false, session: null, signOut: () => {} };
+  const [loading, setLoading] = useState(true);
+  const [session, setSession] = useState<Session | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/internal/me", { credentials: "same-origin" })
+      .then((res) => (res.ok ? res.json() as Promise<Session> : null))
+      .then((data) => {
+        if (!cancelled) setSession(data);
+      })
+      .catch(() => {
+        if (!cancelled) setSession(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const signOut = () => {
+    // fd_session is HttpOnly (worker/auth/session.ts), so it can only be cleared server-side —
+    // POST /logout overwrites it with an expired cookie (research.md §3 correction: sign-out
+    // still needs one server call, just not one that touches the Access session itself). Local
+    // state clears immediately rather than waiting on the network round-trip, since there's
+    // nothing meaningful to show mid-flight and the cookie clear can't fail in a way the UI
+    // would need to react to.
+    setSession(null);
+    fetch("/logout", { method: "POST", credentials: "same-origin" }).catch(() => {});
+  };
+
+  return { loading, session, signOut };
 }

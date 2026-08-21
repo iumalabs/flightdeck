@@ -69,11 +69,15 @@ users," which a single upsert satisfies without a separate provisioning step or 
 
 ## 3. Sign-out semantics against Cloudflare Access
 
-**Decision**: FlightDeck's sign-out clears only FlightDeck's own client-side session recognition
-(the SPA's in-memory/local session state derived from `GET /api/internal/me`) and navigates back to
-the marketing site. It does not attempt to revoke the underlying Cloudflare Access session/cookie —
-Access owns that session lifecycle (its own `session_duration`, currently 24h per the existing
-Access application config) independently of the application behind it, and Access does not expose an
+**Decision**: FlightDeck's sign-out clears FlightDeck's own session only — both the client-side
+recognition (SPA state derived from `GET /api/internal/me`) and, since §1's pivot introduced a
+FlightDeck-issued `fd_session` cookie, the cookie itself, via `POST /logout` overwriting it with an
+expired one. (An earlier draft of this decision assumed sign-out needed no server call at all —
+that assumption predates the `/login`-bounce-with-session-cookie design in §1; a `HttpOnly` cookie
+cannot be cleared from client JS, so a server round-trip is unavoidable once that cookie exists.)
+Sign-out does not attempt to revoke the underlying Cloudflare Access session/cookie — Access owns
+that session lifecycle (its own `session_duration`, currently 24h per the existing Access
+application config) independently of the application behind it, and Access does not expose an
 application-triggerable "log this session out" API for a self-hosted application to call on the
 user's behalf.
 
@@ -83,10 +87,12 @@ which explicitly scope sign-out to FlightDeck's own recognition, not the IdP ses
 truly wants to end their Access session altogether uses Cloudflare's own sign-out mechanism
 (`/cdn-cgi/access/logout` on the team domain), which is out of scope to build UI around in this
 module but does not need to be — FlightDeck's own sign-out already satisfies spec FR-012 ("their
-next visit to an authenticated area requires signing in again"): even with a live Access cookie, the
-sign-in modal's "Continue with Cloudflare Access" click re-enters the Access flow, and Access will
-silently re-approve without a fresh challenge only because the *user's* Access session is still
-valid — which is correct, expected behavior, not a bug in FlightDeck's own sign-out.
+next visit to an authenticated area requires signing in again"): with `fd_session` actually cleared
+server-side, the next `/api/internal/*` request is unauthenticated regardless of any lingering
+Access cookie; a fresh "Continue with Cloudflare Access" click would still re-enter `/login`, and
+Access may silently re-approve there without a fresh IdP challenge only because the *user's* Access
+session is still valid — which is correct, expected behavior for Access's own session, not a gap in
+FlightDeck's sign-out.
 
 **Alternatives considered**: Linking to `/cdn-cgi/access/logout` from FlightDeck's sign-out action
 (deferred, not rejected — worth adding as a later, low-effort enhancement once the base flow is
