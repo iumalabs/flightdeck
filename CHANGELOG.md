@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.3.0](https://github.com/iumalabs/flightdeck/compare/v0.2.2...v0.3.0) (2026-08-21)
+
+
+### Features
+
+* GitHub App suspect-commit lookup (Module 2 US4) ([3bba6a5](https://github.com/iumalabs/flightdeck/commit/3bba6a5d45bdf2cb58b88e83137e63a33c9f6fab))
+* ingest pipeline and issue list/detail (Module 2 US1+US2) ([074fe01](https://github.com/iumalabs/flightdeck/commit/074fe0111d8edecb4242c2f3eb59171673588cc1))
+* Module 2 foundational scaffold (bindings, migration, routing split) ([2dffaa8](https://github.com/iumalabs/flightdeck/commit/2dffaa802aea615d0596358e1cbb21625d46a4d7))
+* retention job, e2e coverage, and docs (Module 2 Polish) ([679fbc8](https://github.com/iumalabs/flightdeck/commit/679fbc84d8849d31aff8977b417fc7d60f1a711e))
+* source map resolution and upload (Module 2 US3) ([3bb3249](https://github.com/iumalabs/flightdeck/commit/3bb3249918ccc19c2b62ed2ef181161fcfa8b542))
+
+
+### Bug Fixes
+
+* run deno fmt on README.md; gitignore *.pem ([a258b62](https://github.com/iumalabs/flightdeck/commit/a258b62b208e868afb1e3878c6b42eb3fcd18ccf))
+* use a plain deploy for preview, not versioned upload ([56b28d1](https://github.com/iumalabs/flightdeck/commit/56b28d1c6ecdd7db7982e288ae146a90be681580))
+
 ## [0.2.2](https://github.com/iumalabs/flightdeck/compare/v0.2.1...v0.2.2) (2026-08-21)
 
 
