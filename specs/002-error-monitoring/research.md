@@ -104,19 +104,22 @@ no benefit over just ordering the pipeline correctly the first time).
 
 ## 6. Source map resolution library
 
-**Decision**: `@jridgewell/trace-mapping` (pure JS, published as having no Node-only API surface).
-**This is provisional pending a spike** (first task in tasks.md, blocking every other source-map
-task): import it under `wrangler dev` and resolve a real, hand-constructed Source Map v3 mapping
-string, asserting the resolved `(line, column)` → `(source, originalLine, originalColumn, name)`
-output is correct. If it fails to load or behaves incorrectly in the Workers runtime, the fallback is
-a hand-rolled minimal VLQ-mapping decoder (the algorithm itself — base64-VLQ segment decoding against
-sorted generated-position groups — is well-documented and small enough to implement directly without
-a general-purpose library if needed).
+**Decision (confirmed — spike passed)**: `@jridgewell/trace-mapping`. Tasks.md's T027 spike
+verified this by construction: `worker/modules/ingest/sourcemap.ts` implements resolution with the
+library, `tests/unit/sourcemap-resolve.test.ts` proves the VLQ decoding/`originalPositionFor` logic
+against a real, hand-constructed Source Map v3 fixture (mappings `"AAAAA;GACE"`, checked in Deno's
+V8), and — the actual Workers-runtime proof this spike exists to obtain —
+`tests/contract/source-map-upload.spec.ts`'s second test runs the full path end-to-end against a
+real `wrangler dev` instance: uploads a source map via the real endpoint, ingests a minified-frame
+event referencing that release through the real public envelope endpoint, then asserts the issue
+detail response's frame is correctly resolved (`resolved: true`, original `filename`/`function`).
+All of this passed on the first attempt inside the real Workers runtime (workerd) — no fallback
+decoder was needed.
 
 **Rationale**: The research backing this decision could confirm the library's published
 Node-independence claim but could not personally verify it executes inside a real Workers isolate —
 treating that as settled without verification would risk discovering a runtime incompatibility mid
-build-out, after other tasks already depend on it.
+build-out, after other tasks already depend on it. The contract test above is that verification.
 
 **Alternatives considered**: `source-map` (Mozilla's original library) — heavier, historically had a
 WASM component in some versions (WASM works in Workers but adds cold-start/bundle-size cost the

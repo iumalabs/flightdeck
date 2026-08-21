@@ -185,15 +185,15 @@ upload its source map, confirm the issue's stack trace resolves without re-trigg
 
 ### Tests for User Story 3
 
-- [ ] T027 [US3] **Spike (blocking)**: prove `@jridgewell/trace-mapping` loads and correctly
+- [X] T027 [US3] **Spike (blocking)**: prove `@jridgewell/trace-mapping` loads and correctly
       resolves a real, hand-constructed Source Map v3 mapping string inside `wrangler dev` per
       research.md §6. Record the outcome in research.md — either confirm the decision or replace
       it with the documented fallback (hand-rolled VLQ decoder) before any task below starts
-- [ ] T028 [P] [US3] Write `tests/unit/sourcemap-resolve.test.ts` (resolves a minified
+- [X] T028 [P] [US3] Write `tests/unit/sourcemap-resolve.test.ts` (resolves a minified
       `(line, column)` to the correct original `(source, line, column, name)` against a real Source
       Map v3 fixture; returns "no resolution" gracefully for a release with no uploaded map) —
       expect it to fail until T029 lands (depends on T027)
-- [ ] T029 [P] [US3] Write a contract test for the upload endpoint in
+- [X] T029 [P] [US3] Write a contract test for the upload endpoint in
       `tests/contract/source-map-upload.spec.ts` (against real `wrangler dev`: uploads a map,
       confirms it lands in R2 + `source_maps` metadata; uploading for a not-yet-seen release
       implicitly creates the release per the Edge Case in spec.md) — expect it to fail until T031
@@ -201,21 +201,21 @@ upload its source map, confirm the issue's stack trace resolves without re-trigg
 
 ### Implementation for User Story 3
 
-- [ ] T030 [US3] Implement real resolution in `worker/modules/ingest/sourcemap.ts` using the
+- [X] T030 [US3] Implement real resolution in `worker/modules/ingest/sourcemap.ts` using the
       library/approach T027's spike confirmed, replacing US1's stub (depends on T027, T028, T016)
-- [ ] T031 [US3] Implement `POST /api/internal/projects/:id/source-maps` per contracts/internal-
+- [X] T031 [US3] Implement `POST /api/internal/projects/:id/source-maps` per contracts/internal-
       api.md (multipart upload → R2 write → `source_maps` + implicit `releases` row → `audit_log`
       entry per constitution Principle X) (depends on T029, T005)
-- [ ] T032 [US3] Confirm the ingest pipeline (T017) calls T030's real resolution before
+- [X] T032 [US3] Confirm the ingest pipeline (T017) calls T030's real resolution before
       fingerprinting (research.md §5's ordering) — this should already be correct by construction
       since T016 built the call site in the right place; this task is the explicit verification,
       not a rewire (depends on T030, T017)
-- [ ] T033 [US3] Update `app/shell/IssueDetailScreen.tsx` to show resolved (vs. raw) frame
+- [X] T033 [US3] Update `app/shell/IssueDetailScreen.tsx` to show resolved (vs. raw) frame
       indicators (depends on T024, T032)
-- [ ] T034 [US3] Add a minimal source map upload UI (form: release, path pattern, file) — extend
+- [X] T034 [US3] Add a minimal source map upload UI (form: release, path pattern, file) — extend
       `app/shell/SettingsScreen.tsx` per plan.md's Structure Decision, not a new dedicated screen
       (depends on T031)
-- [ ] T035 [US3] Run T028-T029's tests, confirm both pass (depends on T030-T034)
+- [X] T035 [US3] Run T028-T029's tests, confirm both pass (depends on T030-T034)
 
 **Checkpoint**: Minified JS stack traces resolve to real source, and cross-build grouping is
 correct.

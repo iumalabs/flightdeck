@@ -14,6 +14,11 @@ export interface StackFrame {
   pre_context?: string[];
   post_context?: string[];
   vars?: Record<string, unknown>;
+  // Set by sourcemap.ts's resolveStackTrace (User Story 3) — true when this frame was
+  // successfully symbolicated against an uploaded source map, false when resolution was
+  // attempted and didn't apply (no map for this release/path, or no release at all), absent on
+  // frames that never went through resolution (e.g. a Python event, which has no minified form).
+  resolved?: boolean;
 }
 
 export interface ExceptionValue {
