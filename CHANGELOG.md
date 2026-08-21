@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.2](https://github.com/iumalabs/flightdeck/compare/v0.2.1...v0.2.2) (2026-08-21)
+
+
+### Bug Fixes
+
+* automate D1 migrations against remote databases in CI ([f9b54bc](https://github.com/iumalabs/flightdeck/commit/f9b54bc65dbf04d4254f81fa4430fda96dfc1ffa))
+* automate D1 migrations against remote databases in CI ([98df60c](https://github.com/iumalabs/flightdeck/commit/98df60cdeacd02c7ee81fbd5d4b948514034758a))
+
 ## [0.2.1](https://github.com/iumalabs/flightdeck/compare/v0.2.0...v0.2.1) (2026-08-21)
 
 
