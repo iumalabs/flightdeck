@@ -20,10 +20,11 @@ README covers day-to-day setup and operation only.
 
 ## Status
 
-Module 1 (**Landing site, Access login, and app-shell skeleton**) is in progress — see
+Module 1 (**Landing site, Access login, and app-shell skeleton**) is implemented — see
 [`specs/001-landing-access-login/`](specs/001-landing-access-login/) for its spec, plan, and tasks.
 This is the first module in the constitution's product scope (§2); no ingest endpoint, real
-telemetry data, or DSN issuance exists yet.
+telemetry data, or DSN issuance exists yet. Not yet deployed — see [Deployment](#deployment) for
+the one-time Cloudflare-dashboard step that has to happen before `release` builds go live.
 
 ## Authentication
 

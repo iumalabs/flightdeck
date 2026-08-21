@@ -226,40 +226,40 @@ identity; sign out and confirm re-authentication is required (quickstart.md "Val
 
 ### Tests for User Story 3
 
-- [ ] T040 [P] [US3] Write `tests/e2e/app-shell-empty-states.spec.ts` (using a pre-authenticated
+- [X] T040 [P] [US3] Write `tests/e2e/app-shell-empty-states.spec.ts` (using a pre-authenticated
       browser context; visit every sidebar destination — Overview, Issues, Traces, Logs, Releases,
       Uptime, Feedback, Alerts, Settings, Install SDK; assert each shows distinct real empty-state
       copy, none of the design mockup's sample issues/traces/logs) — expect it to fail until
       T042-T053 land
-- [ ] T041 [P] [US3] Write `tests/e2e/sign-out.spec.ts` (pre-authenticated context; click sign out;
+- [X] T041 [P] [US3] Write `tests/e2e/sign-out.spec.ts` (pre-authenticated context; click sign out;
       assert return to the marketing site; reload an app-shell URL directly; assert routed into
       sign-in rather than showing stale content) — expect it to fail until T053-T055 land
 
 ### Implementation for User Story 3
 
-- [ ] T042 [P] [US3] Create `app/components/EmptyState.tsx` (reusable empty-state presentational
+- [X] T042 [P] [US3] Create `app/components/EmptyState.tsx` (reusable empty-state presentational
       component)
-- [ ] T043 [P] [US3] Create `app/shell/OverviewScreen.tsx`
-- [ ] T044 [P] [US3] Create `app/shell/IssuesScreen.tsx` (empty state: "No issues yet — install an
+- [X] T043 [P] [US3] Create `app/shell/OverviewScreen.tsx`
+- [X] T044 [P] [US3] Create `app/shell/IssuesScreen.tsx` (empty state: "No issues yet — install an
       SDK to get started")
-- [ ] T045 [P] [US3] Create `app/shell/TracesScreen.tsx`
-- [ ] T046 [P] [US3] Create `app/shell/LogsScreen.tsx`
-- [ ] T047 [P] [US3] Create `app/shell/ReleasesScreen.tsx`
-- [ ] T048 [P] [US3] Create `app/shell/UptimeScreen.tsx`
-- [ ] T049 [P] [US3] Create `app/shell/FeedbackScreen.tsx`
-- [ ] T050 [P] [US3] Create `app/shell/AlertsScreen.tsx`
-- [ ] T051 [P] [US3] Create `app/shell/SettingsScreen.tsx` (shows the signed-in identity only —
+- [X] T045 [P] [US3] Create `app/shell/TracesScreen.tsx`
+- [X] T046 [P] [US3] Create `app/shell/LogsScreen.tsx`
+- [X] T047 [P] [US3] Create `app/shell/ReleasesScreen.tsx`
+- [X] T048 [P] [US3] Create `app/shell/UptimeScreen.tsx`
+- [X] T049 [P] [US3] Create `app/shell/FeedbackScreen.tsx`
+- [X] T050 [P] [US3] Create `app/shell/AlertsScreen.tsx`
+- [X] T051 [P] [US3] Create `app/shell/SettingsScreen.tsx` (shows the signed-in identity only —
       full settings functionality is out of scope per spec)
-- [ ] T052 [P] [US3] Create `app/shell/InstallSdkScreen.tsx` (static setup instructions/code
+- [X] T052 [P] [US3] Create `app/shell/InstallSdkScreen.tsx` (static setup instructions/code
       snippets, may reuse the design's copy per spec)
-- [ ] T053 [US3] Extend `AppShell.tsx`'s sidebar to route to all 10 screens above, plus a project
+- [X] T053 [US3] Extend `AppShell.tsx`'s sidebar to route to all 10 screens above, plus a project
       switcher and a user menu (identity + sign-out action) (depends on T042-T052, T037)
-- [ ] T054 [US3] Wire client-side sign-out in `app/lib/use-session.ts` (clear session state,
+- [X] T054 [US3] Wire client-side sign-out in `app/lib/use-session.ts` (clear session state,
       navigate to the marketing site — no server call, per research.md §3) (depends on T053)
-- [ ] T055 [US3] Add an unauthenticated-redirect guard in `App.tsx`'s router: direct navigation to
+- [X] T055 [US3] Add an unauthenticated-redirect guard in `App.tsx`'s router: direct navigation to
       any app-shell URL without a session routes into the sign-in flow instead of rendering shell
       content (depends on T053, T054)
-- [ ] T056 [US3] Run `tests/e2e/app-shell-empty-states.spec.ts` and `tests/e2e/sign-out.spec.ts`,
+- [X] T056 [US3] Run `tests/e2e/app-shell-empty-states.spec.ts` and `tests/e2e/sign-out.spec.ts`,
       confirm both pass (depends on T053-T055)
 
 **Checkpoint**: All three user stories are independently functional.
@@ -268,13 +268,13 @@ identity; sign out and confirm re-authentication is required (quickstart.md "Val
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T057 [P] Run `deno fmt` and `deno lint` across `worker/`, `app/`, `tests/`; fix violations
-- [ ] T058 [P] Run `deno check` (typecheck) across every `.ts`/`.tsx` file, matching `ci.yml`'s
+- [X] T057 [P] Run `deno fmt` and `deno lint` across `worker/`, `app/`, `tests/`; fix violations
+- [X] T058 [P] Run `deno check` (typecheck) across every `.ts`/`.tsx` file, matching `ci.yml`'s
       pattern
-- [ ] T059 Run the full `quickstart.md` validation end-to-end (all three user stories) and record
+- [X] T059 Run the full `quickstart.md` validation end-to-end (all three user stories) and record
       results
-- [ ] T060 Update `README.md`'s Status section to reference `specs/001-landing-access-login`
-- [ ] T061 Document, in `README.md`, the required manual Cloudflare Workers Builds dashboard step
+- [X] T060 Update `README.md`'s Status section to reference `specs/001-landing-access-login`
+- [X] T061 Document, in `README.md`, the required manual Cloudflare Workers Builds dashboard step
       (connect `iumalabs/flightdeck`, production branch = `release`) per plan.md's Deployment &
       Operations section — this cannot be scripted and must not be silently omitted
 

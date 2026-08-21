@@ -1,10 +1,25 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Session } from "../lib/use-session.ts";
+import { OverviewScreen } from "./OverviewScreen.tsx";
+import { IssuesScreen } from "./IssuesScreen.tsx";
+import { TracesScreen } from "./TracesScreen.tsx";
+import { LogsScreen } from "./LogsScreen.tsx";
+import { ReleasesScreen } from "./ReleasesScreen.tsx";
+import { UptimeScreen } from "./UptimeScreen.tsx";
+import { FeedbackScreen } from "./FeedbackScreen.tsx";
+import { AlertsScreen } from "./AlertsScreen.tsx";
+import { SettingsScreen } from "./SettingsScreen.tsx";
+import { InstallSdkScreen } from "./InstallSdkScreen.tsx";
 
 export interface AppShellProps {
   session: Session;
   signOut: () => void;
   navigate: (path: string) => void;
+}
+
+interface Project {
+  id: string;
+  name: string;
 }
 
 interface NavItem {
@@ -48,10 +63,54 @@ const FOOTER_ITEMS: NavItem[] = [
   { screen: "setup", label: "Install SDK" },
 ];
 
+function renderScreen(screen: string, session: Session) {
+  switch (screen) {
+    case "overview":
+      return <OverviewScreen session={session} />;
+    case "issues":
+      return <IssuesScreen />;
+    case "traces":
+      return <TracesScreen />;
+    case "logs":
+      return <LogsScreen />;
+    case "releases":
+      return <ReleasesScreen />;
+    case "uptime":
+      return <UptimeScreen />;
+    case "feedback":
+      return <FeedbackScreen />;
+    case "alerts":
+      return <AlertsScreen />;
+    case "settings":
+      return <SettingsScreen session={session} />;
+    case "setup":
+      return <InstallSdkScreen />;
+    default:
+      return <OverviewScreen session={session} />;
+  }
+}
+
 export function AppShell({ session, signOut, navigate }: AppShellProps) {
   const [screen, setScreen] = useState("overview");
+  const [projects, setProjects] = useState<Project[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/internal/projects", { credentials: "same-origin" })
+      .then((res) => (res.ok ? res.json() as Promise<{ projects: Project[] }> : null))
+      .then((data) => {
+        if (!cancelled && data) setProjects(data.projects);
+      })
+      .catch(() => {
+        if (!cancelled) setProjects([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const initials = session.email.slice(0, 2).toUpperCase();
+  const currentProject = projects?.[0];
 
   return (
     <div style={{ display: "flex", height: "100vh", width: "100%", color: "var(--fg)" }}>
@@ -76,6 +135,32 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
           </svg>
           <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 15 }}>
             FlightDeck
+          </span>
+        </div>
+
+        <div
+          style={{
+            margin: "0 10px 10px",
+            padding: "8px 10px",
+            borderRadius: 6,
+            background: "var(--chip)",
+            fontSize: 12.5,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <span
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              background: "var(--accent)",
+              flex: "none",
+            }}
+          />
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {currentProject ? currentProject.name : "Loading…"}
           </span>
         </div>
 
@@ -180,29 +265,7 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
       </div>
 
       <div style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: 32 }}>
-        {screen === "overview"
-          ? (
-            <div>
-              <h1
-                style={{
-                  fontFamily: "var(--font-display)",
-                  fontSize: 28,
-                  fontWeight: 600,
-                  margin: "0 0 8px",
-                }}
-              >
-                Welcome, {session.email}
-              </h1>
-              <p style={{ color: "var(--fg2)", fontSize: 14 }}>
-                Nothing here yet — install an SDK to start seeing errors, traces and logs.
-              </p>
-            </div>
-          )
-          : (
-            <div style={{ color: "var(--fg2)", fontSize: 14 }}>
-              No data yet for "{screen}".
-            </div>
-          )}
+        {renderScreen(screen, session)}
       </div>
     </div>
   );

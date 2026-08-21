@@ -56,7 +56,10 @@ function renderMarketingPage(
 export function App() {
   const [pathname, navigate] = usePathname();
   const { loading, session, signOut } = useSession();
-  const [signInOpen, setSignInOpen] = useState(false);
+  // Unauthenticated-redirect guard (spec Edge Cases): a direct visit to an app-shell URL with no
+  // session opens the sign-in flow immediately, rather than silently falling through to Home as
+  // if the visitor had just wandered onto the marketing site.
+  const [signInOpen, setSignInOpen] = useState(() => pathname.startsWith("/web-app"));
 
   if (loading) {
     return null;

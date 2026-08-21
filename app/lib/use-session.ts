@@ -42,11 +42,13 @@ export function useSession(): UseSessionResult {
     // fd_session is HttpOnly (worker/auth/session.ts), so it can only be cleared server-side —
     // POST /logout overwrites it with an expired cookie (research.md §3 correction: sign-out
     // still needs one server call, just not one that touches the Access session itself). Local
-    // state clears immediately rather than waiting on the network round-trip, since there's
-    // nothing meaningful to show mid-flight and the cookie clear can't fail in a way the UI
-    // would need to react to.
-    setSession(null);
-    fetch("/logout", { method: "POST", credentials: "same-origin" }).catch(() => {});
+    // state clears only once that round-trip settles, so the UI never claims "signed out" before
+    // the cookie is actually gone (a network failure still clears local state — there is nothing
+    // more this UI could reasonably do at that point, and staying "signed in" client-side while
+    // the cookie may already be gone server-side would be worse).
+    fetch("/logout", { method: "POST", credentials: "same-origin" })
+      .catch(() => {})
+      .finally(() => setSession(null));
   };
 
   return { loading, session, signOut };
