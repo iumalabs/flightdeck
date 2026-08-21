@@ -39,10 +39,10 @@ layout — see plan.md's Structure Decision for the two additions (`worker/durab
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] T001 [P] Add `@jridgewell/trace-mapping` to `deno.json`'s import map
-- [ ] T002 [P] Create directory skeleton: `worker/durable-objects/`, `worker/modules/ingest/`,
+- [X] T001 [P] Add `@jridgewell/trace-mapping` to `deno.json`'s import map
+- [X] T002 [P] Create directory skeleton: `worker/durable-objects/`, `worker/modules/ingest/`,
       `worker/modules/issues/`, `worker/modules/github/`, `tests/contract/`
-- [ ] T003 Add `SOURCE_MAPS` R2 bucket binding and `RATE_LIMITER` Durable Object binding to
+- [X] T003 Add `SOURCE_MAPS` R2 bucket binding and `RATE_LIMITER` Durable Object binding to
       `wrangler.jsonc` (both `env.production` and `env.preview`, per Module 1's symmetric-envs
       pattern); add `GITHUB_APP_ID` var and `GITHUB_APP_PRIVATE_KEY` to `secrets.required` (both
       envs) per research.md §10
@@ -56,27 +56,27 @@ needs.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T004 Create `worker/db/migrations/0002_error_monitoring.sql` — `projects.dsn_public_key`
+- [X] T004 Create `worker/db/migrations/0002_error_monitoring.sql` — `projects.dsn_public_key`
       column (backfill the existing `demo` project with a generated key), `issues`, `events`,
       `releases`, `source_maps`, `repository_connections` tables per data-model.md, with the
       `UNIQUE` constraints data-model.md specifies (`issues(project_id, fingerprint)`,
       `events(project_id, sdk_event_id)`, `releases(project_id, version)`)
-- [ ] T005 Apply the migration locally: `deno task db:migrations:apply:local` (depends on T004)
-- [ ] T006 Create `worker/durable-objects/rate-limiter.ts` — `RateLimiter` DO class skeleton (one
+- [X] T005 Apply the migration locally: `deno task db:migrations:apply:local` (depends on T004)
+- [X] T006 Create `worker/durable-objects/rate-limiter.ts` — `RateLimiter` DO class skeleton (one
       instance per DSN key via `idFromName`), `checkAndIncrement()` method returning
       allowed/retry-after, no HTTP handler logic yet beyond what the class needs to be a valid DO
       (depends on T003)
-- [ ] T007 Wire the ingest route mount point into `worker/index.ts`: register
+- [X] T007 Wire the ingest route mount point into `worker/index.ts`: register
       `app.route("/api/:projectId/envelope", ingestRoutes)` (empty router for now) as a sibling to
       the existing `app.route("/api/internal", identityRoutes)`, and add the `internal` reserved-
       project-id guard at the top of the (still-empty) ingest handler per research.md §3 (depends
       on T002)
-- [ ] T008 [P] Add a `scheduled()` handler to `worker/index.ts`'s default export (Module 1 only had
+- [X] T008 [P] Add a `scheduled()` handler to `worker/index.ts`'s default export (Module 1 only had
       `fetch()`) — no-op body for now, wired to a daily Cron Trigger entry in `wrangler.jsonc`
       (both envs) — this is what T0XX's retention job (Polish phase) will fill in later, added now
       because it's a `wrangler.jsonc`/`worker/index.ts` shape change every later task should build
       on top of, not retrofit
-- [ ] T009 Verify `deno task build` and `deno check` still pass with the new bindings/tables/empty
+- [X] T009 Verify `deno task build` and `deno check` still pass with the new bindings/tables/empty
       routes wired in (smoke check, no new files)
 
 **Checkpoint**: Foundation ready — user story implementation can now begin.
