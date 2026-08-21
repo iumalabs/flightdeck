@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.1](https://github.com/iumalabs/flightdeck/compare/v0.2.0...v0.2.1) (2026-08-21)
+
+
+### Bug Fixes
+
+* route /login through the Worker before static-asset SPA fallback ([f2c96ce](https://github.com/iumalabs/flightdeck/commit/f2c96ce2e9b6d5d75d02b94bc26708497d97ed1e))
+* route /login, /logout, /api/* through the Worker before assets ([f6c4c96](https://github.com/iumalabs/flightdeck/commit/f6c4c96e8d6fba77635a295aba57c0bcfd637b33))
+
 ## [0.2.0](https://github.com/iumalabs/flightdeck/compare/v0.1.0...v0.2.0) (2026-08-21)
 
 
