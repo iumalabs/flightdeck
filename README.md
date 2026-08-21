@@ -102,6 +102,15 @@ production branch to `release`, not `main`. In the setup form:
 
 `workers_dev` is `false` from the first commit and MUST stay that way (constitution Principle I).
 
+**D1 migrations are not applied by Workers Builds.** `.github/workflows/d1-migrations.yml` runs
+`wrangler d1 migrations apply --remote` against both the production and preview databases on every
+push to `main` that touches `worker/db/migrations/**` (also runnable on demand via
+`workflow_dispatch`). It needs a `CLOUDFLARE_API_TOKEN` repository secret (Account → D1 Edit scope)
+— set one via **Settings → Secrets and variables → Actions → New repository secret**. Without it,
+new migrations land in the SQL files but never reach the real databases, which is exactly what
+happened to `0001_baseline.sql` the first time: it was applied locally only, so the real login flow
+500'd in production until it was applied by hand.
+
 ## Releases
 
 Versioning follows `release-please` against the root `VERSION` file (`"simple"` release type).
