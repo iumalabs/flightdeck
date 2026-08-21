@@ -39,9 +39,10 @@ public by design, authenticated by each project's DSN key instead — see the co
 full trust-surface split.
 
 **Required manual post-deploy step**: Preview URLs default to public. Restrict them via **Workers &
-Pages → flightdeck → Settings → Domains & Routes → Preview URLs → Enable Cloudflare Access** (a
-single, account-wide, reusable "Cloudflare Workers Preview URLs" Access policy covers this for every
-Worker in the account, including FlareTower's — it does not need to be recreated per Worker).
+Pages → flightdeck → Access tab → Protect this Worker behind Access**, scope set to **Previews
+only** — NOT "All traffic", which would also gate the public marketing site on the production custom
+domain. (Do not enable the "Protect with Cloudflare Access" toggle during the initial Workers Builds
+setup flow either, for the same reason — it is not scoped to previews-only there.)
 
 ## Environment
 
@@ -89,7 +90,15 @@ production branch is `release`, which `release-please` fast-forwards on every re
 
 **Required one-time setup** (cannot be scripted): in the Cloudflare dashboard, connect
 `iumalabs/flightdeck` under **Workers & Pages → Create → Import a repository**, and set the
-production branch to `release`, not `main`.
+production branch to `release`, not `main`. In the setup form:
+
+| Field                                | Value                                                                                 |
+| ------------------------------------ | ------------------------------------------------------------------------------------- |
+| Build command                        | `npx -y deno task build`                                                              |
+| Deploy command                       | `npx -y deno task deploy:production`                                                  |
+| Builds for non-production branches   | enabled                                                                               |
+| Non-production branch deploy command | `npx -y deno task deploy:preview`                                                     |
+| Protect with Cloudflare Access       | **leave disabled** — see [Authentication](#authentication)'s post-deploy step instead |
 
 `workers_dev` is `false` from the first commit and MUST stay that way (constitution Principle I).
 
