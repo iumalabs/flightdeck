@@ -14,7 +14,17 @@
   "assets": {
     "directory": "./dist/client",
     "binding": "ASSETS",
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
+    // Without this, Cloudflare's asset-serving layer intercepts navigation requests (real browser
+    // top-level navigations — anything with `Sec-Fetch-Mode: navigate`, which includes the
+    // redirect Cloudflare Access sends back to /login after a successful IdP challenge) BEFORE the
+    // Worker's own fetch() ever runs, and — because of not_found_handling above — serves the SPA's
+    // index.html for them instead. Confirmed live: GET /login returned 200 with the marketing page
+    // instead of reaching worker/auth/login-route.ts, so the fd_session cookie was never minted.
+    // fetch()/XHR calls (e.g. the SPA's own GET /api/internal/me) don't set that header and were
+    // never affected. Scoped to only the paths that need Worker-side logic — marketing routes stay
+    // on the cheaper, Worker-skipping asset-serving path.
+    "run_worker_first": ["/login", "/logout", "/api/*"]
   },
 
   // Bindings are NOT inheritable across named environments — Wrangler requires each to redeclare

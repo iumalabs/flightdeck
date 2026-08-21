@@ -20,6 +20,21 @@ test("GET /login without a Cloudflare Access assertion is rejected, fail closed"
   expect(response.status()).toBe(403);
 });
 
+// Regression test for a bug confirmed live: Playwright's `request` fixture above issues a plain
+// HTTP request, which never triggered it — only a REAL top-level browser navigation (the kind
+// Cloudflare Access's own redirect back to /login performs) has `Sec-Fetch-Mode: navigate`, and
+// Cloudflare's static-asset layer serves the SPA's index.html for such navigations to any
+// unmatched path (not_found_handling: single-page-application) BEFORE the Worker itself runs,
+// unless the path is listed in `assets.run_worker_first` (wrangler.jsonc). /login was missing
+// from that list, so the real login flow silently landed back on the marketing homepage instead
+// of ever reaching worker/auth/login-route.ts.
+test("a real browser navigation to /login reaches the Worker, not the SPA fallback", async ({ page }) => {
+  const response = await page.goto("/login");
+  expect(response?.status()).toBe(403);
+  await expect(page.getByText("Forbidden")).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Every instrument\./ })).toHaveCount(0);
+});
+
 test("GET /api/internal/me without a session is rejected, fail closed", async ({ request }) => {
   const response = await request.get("/api/internal/me");
   expect(response.status()).toBe(403);
