@@ -62,7 +62,7 @@
         "CF_ACCOUNT_ID": "8b655d0dde6d223b9ce11116a014973a",
         // The GitHub App's identifier is not a secret (research.md §10, specs/002-error-monitoring)
         // — only its private key is.
-        "GITHUB_APP_ID": ""
+        "GITHUB_APP_ID": "4675571"
       },
       "secrets": {
         // Declared here for validation/type-generation only (constitution Principle IX) — the
@@ -99,14 +99,16 @@
       }
     },
 
-    // Preview builds (PRs / non-production branches, via Workers Builds' `wrangler versions
-    // upload --env preview`) get their own D1 database — never the production one.
+    // Preview builds (PRs / non-production branches, via Workers Builds' `wrangler deploy
+    // --env preview` — a plain, non-versioned deploy, not `versions upload`: this Worker has
+    // Durable Objects, which Cloudflare's gradual-deployments/versioned-upload flow doesn't
+    // support) get their own D1 database — never the production one.
     "preview": {
       "vars": {
         "TEAM_DOMAIN": "https://yugai.cloudflareaccess.com",
         "POLICY_AUD": "f79f510d9061fcd9fbf467b45ebc5bf03948636828a1639024ff127a5bcbf97d",
         "CF_ACCOUNT_ID": "8b655d0dde6d223b9ce11116a014973a",
-        "GITHUB_APP_ID": ""
+        "GITHUB_APP_ID": "4675571"
       },
       "secrets": {
         "required": ["SESSION_SECRET", "GITHUB_APP_PRIVATE_KEY"]
