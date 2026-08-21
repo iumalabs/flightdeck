@@ -1,11 +1,18 @@
 <!--
 Sync Impact Report
 ==================
-Version change: (none) → 1.0.0
-Modified principles: n/a (initial ratification)
-Added sections: Core Principles (I–XI), Product Scope & Module Roadmap,
-  Identity & Authorization Data Model, Sentry Protocol Compatibility Surface,
-  Design System, Deployment & Operations, Governance
+Version change: 1.0.0 → 1.1.0
+Modified principles: II. Defense-in-Depth JWT Validation, Fail Closed — expanded
+  from a single-step "verify Cf-Access-Jwt-Assertion on every control-plane
+  request" model to a two-step bounce+session model, discovered mid-
+  implementation once the actual (manually provisioned) Cloudflare Access
+  application turned out to be scoped to the single `/login` path rather than
+  the whole control-plane surface. Access cannot inject its JWT header on
+  paths it doesn't cover, so `/login` now mints FlightDeck's own signed
+  session token for every other control-plane request. See
+  specs/001-landing-access-login/research.md §1 for the concrete decision
+  record.
+Added sections: n/a
 Removed sections: n/a
 Templates requiring alignment:
   - .specify/templates/plan-template.md — ⚠ pending review (verify Constitution
@@ -13,7 +20,8 @@ Templates requiring alignment:
   - .specify/templates/spec-template.md — ⚠ pending review (verify module-scope
     language matches "Module 1 only" build order below)
   - .specify/templates/tasks-template.md — ⚠ pending review (verify task
-    categories cover Deno/Playwright/D1/Access-JWT/DSN-auth split)
+    categories cover Deno/Playwright/D1/Access-JWT/session-cookie/DSN-auth
+    split)
 Follow-up TODOs: none — all placeholders resolved from the founding brief.
 -->
 
@@ -45,22 +53,41 @@ naming both explicitly, with a hard rule about which routes belong where,
 removes the ambiguity that causes either mistake.
 
 ### II. Defense-in-Depth JWT Validation, Fail Closed (Control Plane)
-Every control-plane request MUST be independently verified by the Worker,
-even though Access should already have blocked unauthenticated traffic:
-1. Extract the `Cf-Access-Jwt-Assertion` header.
-2. Validate the JWT signature against the team JWKS at
-   `https://<team>.cloudflareaccess.com/cdn-cgi/access/certs`.
-3. Verify `issuer` (team domain) and `audience` (this application's Access
-   AUD tag) claims.
-4. On any missing header, invalid signature, expired token, or
-   issuer/audience mismatch, the Worker MUST return `403` and MUST NOT serve
-   the request. There is no degraded-but-permitted mode.
-The verified JWT `sub` and `email` claims are the only identity FlightDeck
-trusts for a control-plane request. This principle applies only to the
-control-plane surface defined in Principle I — it MUST NOT be applied to
-ingest routes, which would break every SDK integration.
+Cloudflare Access, on this project, is scoped to a single bounce path
+(`/login`) rather than the whole control-plane surface — the SPA is one
+client-routed bundle serving both the public marketing site and the
+authenticated app shell from the same origin, so Access cannot cleanly gate
+"the app-shell part" at the edge without a distinct, Access-scoped path.
+Authentication therefore has two verification steps, both mandatory and both
+fail-closed:
+1. **At `/login`** (the only path actually covered by the Access
+   application): extract the `Cf-Access-Jwt-Assertion` header Access injects
+   for this path, validate its signature against the team JWKS at
+   `https://<team>.cloudflareaccess.com/cdn-cgi/access/certs`, and verify
+   `issuer` (team domain) and `audience` (this application's Access AUD tag)
+   claims. On any missing header, invalid signature, expired token, or
+   issuer/audience mismatch, the Worker MUST return `403` and MUST NOT mint a
+   session. There is no degraded-but-permitted mode.
+2. **On every other control-plane request** (`/api/internal/*`, and the
+   initial load path that decides SPA vs marketing rendering): `/login`,
+   once it has verified step 1, MUST mint FlightDeck's own signed,
+   `HttpOnly`, `Secure` session token (a compact JWT signed with a Worker
+   secret FlightDeck controls) and set it as a cookie — this token, not
+   `Cf-Access-Jwt-Assertion`, is what every subsequent control-plane request
+   is verified against, since Access does not inject its header outside the
+   path it actually protects. The same fail-closed rule applies: a missing,
+   invalid, expired, or tampered FlightDeck session token MUST return `403`
+   with no degraded mode, exactly as step 1 requires for the Access JWT
+   itself.
+The verified identity's `sub` and `email` (captured from the Access JWT at
+step 1, carried forward into FlightDeck's own session token) are the only
+identity FlightDeck trusts for a control-plane request. This principle
+applies only to the control-plane surface defined in Principle I — it MUST
+NOT be applied to ingest routes, which would break every SDK integration.
 **Rationale**: A misconfigured Access policy is a realistic failure mode.
-Independent verification inside the Worker is the last line of defense
+Independent verification inside the Worker — of the Access JWT at the one
+path Access actually reaches, and of FlightDeck's own session token
+everywhere else — is the last line of defense
 protecting customer telemetry and account data, and "fail closed" is the
 only acceptable posture for that line.
 
@@ -328,4 +355,4 @@ begins. Deviations discovered during implementation MUST be raised for
 resolution (either fixing the implementation or amending the constitution)
 before merge, not silently absorbed.
 
-**Version**: 1.0.0 | **Ratified**: 2026-08-21 | **Last Amended**: 2026-08-21
+**Version**: 1.1.0 | **Ratified**: 2026-08-21 | **Last Amended**: 2026-08-21

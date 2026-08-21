@@ -1,0 +1,48 @@
+name: E2E
+
+# Runs once a day rather than on every PR/push — locally, `deno task test:e2e` stays the way to
+# get pre-merge feedback. `workflow_dispatch` lets anyone trigger an out-of-band run from the
+# Actions tab without waiting for the schedule.
+on:
+  schedule:
+    # 21:00 Asia/Bishkek (UTC+6, no DST) == 15:00 UTC.
+    - cron: "0 15 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: e2e (Playwright)
+    # No pull_request trigger on this workflow (schedule + workflow_dispatch only), so the
+    # fork-safe conditional ci.yml uses isn't needed here — see
+    # maksimyugai/github-runners's deploy/RUNBOOK.md.
+    runs-on: [self-hosted, general]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - run: deno install
+
+      - name: Install Playwright browsers
+        run: deno task test:e2e:install
+
+      - name: Run e2e suite
+        run: deno task test:e2e
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14

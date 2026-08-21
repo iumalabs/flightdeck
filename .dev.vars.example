@@ -1,0 +1,6 @@
+# Copy to .dev.vars (gitignored) for local `deno task dev`.
+TEAM_DOMAIN=https://yugai.cloudflareaccess.com
+POLICY_AUD=<Access application AUD tag for FlightDeck itself>
+# HMAC key FlightDeck signs its own fd_session cookie with (constitution Principle II step 2).
+# Any random string is fine for local dev — generate with `openssl rand -base64 32`.
+SESSION_SECRET=<random local-only value>
