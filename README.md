@@ -21,8 +21,9 @@ README covers day-to-day setup and operation only.
 ## Status
 
 Module 1 (**Landing site, Access login, and app-shell skeleton**) and Module 2 (**Error
-monitoring**) are implemented — see [`specs/001-landing-access-login/`](specs/001-landing-access-login/)
-and [`specs/002-error-monitoring/`](specs/002-error-monitoring/) for their specs, plans, and tasks.
+monitoring**) are implemented — see
+[`specs/001-landing-access-login/`](specs/001-landing-access-login/) and
+[`specs/002-error-monitoring/`](specs/002-error-monitoring/) for their specs, plans, and tasks.
 Module 2 adds the platform's first public, DSN-authenticated ingest surface (Sentry envelope
 protocol), issue grouping with source-map-aware fingerprinting, source map upload/resolution, and
 GitHub App-based suspect commits — see the constitution for the full trust-surface split. Not yet
@@ -49,14 +50,14 @@ setup flow either, for the same reason — it is not scoped to previews-only the
 
 ## Environment
 
-| Variable         | Example                              | Notes                                                                                                                                                                                                     |
-| ---------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TEAM_DOMAIN`    | `https://yugai.cloudflareaccess.com` | Cloudflare Access team domain; enables JWT verification. Non-secret.                                                                                                                                      |
-| `POLICY_AUD`     | _(Access application AUD tag)_       | Expected audience claim of `Cf-Access-Jwt-Assertion`. Non-secret.                                                                                                                                         |
-| `CF_ACCOUNT_ID`  | `8b655d0dde6d223b9ce11116a014973a`   | Cloudflare account id. Non-secret.                                                                                                                                                                        |
-| `SESSION_SECRET` | _(random string)_                    | **Secret** — HMAC key `/login` signs the `fd_session` cookie with. Set via `wrangler versions secret put SESSION_SECRET` (no `--env` flag — see the comment in `wrangler.jsonc`), never as a plain `var`. |
-| `GITHUB_APP_ID` | _(GitHub App ID)_ | Non-secret. Identifies the GitHub App used for User Story 4's suspect-commit lookups (specs/002-error-monitoring/research.md §10). |
-| `GITHUB_APP_PRIVATE_KEY` | _(PEM-encoded RSA private key)_ | **Secret** — signs short-lived App JWTs on demand; installation access tokens exchanged from it are never persisted. Set via `wrangler versions secret put GITHUB_APP_PRIVATE_KEY`, never as a plain `var`. |
+| Variable                 | Example                              | Notes                                                                                                                                                                                                       |
+| ------------------------ | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TEAM_DOMAIN`            | `https://yugai.cloudflareaccess.com` | Cloudflare Access team domain; enables JWT verification. Non-secret.                                                                                                                                        |
+| `POLICY_AUD`             | _(Access application AUD tag)_       | Expected audience claim of `Cf-Access-Jwt-Assertion`. Non-secret.                                                                                                                                           |
+| `CF_ACCOUNT_ID`          | `8b655d0dde6d223b9ce11116a014973a`   | Cloudflare account id. Non-secret.                                                                                                                                                                          |
+| `SESSION_SECRET`         | _(random string)_                    | **Secret** — HMAC key `/login` signs the `fd_session` cookie with. Set via `wrangler versions secret put SESSION_SECRET` (no `--env` flag — see the comment in `wrangler.jsonc`), never as a plain `var`.   |
+| `GITHUB_APP_ID`          | _(GitHub App ID)_                    | Non-secret. Identifies the GitHub App used for User Story 4's suspect-commit lookups (specs/002-error-monitoring/research.md §10).                                                                          |
+| `GITHUB_APP_PRIVATE_KEY` | _(PEM-encoded RSA private key)_      | **Secret** — signs short-lived App JWTs on demand; installation access tokens exchanged from it are never persisted. Set via `wrangler versions secret put GITHUB_APP_PRIVATE_KEY`, never as a plain `var`. |
 
 Copy `.dev.vars.example` to `.dev.vars` (gitignored) for local `deno task dev`.
 

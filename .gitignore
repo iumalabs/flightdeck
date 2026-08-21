@@ -5,6 +5,7 @@
 # local dev works out of the box.
 !.env.development
 .dev.vars
+*.pem
 
 # Claude Code local-only state (credentials, local overrides)
 .claude/settings.local.json
