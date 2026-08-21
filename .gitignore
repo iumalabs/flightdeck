@@ -1,0 +1,30 @@
+# Secrets — never committed
+.env
+.env.*
+# Exception: .env.development holds only CLOUDFLARE_ENV=preview (not a credential) — committed so
+# local dev works out of the box.
+!.env.development
+.dev.vars
+
+# Claude Code local-only state (credentials, local overrides)
+.claude/settings.local.json
+
+# Deno
+.deno/
+
+# Wrangler
+.wrangler/
+node_modules/
+
+# Build output
+dist/
+.vite/
+app/.vite/
+
+# Test artifacts
+coverage/
+playwright-report/
+test-results/
+
+# OS
+.DS_Store
