@@ -1,0 +1,88 @@
+/*
+ * Design tokens sourced from the FlightDeck Claude Design project
+ * (https://claude.ai/design/p/049eb4bb-2824-4bc1-bca5-c76c775e7f36 — FlightDeck.dc.html and
+ * FlightDeckApp.dc.html). See constitution's Design System section: this is the source of truth
+ * for the visual layer, and hex values MUST NOT be hardcoded outside this file.
+ */
+
+:root {
+  --bg: #0b0b0c;
+  --panel: #101012;
+  --panel2: #16161a;
+  --fg: #ececec;
+  --fg2: #9a9a92;
+  --fg3: #6e6e66;
+  --fg4: #55554e;
+  --line: rgba(255, 255, 255, 0.08);
+  --line2: rgba(255, 255, 255, 0.05);
+  --accent: #b8f135;
+  --accent-fg: #0b0b0c;
+  --chip: #2a2a30;
+  --code-bg: #0c0c0e;
+
+  --teal: #4fd1c5;
+  --red: #ff4d4d;
+  --orange: #ff7847;
+  --amber: #ffc53d;
+  --blue: #5ac8fa;
+
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  color: #d3ff6e;
+}
+
+@keyframes fdPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@keyframes fdRise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fdFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

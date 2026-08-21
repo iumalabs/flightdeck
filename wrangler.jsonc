@@ -1,0 +1,79 @@
+{
+  "name": "flightdeck",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-08-18",
+
+  // Non-negotiable (constitution Principle I) — the control-plane surface (SPA + /api/internal/*)
+  // must never be reachable on a bare *.workers.dev URL. This module has no ingest surface yet
+  // (spec FR-014), so there is nothing that needs to be publicly reachable via workers.dev either.
+  "workers_dev": false,
+  // Preview URLs stay enabled for reviewing builds, but MUST be put behind Cloudflare Access
+  // manually post-deploy — see README's "Required manual post-deploy step".
+  "preview_urls": true,
+
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+
+  // Bindings are NOT inheritable across named environments — Wrangler requires each to redeclare
+  // them in full, so both environments below are fully explicit and symmetric, mirroring
+  // FlareTower's wrangler.jsonc (see that file's comments for the full rationale: no implicit
+  // top-level "production" environment, one Worker resource shared by both versions via Workers
+  // Builds' native preview mechanism). Local dev (`deno task dev`) picks an environment via the
+  // `CLOUDFLARE_ENV` var — see `.env.development` (defaults to `preview`).
+  "env": {
+    "production": {
+      "routes": [
+        {
+          "pattern": "flightdeck.iuma.dev",
+          "custom_domain": true
+        }
+      ],
+      "vars": {
+        // Non-secret configuration (identifies which Access application/account, not a
+        // credential) — constitution Principle IX reserves Worker secrets for actual credentials.
+        "TEAM_DOMAIN": "https://yugai.cloudflareaccess.com",
+        "POLICY_AUD": "f79f510d9061fcd9fbf467b45ebc5bf03948636828a1639024ff127a5bcbf97d",
+        "CF_ACCOUNT_ID": "8b655d0dde6d223b9ce11116a014973a"
+      },
+      "secrets": {
+        // Declared here for validation/type-generation only (constitution Principle IX) — the
+        // actual value is set via `wrangler versions secret put SESSION_SECRET` (no `--env` flag —
+        // see FlareTower's wrangler.jsonc for why `--env production` breaks this on a shared
+        // Worker script), then promoted with `wrangler versions deploy`.
+        "required": ["SESSION_SECRET"]
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "flightdeck-production",
+          "database_id": "c14cff3f-5025-46da-8d9a-5425ff6922f8",
+          "migrations_dir": "worker/db/migrations"
+        }
+      ]
+    },
+
+    // Preview builds (PRs / non-production branches, via Workers Builds' `wrangler versions
+    // upload --env preview`) get their own D1 database — never the production one.
+    "preview": {
+      "vars": {
+        "TEAM_DOMAIN": "https://yugai.cloudflareaccess.com",
+        "POLICY_AUD": "f79f510d9061fcd9fbf467b45ebc5bf03948636828a1639024ff127a5bcbf97d",
+        "CF_ACCOUNT_ID": "8b655d0dde6d223b9ce11116a014973a"
+      },
+      "secrets": {
+        "required": ["SESSION_SECRET"]
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "flightdeck-preview",
+          "database_id": "832ca74f-b6d9-4309-a815-311a61a70cb4",
+          "migrations_dir": "worker/db/migrations"
+        }
+      ]
+    }
+  }
+}

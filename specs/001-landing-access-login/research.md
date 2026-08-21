@@ -1,22 +1,57 @@
 # Phase 0 Research: Landing Site, Access Login & App-Shell Skeleton
 
-## 1. Cloudflare Access JWT verification pattern
+## 1. Cloudflare Access JWT verification pattern — and the `/login`-only scope discovery
 
-**Decision**: Reuse FlareTower's pattern exactly: `jose`'s `createRemoteJWKSet` against
-`https://<TEAM_DOMAIN>/cdn-cgi/access/certs`, cached per-team-domain across warm isolate
-invocations (a `Map` keyed by team domain, not a fresh `createRemoteJWKSet()` per request);
-`jwtVerify(token, jwks, { issuer: TEAM_DOMAIN, audience: POLICY_AUD })`; on any failure
-(missing header, bad signature, expired, issuer/audience mismatch, or a payload missing
-`sub`/`email`), return `403` with no detail distinguishing the failure reason.
+**Decision**: The Cloudflare Access application actually provisioned for this environment (created
+manually by the project owner, confirmed via the Cloudflare API) is scoped to exactly one path —
+`flightdeck.iuma.dev/login` — not the whole domain and not `/api/internal/*`. This is different
+from FlareTower's whole-domain Access scope and was discovered mid-implementation, after the
+constitution's first draft of Principle II assumed a FlareTower-shaped "every request carries
+`Cf-Access-Jwt-Assertion`" model. Cloudflare only injects that header on requests to paths an
+Access application actually covers — so `/api/internal/*` requests never receive it. The
+corrected, two-step design (now reflected in constitution v1.1.0's Principle II):
 
-**Rationale**: This is a proven, already-running pattern in the sibling FlareTower project against
-the same Cloudflare account, so it inherits real operational confidence rather than being a
-first-time implementation. Constitution Principle II requires exactly this behavior.
+1. `GET /login` is the only route Access protects. Its handler reuses FlareTower's exact JWT
+   verification pattern: `jose`'s `createRemoteJWKSet` against
+   `https://<TEAM_DOMAIN>/cdn-cgi/access/certs`, cached per-team-domain across warm isolate
+   invocations; `jwtVerify(token, jwks, { issuer: TEAM_DOMAIN, audience: POLICY_AUD })`. On any
+   failure (missing header, bad signature, expired, issuer/audience mismatch, or a payload missing
+   `sub`/`email`), respond `403` — no session is minted.
+2. On success, `/login` calls `upsertUser` (§2 below) and mints FlightDeck's own session token: a
+   compact JWT signed with a new Worker secret (`SESSION_SECRET`, via `jose`'s `SignJWT`/
+   `jwtVerify` with an HMAC algorithm), containing `sub`/`email`/`role`, set as an `HttpOnly`,
+   `Secure`, `SameSite=Lax` cookie (`fd_session`), then redirects (`302`) to `/web-app/`.
+3. Every other control-plane request (`GET /api/internal/me`, `GET /api/internal/projects`, and
+   the initial-load path that decides SPA-vs-marketing rendering) is verified against this
+   `fd_session` cookie, not `Cf-Access-Jwt-Assertion` — same fail-closed rule: missing, invalid,
+   expired, or tampered token → `403`.
 
-**Alternatives considered**: Cloudflare's `get-identity` endpoint as the sole source of truth
-(rejected — that endpoint is documented as an enrichment call, not a substitute for independent JWT
-verification, and skipping local verification would violate Principle II's fail-closed requirement
-outright, not just deviate from a preference).
+**Rationale**: The SPA is one client-routed bundle serving both the public marketing site and the
+authenticated app shell from the same origin (plan.md's Structure Decision) — Access has no way to
+distinguish "the app-shell part" of that bundle at the edge without a distinct path, and the
+project owner correctly scoped Access to a single bounce path rather than trying to force
+whole-domain protection onto a partially-public site. This is the same pattern already used
+elsewhere in this Cloudflare account for other hybrid public/private sites (e.g. `slangbot.iuma.dev/
+admin*`, `clipfeed.iuma.dev/api/admin`), just with a dedicated `/login` bounce path here instead of
+gating an existing admin path directly. FlareTower's whole-domain pattern doesn't transfer, because
+FlareTower has no public surface to protect *around*.
+
+**Alternatives considered**:
+- Cloudflare's `get-identity` endpoint as the sole source of truth (rejected — it's an enrichment
+  call, not a substitute for independent JWT verification, and skipping local verification at
+  `/login` would violate Principle II's fail-closed requirement outright).
+- Widening the Access application's scope to cover `/web-app/*` and `/api/internal/*` directly
+  instead of session-minting at `/login` (rejected for this module — it's a legitimate alternative
+  Cloudflare supports via multiple `destinations` on one Access app, but it was not what was
+  actually provisioned, and re-provisioning was out of scope for this session since Access write
+  access wasn't available to this implementation; the `/login`-bounce pattern also generalizes
+  better if the app-shell's URL structure changes later, since only one path's Access scope would
+  ever need to change).
+- Storing the Access JWT itself as the session cookie instead of minting a new one (rejected — the
+  Access JWT's audience/issuer are scoped to the `/login` Access application, and re-presenting it
+  to `/api/internal/*` would blur which token means what; a dedicated FlightDeck-issued session
+  token keeps the two verification steps in Principle II cleanly separable, and lets FlightDeck
+  control its own session lifetime independent of Access's `session_duration`).
 
 ## 2. First-login auto-provisioning
 

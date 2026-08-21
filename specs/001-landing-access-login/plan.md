@@ -63,14 +63,14 @@ client-routed within one SPA bundle. Single Worker, single D1 database pair (pro
 | Principle | Applies to this module? | Gate status |
 |---|---|---|
 | I. Two Trust Surfaces | Yes — control plane (`/api/internal/*`, SPA) vs. ingest | **PASS** — this module builds only the control-plane side; no ingest route exists yet (spec FR-014), so there is nothing to misclassify. `workers_dev:false` set from wrangler.jsonc's first commit. |
-| II. Defense-in-Depth JWT Validation, Fail Closed | Yes — this module's core deliverable | **PASS by design** — `worker/auth/access-jwt.ts` (Phase 1) verifies `Cf-Access-Jwt-Assertion` against team JWKS with issuer/audience checks, 403 fail-closed, no degraded mode. Directly testable (spec SC-003). |
+| II. Defense-in-Depth JWT Validation, Fail Closed | Yes — this module's core deliverable | **PASS by design** — the actually-provisioned Access application is scoped to `/login` only (research.md §1, discovered mid-implementation — see constitution v1.1.0). `worker/auth/access-jwt.ts` verifies `Cf-Access-Jwt-Assertion` at `/login` against team JWKS (issuer/audience checks); `worker/auth/session.ts` mints and verifies FlightDeck's own `fd_session` JWT for every other control-plane request. Both steps fail-closed, 403, no degraded mode. Directly testable (spec SC-003). |
 | III. DSN-Key Authentication for Ingest | No | **N/A** — no ingest endpoint exists in this module. |
 | IV. Sentry Protocol Compatibility | No | **N/A** — Docs page shows the *future* protocol as static reference copy only (spec FR-014); nothing to be incompatible with yet. |
 | V. Single Worker, One Module Per Pillar | Yes | **PASS** — `worker/index.ts` single fetch entrypoint; `worker/modules/identity/` owns user upsert; per-pillar route stubs (issues/traces/logs/releases/uptime/feedback) are frontend-only empty states in this module, so no backend module split is forced prematurely. |
 | VI. Deno-Only Local Toolchain | Yes | **PASS** — single `deno.json`, no `package.json`. |
 | VII. One Configuration File | Yes | **PASS** — `deno.json` holds imports/tasks/fmt/lint/compilerOptions. |
 | VIII. Strict TypeScript, Test-First, Playwright | Yes | **PASS** — `compilerOptions.strict: true`; unit tests for auth/user-upsert logic; Playwright for marketing nav, app-shell empty states, sign-out (login-redirect itself is a documented manual-verification exception, Research §5). |
-| IX. Customer Telemetry Confidentiality | Partially — no telemetry ingested yet | **PASS** — no payload logging exists yet since there's no ingest; Access JWT / D1 access still follows secrets-in-Worker-secrets-only discipline (no `CF_API_TOKEN` needed this module, so nothing to declare). |
+| IX. Customer Telemetry Confidentiality | Partially — no telemetry ingested yet | **PASS** — no payload logging exists yet since there's no ingest. This module does introduce one Worker secret, `SESSION_SECRET` (the HMAC key `worker/auth/session.ts` signs `fd_session` with) — declared via `wrangler secret put`/`wrangler versions secret put`, never as a plain `var`, per Principle IX. No `CF_API_TOKEN` needed this module (FlightDeck doesn't call the Cloudflare API). |
 | X. Admin Mutations Are Recorded | Yes, narrowly | **PASS** — no admin mutation exists in this module beyond user auto-provisioning on first login, which is an identity-recognition event, not an "account-level state change" in the sense Principle X's `audit_log` targets (project creation, DSN rotation, member role change — all later modules). `audit_log` table is **not** created in this module's migration; it is deferred to the first module that introduces an actual admin mutation, and this deferral is recorded explicitly here so it isn't silently missed. |
 | XI. English-Only, Conventional Commits | Yes | **PASS** — enforced by convention/review, not tooling; noted in CLAUDE.md. |
 
@@ -109,13 +109,15 @@ CLAUDE.md
 .env.development            # CLOUDFLARE_ENV=preview
 
 worker/
-├── index.ts                # single fetch entrypoint: routes /api/* to Hono app, else ASSETS
+├── index.ts                # single fetch entrypoint: routes /api/* + /login to Hono app, else ASSETS
 ├── auth/
-│   └── access-jwt.ts        # accessAuth middleware + requireAuth helper (jose, JWKS cache)
+│   ├── access-jwt.ts        # verifyAccessJwt(request, env) — Cf-Access-Jwt-Assertion @ /login only (jose, JWKS cache)
+│   ├── session.ts            # mintSession/verifySession — FlightDeck's own fd_session JWT (jose, SESSION_SECRET)
+│   └── login-route.ts        # GET /login — verifies Access JWT, upserts user, mints fd_session, 302
 ├── modules/
 │   └── identity/
 │       ├── users.ts          # upsertUser(sub, email, idp) — first-login auto-provision
-│       └── routes.ts         # GET /api/internal/me
+│       └── routes.ts         # sessionAuth middleware + GET /api/internal/me, GET /api/internal/projects
 └── db/
     └── migrations/
         └── 0001_baseline.sql # users + seed projects row
