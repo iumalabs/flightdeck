@@ -26,7 +26,7 @@
     "dev": "deno run -A npm:vite",
     "build": "deno run -A npm:vite build",
     "deploy:production": "deno run -A npm:wrangler deploy --env production",
-    "deploy:preview": "deno run -A npm:wrangler versions upload --env preview",
+    "deploy:preview": "deno run -A npm:wrangler deploy --env preview",
     "test": "deno test -A tests/unit/",
     "test:e2e": "deno run -A npm:playwright test",
     "test:contract": "deno run -A npm:playwright test --config=playwright.contract.config.ts",
