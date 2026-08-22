@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.0](https://github.com/iumalabs/flightdeck/compare/v0.3.0...v0.4.0) (2026-08-22)
+
+
+### Features
+
+* **traces:** add internal traces API and trace-to-error linkage ([938c709](https://github.com/iumalabs/flightdeck/commit/938c709fd5175f24576d67e8f7c48f5ca6ea9e47))
+* **traces:** add Queue binding and transactions schema ([21005ad](https://github.com/iumalabs/flightdeck/commit/21005ad8229651d3468e080ea8321458dae33d6f))
+* **traces:** add Traces list and waterfall UI ([61bd726](https://github.com/iumalabs/flightdeck/commit/61bd7263f89e2f318ed19c78bfcfd623ff3c9456))
+* **traces:** ingest transactions asynchronously via Queue ([7b55703](https://github.com/iumalabs/flightdeck/commit/7b55703f560fac0fc3f78e61d838df7f8dd37d48))
+
 ## [0.3.0](https://github.com/iumalabs/flightdeck/compare/v0.2.2...v0.3.0) (2026-08-21)
 
 
