@@ -2,12 +2,9 @@
 
 **Branch**: `005-releases` | **Date**: 2026-08-22 | **Spec**: [spec.md](./spec.md)
 
-**Status note**: Planned per explicit user instruction (continuing the established planning cadence
-from Modules 2-4) — `tasks.md` is produced for review, but starting implementation is a separate
-decision. Unlike Module 4 (which depends on Module 3's actual implementation, not just its plan),
-this module's dependency — Module 2 — is fully implemented and merged already, so this plan
-references real, existing files with the same confidence Module 2's own plan had, not planned-only
-ones. This module's migration is numbered `0005_releases.sql`.
+**Status note**: Implemented. Module 2's tables/GitHub App infrastructure this plan referenced were
+already real, live code, not planned-only artifacts, exactly as anticipated. This module's
+migration, `0005_releases.sql`, applied cleanly on top of Modules 2-3's schema.
 
 ## Summary
 

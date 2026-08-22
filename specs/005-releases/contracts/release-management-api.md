@@ -35,22 +35,27 @@ it doesn't exist yet, matching Module 2's own upload endpoint's existing behavio
 **Response `201`**: `{ "id": "string" }`. **Response `413`**: file exceeds the configured maximum
 size (reusing Module 2's existing limit).
 
-## `PUT`-equivalent finalize endpoint (path per implementation, matching `sentry-cli releases finalize`'s real target)
+## `PUT /api/0/organizations/{org_slug}/releases/{version}/`
 
-Sets `date_released` on an existing release.
+Both `sentry-cli releases finalize <version>` (sets `date_released`) AND
+`sentry-cli releases set-commits` (sends a `commits` array) target this SAME real Sentry endpoint —
+confirmed directly from Sentry's own API reference, not two separate ones as originally assumed
+during planning (research.md §1's correction).
+
+**Request**: `{ "ref": "string?", "url": "string?", "dateReleased": "string?", "commits": [{ "id": "string", "message": "string?", "author_name": "string?" }]? }`.
+`ref`/`url`/`dateReleased` update the release only when present (`COALESCE`, not overwritten with
+null); `commits`, when present and non-empty, writes one `release_commits` row per entry — sent
+directly by the client (sentry-cli's own local git access via `--auto`), NOT resolved server-side
+via Module 2's GitHub App infrastructure (that infrastructure is used only for Module 2's
+suspect-commit lookups, unrelated to this).
 
 **Behavior**: idempotent — finalizing an already-finalized release just updates `date_released`
-again, not an error.
+again, not an error. The response reflects the release's ACTUAL current state after the update
+(not merely an echo of this one request's own body) — a `set-commits` call carrying no
+`dateReleased` of its own still correctly reports whatever `dateReleased` value the release already
+has.
 
-## `set-commits` endpoint (path per implementation, matching `sentry-cli releases set-commits`'s real target)
-
-Associates a range of commits with a release, sourced from the project's connected GitHub repository
-(Module 2's existing `worker/modules/github/app-auth.ts` infrastructure — no new GitHub credential
-mechanism).
-
-**Behavior**: writes one `release_commits` row per commit in the specified range. **Response**:
-`404`-equivalent behavior (not a hard error) when no repository is connected for the project —
-matching Module 2's established "absent, not broken" pattern for optional GitHub integration.
+**Response `200`**: `{ "version": "string", "dateReleased": "string|null" }`.
 
 ## `POST .../deploys/` (`deploys new --release <v> -e <env>`)
 

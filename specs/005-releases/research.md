@@ -27,6 +27,20 @@ https://docs.sentry.io/api/releases/create-a-new-release-for-an-organization/,
 https://docs.sentry.io/api/releases/upload-a-new-project-release-file/,
 https://docs.sentry.io/api/releases/
 
+**Correction made during implementation**: `finalize` and `set-commits` are the SAME real Sentry
+endpoint — `PUT /api/0/organizations/{org_slug}/releases/{version}/` (confirmed directly:
+"Update an Organization's Release" accepts `ref`/`url`/`dateReleased`/`commits`/`refs` in one body) —
+not two separate endpoints as originally assumed. This also resolves a genuine simplification: the
+`commits` array is sent directly by the CLIENT (sentry-cli's own local git access via `--auto`),
+so FlightDeck's `set-commits` implementation needs NO server-side GitHub API call at all — the
+original plan's assumption that this required Module 2's GitHub App infrastructure was incorrect;
+that infrastructure is used only for suspect-commit lookups (Module 2), not for this. A live bug
+was also found and fixed here: the endpoint's response initially echoed only what the REQUEST body
+carried (so a `set-commits` call with no `dateReleased` of its own reported it as `null`, even for
+an already-finalized release, since the DB's `COALESCE` had correctly left the stored value
+untouched) — fixed to return the release's actual current state via `RETURNING`, confirmed via a
+live two-call sequence (finalize, then set-commits) against a real `wrangler dev`.
+
 ## 2. Config discovery: `SENTRY_URL` is overridable — no protocol gap
 
 **Decision**: no FlightDeck-specific CLI wrapper needed — a real, unmodified `sentry-cli` installation
@@ -159,6 +173,14 @@ finalized out of chronological upload order should still compare correctly by it
 ordering, not by when its files happened to be uploaded). Implementing this as an extension of the
 EXISTING ingest path (not a new endpoint or a scheduled job) keeps regression detection real-time,
 consistent with how errors already become visible within seconds (Module 2's spec SC-001).
+
+**Verified live**: the full regression flow was run end to end against a real `wrangler dev` — an
+issue resolved (exact mode) against a release, a later release created, the same underlying error
+retriggered tagged with it, confirmed the issue flips back to `unresolved` while
+`resolved_release_id`/`resolved_mode` stay as the historical record (powering the "regressed"
+indicator). Then re-resolved and retriggered tagged with an EARLIER release — confirmed it correctly
+stays resolved, not reopened. Both directions of spec.md's Edge Cases confirmed correct, not just
+unit-tested in isolation.
 
 **Source**: https://www.sentry.help/en/articles/13964279-why-didn-t-my-issue-regress-after-i-resolved-it-in-a-release
 
