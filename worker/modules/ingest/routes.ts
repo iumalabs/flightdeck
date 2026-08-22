@@ -1,15 +1,36 @@
 import { Hono } from "hono";
 import { extractSentryKey, resolveProjectByDsnKey } from "./dsn-auth.ts";
-import { isEventItem, parseEnvelope, parseEventPayload } from "./envelope.ts";
+import {
+  isEventItem,
+  isTransactionItem,
+  parseEnvelope,
+  parseEventPayload,
+  parseTransactionPayload,
+} from "./envelope.ts";
 import { computeFingerprint, deriveCulprit, deriveTitle } from "./fingerprint.ts";
 import { resolveStackTrace } from "./sourcemap.ts";
+import { extractTraceContext } from "./trace-context.ts";
 import type { EventPayload } from "./types.ts";
+import type { QueuedTransaction } from "./trace-consumer.ts";
 import type { RateLimiter } from "../../durable-objects/rate-limiter.ts";
 
 interface Env {
   DB: D1Database;
   SOURCE_MAPS: R2Bucket;
   RATE_LIMITER: DurableObjectNamespace<RateLimiter>;
+  TRACE_INGEST: Queue<QueuedTransaction>;
+}
+
+// "transaction" item shape (specs/003-distributed-tracing research.md §2) — loose/optional like
+// EventPayload, since only the fields this module actually reads are validated.
+interface TransactionPayload {
+  event_id?: string;
+  start_timestamp?: number;
+  timestamp?: number;
+  transaction_info?: { transaction?: string };
+  transaction?: string;
+  contexts?: { trace?: { trace_id?: string; op?: string } };
+  spans?: unknown[];
 }
 
 // Max ingest payload size (spec FR-013) — generous enough for a real stack trace + breadcrumbs +
@@ -61,6 +82,33 @@ ingestRoutes.post("/:projectId/envelope", async (c) => {
   }
 
   for (const item of envelope.items) {
+    if (isTransactionItem(item)) {
+      // Trace ingest is asynchronous (specs/003-distributed-tracing research.md §4) — enqueue and
+      // move on, never a synchronous D1 write in this request path (unlike the "event" branch
+      // below, unchanged from Module 2).
+      const transaction = parseTransactionPayload(item) as TransactionPayload | null;
+      const traceId = transaction?.contexts?.trace?.trace_id;
+      if (
+        !transaction || !transaction.event_id || !traceId ||
+        typeof transaction.start_timestamp !== "number" || typeof transaction.timestamp !== "number"
+      ) {
+        continue; // an unparseable/incomplete transaction item is dropped, not fatal to the rest of the envelope
+      }
+
+      const queued: QueuedTransaction = {
+        projectId: project.id,
+        traceId,
+        sdkEventId: transaction.event_id,
+        name: transaction.transaction_info?.transaction ?? transaction.transaction ?? "unknown",
+        op: transaction.contexts?.trace?.op ?? null,
+        startTimestamp: transaction.start_timestamp,
+        timestamp: transaction.timestamp,
+        spans: transaction.spans ?? [],
+      };
+      await c.env.TRACE_INGEST.send(queued);
+      continue;
+    }
+
     if (!isEventItem(item)) continue; // other item types are accepted-and-skipped (research.md §2)
 
     const event = parseEventPayload(item) as EventPayload | null;
@@ -106,10 +154,15 @@ ingestRoutes.post("/:projectId/envelope", async (c) => {
 
     if (!issue) continue; // shouldn't happen — defensive, don't let one bad item 500 the request
 
+    // contexts.trace is the same context object transactions carry (specs/003-distributed-tracing
+    // research.md §3) — recorded here whether or not a transaction for this trace was ever
+    // ingested, per Sentry's own "recommended... even without performance monitoring" guidance.
+    const traceContext = extractTraceContext(event);
+
     await c.env.DB
       .prepare(
-        `INSERT INTO events (id, issue_id, project_id, sdk_event_id, release, environment, payload, received_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, datetime('now'))`,
+        `INSERT INTO events (id, issue_id, project_id, sdk_event_id, release, environment, payload, trace_id, span_id, received_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, datetime('now'))`,
       )
       .bind(
         crypto.randomUUID(),
@@ -119,6 +172,8 @@ ingestRoutes.post("/:projectId/envelope", async (c) => {
         event.release ?? null,
         event.environment ?? null,
         JSON.stringify(event),
+        traceContext?.traceId ?? null,
+        traceContext?.spanId ?? null,
       )
       .run();
   }

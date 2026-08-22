@@ -11,3 +11,16 @@ export async function pruneOldEvents(db: D1Database): Promise<number> {
     .run();
   return result.meta.changes ?? 0;
 }
+
+// specs/003-distributed-tracing research.md §8: transactions get their own, shorter window than
+// events — trace volume is structurally higher per session, and unlike the issues/events split, a
+// `transactions` row IS the summary (full row deletion, no separate aggregate to preserve).
+export const TRANSACTION_RETENTION_DAYS = 30;
+
+export async function pruneOldTransactions(db: D1Database): Promise<number> {
+  const result = await db
+    .prepare(`DELETE FROM transactions WHERE received_at < datetime('now', ?1)`)
+    .bind(`-${TRANSACTION_RETENTION_DAYS} days`)
+    .run();
+  return result.meta.changes ?? 0;
+}
