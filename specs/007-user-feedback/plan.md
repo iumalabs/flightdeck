@@ -2,13 +2,13 @@
 
 **Branch**: `007-user-feedback` | **Date**: 2026-08-22 | **Spec**: [spec.md](./spec.md)
 
-**Status note**: Planned per explicit user instruction ("продолжай планировать Module 7"),
-continuing the established planning cadence from Modules 2-6 — `tasks.md` is produced for review,
-but starting implementation is a separate decision. This module's dependency (Module 2) is fully
-implemented and merged already, so this plan references real, existing files with the same
-confidence Module 5's own plan had. This module's migration is numbered `0007_user_feedback.sql`.
-**This is the last module in the constitution's current Product Scope & Module Roadmap** — there is
-no Module 8 to sequence planning against once this module's tasks.md lands.
+**Status note**: Implemented and verified live — see tasks.md's Status line for the full test
+summary. The one genuine surprise found during implementation: the real SDK's dialog request lands
+on the TRAILING-SLASH path (`/api/embed/error-page/`), confirmed live via a real, unmodified
+`@sentry/browser` bundle's actual `showReportDialog()` call — both the slash and no-slash forms are
+mounted (research.md §6). This module's migration is `0007_user_feedback.sql`. **This was the last
+module in the constitution's Product Scope & Module Roadmap** — all seven modules are now
+implemented.
 
 ## Summary
 

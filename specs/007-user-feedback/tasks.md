@@ -20,10 +20,17 @@ US2=P1, US3=P2). US1 (widget/envelope) and US2 (crash-report dialog) are indepen
 sharing only the Foundational schema and a resolution helper; US3 (issue-detail cross-linking)
 depends on both, since it surfaces `issue_id` values either path can populate.
 
-**⚠️ Status**: Planned, not yet authorized for implementation — see plan.md's Summary. Do not begin
-executing these tasks without a separate explicit go-ahead. This module's dependency (Module 2) is
-fully implemented and merged already — no "wait for an earlier module to land" caveat. **This is the
-last module in the constitution's current Product Scope & Module Roadmap.**
+**Status**: Implemented and verified — all 27 tasks complete. `deno fmt`/`deno lint`/`deno check`
+clean; 16 new unit tests (`resolveIssueId`/`insertWidgetFeedback` dedup logic, `parseDsn`,
+`buildDialogScript`) all pass; 9 new contract tests against a real `wrangler dev` (envelope path's
+valid/invalid-DSN/missing-message/dedup cases, dialog GET's valid/malformed-dsn/missing-eventId
+cases, dialog POST's linked-upsert/missing-comments cases) all pass; 2 new e2e tests pass, including
+a genuine SC-002-grade validation that loads the real, unmodified `@sentry/browser` UMD bundle from
+its actual CDN in a live browser and drives `Sentry.showReportDialog()` end to end against this
+module's endpoint — not just a hand-crafted approximation of the real SDK's request shape. Two test-
+fixture bugs (not application bugs — the underlying ingest/upsert logic was correct both times) were
+found and fixed during live contract testing — see research.md §6. **This was the last module in the
+constitution's Product Scope & Module Roadmap** — all seven modules are now implemented.
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -41,7 +48,7 @@ no `wrangler.jsonc` change (research.md §2).
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] T001 [P] Create directory skeleton: `worker/modules/feedback/`
+- [x] T001 [P] Create directory skeleton: `worker/modules/feedback/`
 
 ---
 
@@ -51,14 +58,14 @@ no `wrangler.jsonc` change (research.md §2).
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T002 Create `worker/db/migrations/0007_user_feedback.sql` — `feedback` table per
+- [x] T002 Create `worker/db/migrations/0007_user_feedback.sql` — `feedback` table per
       data-model.md, including the `(project_id, received_at)` and `(issue_id)` indexes and the
       unique `(project_id, associated_event_id, source)` constraint scoped to
       `source = 'crash_report_dialog'` rows (research.md §1's confirmed upsert behavior)
-- [ ] T003 Apply the migration locally: `deno task db:migrations:apply:local` (depends on T002)
-- [ ] T004 Mount an empty, `sessionAuth`-gated `feedbackRoutes` router under `/api/internal` in
+- [x] T003 Apply the migration locally: `deno task db:migrations:apply:local` (depends on T002)
+- [x] T004 Mount an empty, `sessionAuth`-gated `feedbackRoutes` router under `/api/internal` in
       `worker/index.ts` (depends on T001)
-- [ ] T005 Verify `deno task build` and `deno check` still pass with the new table/empty routes
+- [x] T005 Verify `deno task build` and `deno check` still pass with the new table/empty routes
       wired in (smoke check, no new business-logic files)
 
 **Checkpoint**: Foundation ready — user story implementation can now begin.
@@ -76,11 +83,11 @@ rejected with nothing recorded.
 
 ### Tests for User Story 1
 
-- [ ] T006 [P] [US1] Write `tests/unit/feedback-ingest.test.ts` (envelope `"feedback"` item
+- [x] T006 [P] [US1] Write `tests/unit/feedback-ingest.test.ts` (envelope `"feedback"` item
       parsing/dispatch; `associated_event_id` → `issue_id` resolution against `events.sdk_event_id`,
       both the found and not-found cases per FR-006; dedup by the item's own `event_id` against
       `feedback.sdk_event_id`) — expect it to fail until T008-T009 land
-- [ ] T007 [US1] Write `tests/contract/feedback-api.spec.ts`'s envelope-path cases (against real
+- [x] T007 [US1] Write `tests/contract/feedback-api.spec.ts`'s envelope-path cases (against real
       `wrangler dev`: POST a feedback envelope item with a valid DSN and confirm it's recorded;
       repeat with an invalid/unknown DSN and confirm `403` with nothing recorded per FR-002; POST
       one with no `associated_event_id` and confirm it's recorded standalone per Acceptance
@@ -88,23 +95,23 @@ rejected with nothing recorded.
 
 ### Implementation for User Story 1
 
-- [ ] T008 [US1] Add `isFeedbackItem()` to `worker/modules/ingest/envelope.ts`, mirroring the
+- [x] T008 [US1] Add `isFeedbackItem()` to `worker/modules/ingest/envelope.ts`, mirroring the
       existing `isEventItem()` (depends on T006)
-- [ ] T009 [US1] Implement `worker/modules/feedback/ingest.ts` — the shared write path: parse
+- [x] T009 [US1] Implement `worker/modules/feedback/ingest.ts` — the shared write path: parse
       `contexts.feedback` (message required; name/contact_email/url/associated_event_id optional,
       per contracts/feedback-ingest-api.md), resolve `associated_event_id` against
       `events.sdk_event_id` scoped to the project to derive `issue_id`, dedup on the item's own
       `event_id` against `feedback.sdk_event_id`, insert with `source = 'widget'` (depends on T008,
       T003)
-- [ ] T010 [US1] Wire `"feedback"` item dispatch into `worker/modules/ingest/routes.ts`'s existing
+- [x] T010 [US1] Wire `"feedback"` item dispatch into `worker/modules/ingest/routes.ts`'s existing
       per-item loop, calling `feedback/ingest.ts` (depends on T009)
-- [ ] T011 [US1] Implement `GET /api/internal/feedback` and `GET /api/internal/feedback/:id` in
+- [x] T011 [US1] Implement `GET /api/internal/feedback` and `GET /api/internal/feedback/:id` in
       `worker/modules/feedback/routes.ts` per contracts/feedback-internal-api.md (depends on T003)
-- [ ] T012 [US1] Wire the real `feedbackRoutes` into `worker/index.ts` under `/api/internal`,
+- [x] T012 [US1] Wire the real `feedbackRoutes` into `worker/index.ts` under `/api/internal`,
       replacing T004's stub (depends on T011, T004)
-- [ ] T013 [P] [US1] Build `app/shell/FeedbackScreen.tsx`'s real list + detail view (replacing
+- [x] T013 [P] [US1] Build `app/shell/FeedbackScreen.tsx`'s real list + detail view (replacing
       Module 1's static empty state), fetching from T011's endpoints (depends on T012)
-- [ ] T014 [US1] Run T006-T007's tests, confirm all pass (depends on T010, T011, T012, T013)
+- [x] T014 [US1] Run T006-T007's tests, confirm all pass (depends on T010, T011, T012, T013)
 
 **Checkpoint**: Widget-based feedback ingest works end to end and is visible in the dashboard.
 
@@ -122,11 +129,11 @@ it upserts rather than duplicating.
 
 ### Tests for User Story 2
 
-- [ ] T015 [P] [US2] Write `tests/unit/feedback-dialog.test.ts` (dialog GET/POST query-string and
+- [x] T015 [P] [US2] Write `tests/unit/feedback-dialog.test.ts` (dialog GET/POST query-string and
       form-body parsing per contracts/feedback-ingest-api.md; the upsert-on-retry logic keyed on
       `(project_id, associated_event_id, source='crash_report_dialog')`, research.md §1) — expect it
       to fail until T017-T018 land
-- [ ] T016 [US2] Write `tests/contract/feedback-api.spec.ts`'s dialog-path cases (against real
+- [x] T016 [US2] Write `tests/contract/feedback-api.spec.ts`'s dialog-path cases (against real
       `wrangler dev`: GET with a valid `dsn`+`eventId` returns `200`/`text/javascript`; GET with a
       malformed/unresolvable `dsn` returns `404`; GET with no `eventId` returns `400`; POST with
       `name`/`email`/`comments` records feedback linked via `eventId`; a repeated POST for the same
@@ -134,20 +141,20 @@ it upserts rather than duplicating.
 
 ### Implementation for User Story 2
 
-- [ ] T017 [US2] Implement `worker/modules/feedback/dialog.ts`'s GET handler — parse the `dsn` query
+- [x] T017 [US2] Implement `worker/modules/feedback/dialog.ts`'s GET handler — parse the `dsn` query
       parameter as a full DSN string (not the bare `sentry_key` the envelope path uses) plus
       `eventId`, resolve the project, respond with the self-contained `text/javascript` payload
       (dialog markup + a submit handler posting back to the same URL + the
       `postMessage("__sentry_reportdialog_closed__", ...)` close contract) per research.md §1's
       Decision (depends on T003)
-- [ ] T018 [US2] Implement `dialog.ts`'s POST handler — parse `name`/`email`/`comments` form body,
+- [x] T018 [US2] Implement `dialog.ts`'s POST handler — parse `name`/`email`/`comments` form body,
       resolve `issue_id` via `events.sdk_event_id = eventId` scoped to the project (reusing T009's
       resolution logic, factored so both paths share it rather than duplicating it), upsert on
       `(project_id, associated_event_id, source='crash_report_dialog')` (depends on T017, T009)
-- [ ] T019 [US2] Mount `GET|POST /api/embed/error-page` in `worker/index.ts`; confirm live (not just
+- [x] T019 [US2] Mount `GET|POST /api/embed/error-page` in `worker/index.ts`; confirm live (not just
       by inspection) that it's already reached by the existing `run_worker_first: [..., "/api/*"]`
       wildcard with no `wrangler.jsonc` change (research.md §2) (depends on T017, T018)
-- [ ] T020 [US2] Run T015-T016's tests, confirm all pass (depends on T017, T018, T019)
+- [x] T020 [US2] Run T015-T016's tests, confirm all pass (depends on T017, T018, T019)
 
 **Checkpoint**: The crash-report dialog loads and accepts submissions against an unmodified real
 SDK's `showReportDialog()` call, linked to the correct issue.
@@ -164,19 +171,19 @@ an empty array and no feedback section renders.
 
 ### Tests for User Story 3
 
-- [ ] T021 [P] [US3] Write `tests/e2e/feedback-list-and-linking.spec.ts` (an issue with linked
+- [x] T021 [P] [US3] Write `tests/e2e/feedback-list-and-linking.spec.ts` (an issue with linked
       feedback shows a feedback section on `IssueDetailScreen.tsx`; an issue with none shows no
       section at all, per Acceptance Scenario 2) — expect it to fail until T022-T023 land
 
 ### Implementation for User Story 3
 
-- [ ] T022 [US3] Add a `feedback` array field to the existing `GET /api/internal/issues/:id` (Module
+- [x] T022 [US3] Add a `feedback` array field to the existing `GET /api/internal/issues/:id` (Module
       2, `worker/modules/issues/routes.ts`) per contracts/feedback-internal-api.md, querying
       `feedback` by `issue_id` (depends on T009, T018 — both ingest paths must be able to populate
       `issue_id` first)
-- [ ] T023 [US3] Add a feedback section to `IssueDetailScreen.tsx`, rendered only when the array is
+- [x] T023 [US3] Add a feedback section to `IssueDetailScreen.tsx`, rendered only when the array is
       non-empty (depends on T022)
-- [ ] T024 [US3] Run T021's test, confirm it passes (depends on T022, T023)
+- [x] T024 [US3] Run T021's test, confirm it passes (depends on T022, T023)
 
 **Checkpoint**: All three user stories are independently functional.
 
@@ -184,11 +191,11 @@ an empty array and no feedback section renders.
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T025 Run `quickstart.md`'s Real-SDK validation step manually — `@sentry/browser` (>= 7.85.0)
+- [x] T025 Run `quickstart.md`'s Real-SDK validation step manually — `@sentry/browser` (>= 7.85.0)
       with `feedbackIntegration()` and a real `showReportDialog({ eventId })` call against a local
       `wrangler dev`, confirming SC-002-grade confidence beyond the hand-crafted contract tests
-- [ ] T026 [P] `deno fmt` / `deno lint` across all new files
-- [ ] T027 Confirm `deno task test`, `deno task test:contract`, and `deno task test:e2e` all pass
+- [x] T026 [P] `deno fmt` / `deno lint` across all new files
+- [x] T027 Confirm `deno task test`, `deno task test:contract`, and `deno task test:e2e` all pass
       together as a full suite (not just per-story in isolation)
 
 ---

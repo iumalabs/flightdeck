@@ -128,3 +128,37 @@ Modules 3-4's trace spans/log lines).
 
 **Source**: existing `worker/modules/ingest/envelope.ts`, `routes.ts`, `dsn-auth.ts`; Module 2's
 `0002_error_monitoring.sql` (`events.sdk_event_id`, `events.issue_id`).
+
+## 6. Findings from live testing
+
+**The real SDK's dialog request lands on the trailing-slash path** — confirmed live by loading the
+actual, unmodified `@sentry/browser` UMD bundle from its real CDN (`browser.sentry-cdn.com`) into a
+live Playwright-driven browser and calling `Sentry.showReportDialog({ eventId })`: the injected
+`<script>` tag's `src` requests `/api/embed/error-page/` (trailing slash), not the bare
+`/api/embed/error-page` this module's own contract docs/quickstart curl examples use. Both forms are
+mounted in `worker/index.ts` so neither breaks — the real SDK needs the slash form to work at all,
+while this project's own documented curl examples keep working with the bare form. This is exactly
+the SC-002-grade confirmation this module's testing strategy called for: a hand-crafted contract
+test alone would not have caught this, since it's free to hit whichever path it's told to.
+
+**Two test-fixture bugs, not application bugs**, were caught and fixed while writing the contract
+suite — worth recording since both LOOKED like real ingest/upsert bugs at first:
+
+1. The envelope-path dedup contract test initially failed because the test's own
+   `buildFeedbackEnvelope()` helper put `event_id` only in the envelope HEADER, not the feedback
+   item's own PAYLOAD (unlike `buildErrorEnvelope()` in the same file, which does put it in the
+   payload, matching the real protocol) — `insertWidgetFeedback()`'s dedup check correctly reads the
+   item's own payload `event_id` (research.md §4), so the test was simply never sending the value it
+   claimed to be testing dedup against.
+2. The dialog-upsert contract test initially reported 2-then-3 matching rows across repeated runs,
+   which looked like the upsert wasn't collapsing to one row — a direct manual reproduction
+   (`wrangler
+   d1 execute` with the exact same
+   `INSERT ... ON CONFLICT ... WHERE source = 'crash_report_dialog'
+   DO UPDATE` statement)
+   confirmed the upsert logic was correct all along. The real cause: the test used a fixed literal
+   comment string across repeated LOCAL test runs against the SAME persistent `wrangler dev` D1
+   state, so each run's leftover row (a genuinely different `associated_event_id` per run, since
+   that's a fresh UUID each time) accumulated in the message-text-based assertion scan. Fixed by
+   embedding the test's own unique title into the submitted comment text, scoping the assertion to
+   rows from that specific test run.
