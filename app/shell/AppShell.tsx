@@ -4,6 +4,7 @@ import { OverviewScreen } from "./OverviewScreen.tsx";
 import { IssuesScreen } from "./IssuesScreen.tsx";
 import { IssueDetailScreen } from "./IssueDetailScreen.tsx";
 import { TracesScreen } from "./TracesScreen.tsx";
+import { TraceDetailScreen } from "./TraceDetailScreen.tsx";
 import { LogsScreen } from "./LogsScreen.tsx";
 import { ReleasesScreen } from "./ReleasesScreen.tsx";
 import { UptimeScreen } from "./UptimeScreen.tsx";
@@ -70,6 +71,10 @@ function renderScreen(
   selectedIssueId: string | null,
   onSelectIssue: (id: string) => void,
   onBackToIssues: () => void,
+  selectedTransactionId: string | null,
+  onSelectTransaction: (id: string) => void,
+  onBackToTraces: () => void,
+  onViewTrace: (traceId: string) => void,
 ) {
   switch (screen) {
     case "overview":
@@ -78,10 +83,26 @@ function renderScreen(
       return <IssuesScreen onSelectIssue={onSelectIssue} />;
     case "issue-detail":
       return selectedIssueId
-        ? <IssueDetailScreen issueId={selectedIssueId} onBack={onBackToIssues} />
+        ? (
+          <IssueDetailScreen
+            issueId={selectedIssueId}
+            onBack={onBackToIssues}
+            onViewTrace={onViewTrace}
+          />
+        )
         : <IssuesScreen onSelectIssue={onSelectIssue} />;
     case "traces":
-      return <TracesScreen />;
+      return <TracesScreen onSelectTransaction={onSelectTransaction} />;
+    case "trace-detail":
+      return selectedTransactionId
+        ? (
+          <TraceDetailScreen
+            transactionId={selectedTransactionId}
+            onBack={onBackToTraces}
+            onSelectIssue={onSelectIssue}
+          />
+        )
+        : <TracesScreen onSelectTransaction={onSelectTransaction} />;
     case "logs":
       return <LogsScreen />;
     case "releases":
@@ -104,6 +125,7 @@ function renderScreen(
 export function AppShell({ session, signOut, navigate }: AppShellProps) {
   const [screen, setScreen] = useState("overview");
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
+  const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[] | null>(null);
 
   const onSelectIssue = (id: string) => {
@@ -113,6 +135,25 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
   const onBackToIssues = () => {
     setSelectedIssueId(null);
     setScreen("issues");
+  };
+  const onSelectTransaction = (id: string) => {
+    setSelectedTransactionId(id);
+    setScreen("trace-detail");
+  };
+  const onBackToTraces = () => {
+    setSelectedTransactionId(null);
+    setScreen("traces");
+  };
+  // Resolves an issue's traceId (the raw trace_id column) to a transactions.id via
+  // contracts/traces-internal-api.md's by-trace-id lookup — not a direct id match
+  // (specs/003-distributed-tracing).
+  const onViewTrace = (traceId: string) => {
+    fetch(`/api/internal/traces/by-trace-id/${traceId}`, { credentials: "same-origin" })
+      .then((res) => (res.ok ? res.json() as Promise<{ transactionId: string | null }> : null))
+      .then((data) => {
+        if (data?.transactionId) onSelectTransaction(data.transactionId);
+      })
+      .catch(() => {});
   };
 
   useEffect(() => {
@@ -201,15 +242,17 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
                 {group.label}
               </div>
               {group.items.map((item) => {
-                // "issue-detail" is conceptually a sub-screen of "issues" — keep the nav item
-                // highlighted while viewing a specific issue.
+                // "issue-detail"/"trace-detail" are conceptually sub-screens of "issues"/"traces"
+                // — keep the nav item highlighted while viewing a specific issue or transaction.
                 const isActive = screen === item.screen ||
-                  (item.screen === "issues" && screen === "issue-detail");
+                  (item.screen === "issues" && screen === "issue-detail") ||
+                  (item.screen === "traces" && screen === "trace-detail");
                 return (
                   <div
                     key={item.screen}
                     onClick={() => {
                       setSelectedIssueId(null);
+                      setSelectedTransactionId(null);
                       setScreen(item.screen);
                     }}
                     style={{
@@ -295,7 +338,17 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
       </div>
 
       <div style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: 32 }}>
-        {renderScreen(screen, session, selectedIssueId, onSelectIssue, onBackToIssues)}
+        {renderScreen(
+          screen,
+          session,
+          selectedIssueId,
+          onSelectIssue,
+          onBackToIssues,
+          selectedTransactionId,
+          onSelectTransaction,
+          onBackToTraces,
+          onViewTrace,
+        )}
       </div>
     </div>
   );
