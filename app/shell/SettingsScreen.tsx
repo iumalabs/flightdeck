@@ -274,6 +274,95 @@ function LogExport({ project }: { project: Project | null }) {
   );
 }
 
+type TokenStatus = { kind: "idle" } | { kind: "generated"; token: string } | { kind: "revoked" } | {
+  kind: "error";
+};
+
+// contracts/releases-internal-api.md (specs/005-releases) — the raw token is shown ONCE, at
+// generation time, and never retrievable again (data-model.md's API Token section), matching
+// standard API-credential UX.
+function ApiTokenSection({ project }: { project: Project | null }) {
+  const [tokenId, setTokenId] = useState("");
+  const [status, setStatus] = useState<TokenStatus>({ kind: "idle" });
+
+  const generate = async () => {
+    if (!project) return;
+    const res = await fetch(`/api/internal/projects/${project.id}/api-tokens`, {
+      method: "POST",
+      credentials: "same-origin",
+    });
+    if (res.ok) {
+      const body = await res.json() as { id: string; token: string };
+      setTokenId(body.id);
+      setStatus({ kind: "generated", token: body.token });
+    } else {
+      setStatus({ kind: "error" });
+    }
+  };
+
+  const revoke = async () => {
+    if (!project || !tokenId) return;
+    const res = await fetch(`/api/internal/projects/${project.id}/api-tokens/${tokenId}`, {
+      method: "DELETE",
+      credentials: "same-origin",
+    });
+    setStatus(res.ok ? { kind: "revoked" } : { kind: "error" });
+  };
+
+  return (
+    <div
+      style={{
+        border: "1px solid var(--line)",
+        background: "var(--panel)",
+        maxWidth: 480,
+        padding: 18,
+        marginTop: 20,
+      }}
+    >
+      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
+        sentry-cli API token
+      </div>
+      <p style={{ fontSize: 12.5, color: "var(--fg3)", marginBottom: 12 }}>
+        Point a real, unmodified <code>sentry-cli</code> at this project via{" "}
+        <code>SENTRY_URL</code>/<code>SENTRY_AUTH_TOKEN</code>{" "}
+        — the secret is shown once, here, and never retrievable again.
+      </p>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button type="button" onClick={generate} disabled={!project} style={buttonStyle}>
+          Generate token
+        </button>
+        <button
+          type="button"
+          onClick={revoke}
+          disabled={!project || !tokenId}
+          style={secondaryButtonStyle}
+        >
+          Revoke
+        </button>
+      </div>
+      {status.kind === "generated" && (
+        <div
+          style={{
+            marginTop: 12,
+            fontFamily: "var(--font-mono)",
+            fontSize: 11.5,
+            color: "var(--fg2)",
+            wordBreak: "break-all",
+          }}
+        >
+          {status.token}
+        </div>
+      )}
+      {status.kind === "revoked" && (
+        <span style={{ color: "var(--fg2)", fontSize: 12.5 }}>Token revoked.</span>
+      )}
+      {status.kind === "error" && (
+        <span style={{ color: "#FF4D4D", fontSize: 12.5 }}>Request failed.</span>
+      )}
+    </div>
+  );
+}
+
 const inputStyle: React.CSSProperties = {
   fontSize: 13,
   padding: "6px 10px",
@@ -367,6 +456,7 @@ export function SettingsScreen({ session }: { session: Session }) {
       <SourceMapUpload project={project} />
       <GitHubConnect project={project} />
       <LogExport project={project} />
+      <ApiTokenSection project={project} />
 
       <p style={{ fontSize: 13, color: "var(--fg3)", marginTop: 16, maxWidth: 480 }}>
         Member management, project settings and billing are not part of this workspace yet.

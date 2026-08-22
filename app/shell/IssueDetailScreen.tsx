@@ -43,6 +43,9 @@ interface IssueDetail {
   // event's trace_id, null when it carried no active trace (spec FR-009, "absent, not an error
   // state").
   traceId: string | null;
+  // contracts/releases-internal-api.md's addition (specs/005-releases).
+  status: string;
+  regressed: boolean;
 }
 
 export interface IssueDetailScreenProps {
@@ -51,9 +54,35 @@ export interface IssueDetailScreenProps {
   onViewTrace: (traceId: string) => void;
 }
 
+type ResolveStatus = { kind: "idle" } | { kind: "resolving" } | { kind: "error" };
+
 export function IssueDetailScreen({ issueId, onBack, onViewTrace }: IssueDetailScreenProps) {
   const [loading, setLoading] = useState(true);
   const [issue, setIssue] = useState<IssueDetail | null>(null);
+  const [resolveStatus, setResolveStatus] = useState<ResolveStatus>({ kind: "idle" });
+
+  const refetch = () => {
+    fetch(`/api/internal/issues/${issueId}`, { credentials: "same-origin" })
+      .then((res) => (res.ok ? res.json() as Promise<IssueDetail> : null))
+      .then((data) => setIssue(data))
+      .catch(() => {});
+  };
+
+  const resolve = (mode: "exact" | "next-release") => {
+    setResolveStatus({ kind: "resolving" });
+    fetch(`/api/internal/issues/${issueId}/resolve`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("resolve failed");
+        setResolveStatus({ kind: "idle" });
+        refetch();
+      })
+      .catch(() => setResolveStatus({ kind: "error" }));
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -116,6 +145,31 @@ export function IssueDetailScreen({ issueId, onBack, onViewTrace }: IssueDetailS
           {issue.culprit}
         </div>
       )}
+
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+        {issue.status === "resolved"
+          ? <span style={{ color: "var(--fg2)", fontSize: 12.5 }}>Resolved</span>
+          : (
+            <>
+              <span
+                onClick={() => resolveStatus.kind !== "resolving" && resolve("exact")}
+                style={{ cursor: "pointer", color: "var(--accent)", fontSize: 12.5 }}
+              >
+                Resolve
+              </span>
+              <span
+                onClick={() => resolveStatus.kind !== "resolving" && resolve("next-release")}
+                style={{ cursor: "pointer", color: "var(--accent)", fontSize: 12.5 }}
+              >
+                Resolve in next release
+              </span>
+            </>
+          )}
+        {issue.regressed && <span style={{ color: "#FF4D4D", fontSize: 12.5 }}>Regressed</span>}
+        {resolveStatus.kind === "error" && (
+          <span style={{ color: "#FF4D4D", fontSize: 12.5 }}>Resolve failed.</span>
+        )}
+      </div>
 
       {issue.traceId && (
         <div

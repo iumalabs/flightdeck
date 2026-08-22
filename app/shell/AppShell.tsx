@@ -7,6 +7,7 @@ import { TracesScreen } from "./TracesScreen.tsx";
 import { TraceDetailScreen } from "./TraceDetailScreen.tsx";
 import { LogsScreen } from "./LogsScreen.tsx";
 import { ReleasesScreen } from "./ReleasesScreen.tsx";
+import { ReleaseDetailScreen } from "./ReleaseDetailScreen.tsx";
 import { UptimeScreen } from "./UptimeScreen.tsx";
 import { FeedbackScreen } from "./FeedbackScreen.tsx";
 import { AlertsScreen } from "./AlertsScreen.tsx";
@@ -75,6 +76,9 @@ function renderScreen(
   onSelectTransaction: (id: string) => void,
   onBackToTraces: () => void,
   onViewTrace: (traceId: string) => void,
+  selectedReleaseId: string | null,
+  onSelectRelease: (id: string) => void,
+  onBackToReleases: () => void,
 ) {
   switch (screen) {
     case "overview":
@@ -91,6 +95,16 @@ function renderScreen(
           />
         )
         : <IssuesScreen onSelectIssue={onSelectIssue} />;
+    case "release-detail":
+      return selectedReleaseId
+        ? (
+          <ReleaseDetailScreen
+            releaseId={selectedReleaseId}
+            onBack={onBackToReleases}
+            onSelectIssue={onSelectIssue}
+          />
+        )
+        : <ReleasesScreen onSelectRelease={onSelectRelease} />;
     case "traces":
       return <TracesScreen onSelectTransaction={onSelectTransaction} />;
     case "trace-detail":
@@ -106,7 +120,7 @@ function renderScreen(
     case "logs":
       return <LogsScreen onSelectTrace={onViewTrace} />;
     case "releases":
-      return <ReleasesScreen />;
+      return <ReleasesScreen onSelectRelease={onSelectRelease} />;
     case "uptime":
       return <UptimeScreen />;
     case "feedback":
@@ -126,6 +140,7 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
   const [screen, setScreen] = useState("overview");
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
+  const [selectedReleaseId, setSelectedReleaseId] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[] | null>(null);
 
   const onSelectIssue = (id: string) => {
@@ -143,6 +158,14 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
   const onBackToTraces = () => {
     setSelectedTransactionId(null);
     setScreen("traces");
+  };
+  const onSelectRelease = (id: string) => {
+    setSelectedReleaseId(id);
+    setScreen("release-detail");
+  };
+  const onBackToReleases = () => {
+    setSelectedReleaseId(null);
+    setScreen("releases");
   };
   // Resolves an issue's traceId (the raw trace_id column) to a transactions.id via
   // contracts/traces-internal-api.md's by-trace-id lookup — not a direct id match
@@ -246,13 +269,15 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
                 // — keep the nav item highlighted while viewing a specific issue or transaction.
                 const isActive = screen === item.screen ||
                   (item.screen === "issues" && screen === "issue-detail") ||
-                  (item.screen === "traces" && screen === "trace-detail");
+                  (item.screen === "traces" && screen === "trace-detail") ||
+                  (item.screen === "releases" && screen === "release-detail");
                 return (
                   <div
                     key={item.screen}
                     onClick={() => {
                       setSelectedIssueId(null);
                       setSelectedTransactionId(null);
+                      setSelectedReleaseId(null);
                       setScreen(item.screen);
                     }}
                     style={{
@@ -348,6 +373,9 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
           onSelectTransaction,
           onBackToTraces,
           onViewTrace,
+          selectedReleaseId,
+          onSelectRelease,
+          onBackToReleases,
         )}
       </div>
     </div>
