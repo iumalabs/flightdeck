@@ -7,18 +7,18 @@
 **Status**: Draft
 
 **Input**: User description: "Module 6 — Uptime monitoring (HTTP/TCP checks, incident-aware
-alerting, the first scheduled-handler consumer of constitution Principle V's shared
-evaluation-logic rule)." (full brief in conversation history, including platform-capability
-research into Cloudflare's actual execution-region controls, and scope decisions already made —
-see plan.md's Technical Context and research.md for the detailed technical record)
+alerting, the first scheduled-handler consumer of constitution Principle V's shared evaluation-logic
+rule)." (full brief in conversation history, including platform-capability research into
+Cloudflare's actual execution-region controls, and scope decisions already made — see plan.md's
+Technical Context and research.md for the detailed technical record)
 
 **Note on this module's nature**: unlike Modules 2-5, this module has little Sentry protocol to be
-compatible with — Sentry's own Uptime Monitoring product exists but its wire protocol isn't
-publicly documented in a way this project can ground itself in. This module is substantially
-FlightDeck-original, following general industry-standard uptime-monitoring conventions rather than
-a specific external protocol.
+compatible with — Sentry's own Uptime Monitoring product exists but its wire protocol isn't publicly
+documented in a way this project can ground itself in. This module is substantially
+FlightDeck-original, following general industry-standard uptime-monitoring conventions rather than a
+specific external protocol.
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Know whether a service is reachable (Priority: P1)
 
@@ -51,10 +51,10 @@ When a check starts failing, a developer sees ONE incident open — not a new al
 failed check while the outage continues. When the check recovers, the incident automatically
 resolves.
 
-**Why this priority**: Equally foundational as User Story 1 — a monitoring feature that either
-never tells you something broke, or floods you with a duplicate alert on every single failed
-check during one outage, isn't usable. This is the module's actual "incident-aware" promise, not
-an enhancement on top of basic checking.
+**Why this priority**: Equally foundational as User Story 1 — a monitoring feature that either never
+tells you something broke, or floods you with a duplicate alert on every single failed check during
+one outage, isn't usable. This is the module's actual "incident-aware" promise, not an enhancement
+on top of basic checking.
 
 **Independent Test**: Configure a check with known consecutive-failure/recovery thresholds, make its
 target fail repeatedly past the failure threshold, confirm exactly one incident opens; make it
@@ -120,8 +120,8 @@ resolution, confirm the webhook receives one request for each.
 ### Edge Cases
 
 - A check's target is temporarily unreachable due to a network blip well below the consecutive-
-  failure threshold: no incident opens, and the check's uptime percentage reflects the blip
-  honestly without over-reacting to it.
+  failure threshold: no incident opens, and the check's uptime percentage reflects the blip honestly
+  without over-reacting to it.
 - Two scheduled runs of the same check would overlap (a slow-responding target plus a short
   interval): the system does not let overlapping runs corrupt the check's consecutive-failure/
   recovery counting.
@@ -138,7 +138,7 @@ resolution, confirm the webhook receives one request for each.
   both are valid runs and both correctly contribute to the check's consecutive-failure/recovery
   state — a manual trigger is not treated as somehow less real than a scheduled one.
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
@@ -155,8 +155,8 @@ resolution, confirm the webhook receives one request for each.
 - **FR-006**: The system MUST allow triggering any configured check manually and show its result
   immediately.
 - **FR-007**: The system MUST open exactly one incident when a check reaches a configurable
-  consecutive-failure threshold, and MUST NOT open additional incidents for the same ongoing
-  outage while it continues failing.
+  consecutive-failure threshold, and MUST NOT open additional incidents for the same ongoing outage
+  while it continues failing.
 - **FR-008**: The system MUST automatically resolve an open incident when a check reaches a
   configurable consecutive-recovery threshold.
 - **FR-009**: The system MUST present a view listing open and resolved incidents across a project's
@@ -168,7 +168,7 @@ resolution, confirm the webhook receives one request for each.
 - **FR-012**: The system MUST NOT leave an incident permanently open/dangling if its owning check is
   deleted.
 
-### Key Entities *(include if feature involves data)*
+### Key Entities _(include if feature involves data)_
 
 - **Check**: a configured HTTP or TCP monitor — target, type, interval, alert thresholds, optional
   webhook URL, current status, recent run history.
@@ -179,7 +179,7 @@ resolution, confirm the webhook receives one request for each.
   consecutive-failure threshold is reached, resolved when the consecutive-recovery threshold is
   reached, associated with the check it belongs to.
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 
@@ -199,15 +199,15 @@ resolution, confirm the webhook receives one request for each.
 - This module ships as a single-region check (Cloudflare's global network generally, not a
   developer-selectable or named set of geographic regions) — a deliberate, documented scope
   reduction from broader "multi-region" ambitions, driven by an actual platform constraint
-  investigated during planning, not an oversight. True multi-region comparison is real, named
-  future work, not part of this module.
+  investigated during planning, not an oversight. True multi-region comparison is real, named future
+  work, not part of this module.
 - Alerting in this module's scope means: the in-dashboard Alerts view (always on, no configuration
   needed) and an optional per-check webhook. Email, Slack, PagerDuty/Opsgenie, and SMS notification
   delivery are all explicitly deferred to later work, not silently absent.
 - This module monitors reachability (HTTP/TCP), not full synthetic browser-based monitoring
   (headless-browser page loads, visual regression, etc.) — that's a different, larger feature not
   named in this module's scope.
-- No public-facing status page is part of this module — incident visibility is dashboard-only
-  (plus the optional webhook), not a customer-facing communication surface.
+- No public-facing status page is part of this module — incident visibility is dashboard-only (plus
+  the optional webhook), not a customer-facing communication surface.
 - The existing demo project (seeded in Module 1) is an acceptable target for this module's
   end-to-end testing.

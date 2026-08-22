@@ -21,9 +21,16 @@ US2=P1, US3=P2, US4=P3). US2 and US3 both extend US1's `runCheck()`/`checks` fou
 independent of each other. US4 depends on US2 (webhooks fire on incident transitions, which US2
 introduces).
 
-**⚠️ Status**: Planned, not yet authorized for implementation — see plan.md's Summary. Do not begin
-executing these tasks without a separate explicit go-ahead. This module's dependencies (Modules
-1-2) are fully implemented and merged already — no "wait for an earlier module to land" caveat.
+**Status**: Implemented and verified — all 36 tasks complete. `deno fmt`/`deno lint`/`deno check`
+clean; 15 new unit tests (decide.ts's pure decision logic, http-check.ts with fetch mocked, the
+Principle V shared-path proof, retention, webhook fire-and-forget) all pass; 6 new contract tests
+against a real `wrangler dev` (manual trigger, threshold-crossing incident open/resolve, delete-
+with-open-incident, minimum-interval rejection, webhook delivery via a request-capturing local
+listener) all pass; the real scheduled-cron dispatch path was separately live-verified via
+`wrangler dev`'s `/cdn-cgi/local/scheduled` simulation (a due check ran with `trigger: "scheduled"`
+and correctly advanced `next_run_at`); 1 new e2e test (check creation → manual trigger →
+threshold-crossing incident → Alerts cross-link) passes. Two real bugs were found and fixed during
+live contract testing — see research.md §10.
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -34,14 +41,14 @@ executing these tasks without a separate explicit go-ahead. This module's depend
 ## Path Conventions
 
 Extends Modules 1-5's `worker/` (Hono API) + `app/` (React SPA) + `tests/` (unit + contract + e2e)
-layout — see plan.md's Structure Decision. No new top-level directories, no new Cloudflare
-bindings beyond a second `triggers.crons` entry.
+layout — see plan.md's Structure Decision. No new top-level directories, no new Cloudflare bindings
+beyond a second `triggers.crons` entry.
 
 ---
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] T001 [P] Create directory skeleton: `worker/modules/uptime/`
+- [x] T001 [P] Create directory skeleton: `worker/modules/uptime/`
 
 ---
 
@@ -51,17 +58,17 @@ bindings beyond a second `triggers.crons` entry.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T002 Create `worker/db/migrations/0006_uptime_monitoring.sql` — `checks`, `check_runs`,
+- [x] T002 Create `worker/db/migrations/0006_uptime_monitoring.sql` — `checks`, `check_runs`,
       `incidents` per data-model.md, including `checks`' `interval_seconds` default/constraints and
       the `(check_id, run_at)` index on `check_runs`
-- [ ] T003 Apply the migration locally: `deno task db:migrations:apply:local` (depends on T002)
-- [ ] T004 Add a second `triggers.crons` entry (`"* * * * *"`, both `env.production` and
-      `env.preview`) to `wrangler.jsonc`, alongside Module 2's existing retention cron
-      (research.md §3)
-- [ ] T005 Wire an empty uptime case into `worker/index.ts`'s existing `scheduled()` handler, and
+- [x] T003 Apply the migration locally: `deno task db:migrations:apply:local` (depends on T002)
+- [x] T004 Add a second `triggers.crons` entry (`"* * * * *"`, both `env.production` and
+      `env.preview`) to `wrangler.jsonc`, alongside Module 2's existing retention cron (research.md
+      §3)
+- [x] T005 Wire an empty uptime case into `worker/index.ts`'s existing `scheduled()` handler, and
       mount an empty, `sessionAuth`-gated `uptimeRoutes` router under `/api/internal` (depends on
       T001, T004)
-- [ ] T006 Verify `deno task build` and `deno check` still pass with the new bindings/tables/empty
+- [x] T006 Verify `deno task build` and `deno check` still pass with the new bindings/tables/empty
       routes wired in (smoke check, no new files)
 
 **Checkpoint**: Foundation ready — user story implementation can now begin.
@@ -78,35 +85,34 @@ reachable and known-unreachable targets, confirm correct status after a schedule
 
 ### Tests for User Story 1
 
-- [ ] T007 [P] [US1] Write `tests/unit/uptime-evaluate.test.ts` (given a mocked
-      successful/failed `fetch()` or `cloudflare:sockets` `connect()` result, `runCheck()`
-      correctly determines success/failure and updates `consecutive_failures`/
-      `consecutive_successes`/`status`; a TCP check's evaluation is independent of an HTTP check's)
-      — expect it to fail until T009 lands
-- [ ] T008 [US1] Write `tests/contract/uptime-checks.spec.ts` (against real `wrangler dev`: create
+- [x] T007 [P] [US1] Write `tests/unit/uptime-evaluate.test.ts` (given a mocked successful/failed
+      `fetch()` or `cloudflare:sockets` `connect()` result, `runCheck()` correctly determines
+      success/failure and updates `consecutive_failures`/ `consecutive_successes`/`status`; a TCP
+      check's evaluation is independent of an HTTP check's) — expect it to fail until T009 lands
+- [x] T008 [US1] Write `tests/contract/uptime-checks.spec.ts` (against real `wrangler dev`: create
       an HTTP check and a TCP check, use `wrangler dev`'s scheduled-trigger simulation to fire a
       run, confirm each check's status/`check_runs` row is correct for a reachable vs. unreachable
       target) — expect it to fail until T009-T012 land
 
 ### Implementation for User Story 1
 
-- [ ] T009 [US1] Implement `worker/modules/uptime/evaluate.ts`'s `runCheck(env, checkId, trigger)`
-      — HTTP check via `fetch()`, TCP check via `cloudflare:sockets`' `connect()` (research.md §2),
+- [x] T009 [US1] Implement `worker/modules/uptime/evaluate.ts`'s `runCheck(env, checkId, trigger)` —
+      HTTP check via `fetch()`, TCP check via `cloudflare:sockets`' `connect()` (research.md §2),
       writes a `check_runs` row, updates `checks`' `consecutive_failures`/`consecutive_successes`/
       `status` (incident logic deferred to User Story 2; webhook logic deferred to User Story 4)
       (depends on T007)
-- [ ] T010 [US1] Wire the real uptime case into `worker/index.ts`'s `scheduled()` handler: query
+- [x] T010 [US1] Wire the real uptime case into `worker/index.ts`'s `scheduled()` handler: query
       `checks` for due rows (`next_run_at <= now`), call `runCheck(env, id, "scheduled")` for each,
       update `next_run_at = now + interval_seconds` (depends on T009, T004, T003)
-- [ ] T011 [US1] Implement `POST /api/internal/checks` (with `interval_seconds >= 60` and
+- [x] T011 [US1] Implement `POST /api/internal/checks` (with `interval_seconds >= 60` and
       20-checks-per-project validation, research.md §4), `GET /api/internal/checks`, and
       `GET /api/internal/checks/:id` in `worker/modules/uptime/routes.ts` per
       contracts/uptime-internal-api.md (depends on T003)
-- [ ] T012 [US1] Wire the real `uptimeRoutes` into `worker/index.ts` under `/api/internal`,
+- [x] T012 [US1] Wire the real `uptimeRoutes` into `worker/index.ts` under `/api/internal`,
       replacing T005's stub (depends on T011, T005)
-- [ ] T013 [P] [US1] Create `app/shell/UptimeScreen.tsx`'s real check list and creation form
+- [x] T013 [P] [US1] Create `app/shell/UptimeScreen.tsx`'s real check list and creation form
       (replacing Module 1's static empty state) (depends on T012)
-- [ ] T014 [US1] Run T007-T008's tests, confirm all pass (depends on T009-T012)
+- [x] T014 [US1] Run T007-T008's tests, confirm all pass (depends on T009-T012)
 
 **Checkpoint**: Checks run on schedule and correctly report status.
 
@@ -117,28 +123,28 @@ reachable and known-unreachable targets, confirm correct status after a schedule
 **Goal**: Consecutive failures open exactly one incident; consecutive recoveries auto-resolve it.
 
 **Independent Test**: quickstart.md's "Validate User Story 2" — drive a check past its failure
-threshold, confirm exactly one incident opens and stays open through further failures; drive it
-past the recovery threshold, confirm auto-resolution.
+threshold, confirm exactly one incident opens and stays open through further failures; drive it past
+the recovery threshold, confirm auto-resolution.
 
 **Depends on**: User Story 1 (`runCheck()` and `checks` must exist).
 
 ### Tests for User Story 2
 
-- [ ] T015 [P] [US2] Write a unit test for the incident open/resolve transition logic within
+- [x] T015 [P] [US2] Write a unit test for the incident open/resolve transition logic within
       `runCheck()` (reaching `failure_threshold` opens exactly one incident; further consecutive
       failures do NOT open a second one; reaching `recovery_threshold` resolves the open incident;
       isolated failures below threshold open nothing) — expect it to fail until T016 lands
 
 ### Implementation for User Story 2
 
-- [ ] T016 [US2] Extend `worker/modules/uptime/evaluate.ts`'s `runCheck()` with incident open/
-      resolve logic (writes/updates `incidents` rows per data-model.md's state transitions)
-      (depends on T015, T009)
-- [ ] T017 [US2] Implement `GET /api/internal/incidents` in `worker/modules/uptime/routes.ts` per
+- [x] T016 [US2] Extend `worker/modules/uptime/evaluate.ts`'s `runCheck()` with incident open/
+      resolve logic (writes/updates `incidents` rows per data-model.md's state transitions) (depends
+      on T015, T009)
+- [x] T017 [US2] Implement `GET /api/internal/incidents` in `worker/modules/uptime/routes.ts` per
       contracts/uptime-internal-api.md (depends on T016, T012)
-- [ ] T018 [P] [US2] Create `app/shell/AlertsScreen.tsx`'s real incident list (replacing Module 1's
+- [x] T018 [P] [US2] Create `app/shell/AlertsScreen.tsx`'s real incident list (replacing Module 1's
       static empty state), linking each to its originating check (depends on T017)
-- [ ] T019 [US2] Run T015's test, confirm it passes (depends on T016)
+- [x] T019 [US2] Run T015's test, confirm it passes (depends on T016)
 
 **Checkpoint**: Incidents open/resolve correctly, without alert-spamming during an ongoing outage.
 
@@ -158,22 +164,22 @@ thresholds).
 
 ### Tests for User Story 3
 
-- [ ] T020 [P] [US3] Write `tests/unit/uptime-shared-path.test.ts` — constitution Principle V's
+- [x] T020 [P] [US3] Write `tests/unit/uptime-shared-path.test.ts` — constitution Principle V's
       proof-by-construction (research.md §8): asserts both the scheduled cron case (T010) and the
       new interactive trigger route (T021) invoke the identical exported `runCheck` function (not
       two separately-implemented paths that merely behave similarly), and that identical check
-      configurations produce identical resulting state regardless of which `trigger` value is
-      passed — expect it to fail until T021 lands
+      configurations produce identical resulting state regardless of which `trigger` value is passed
+      — expect it to fail until T021 lands
 
 ### Implementation for User Story 3
 
-- [ ] T021 [US3] Implement `POST /api/internal/checks/:id/trigger` in
+- [x] T021 [US3] Implement `POST /api/internal/checks/:id/trigger` in
       `worker/modules/uptime/routes.ts`, calling `runCheck(env, id, "interactive")` — the SAME
       function T010's scheduled case calls, not a reimplementation — per
       contracts/uptime-internal-api.md (depends on T020, T012)
-- [ ] T022 [P] [US3] Create `app/shell/CheckDetailScreen.tsx` (run history, incidents, a "test this
+- [x] T022 [P] [US3] Create `app/shell/CheckDetailScreen.tsx` (run history, incidents, a "test this
       check now" button) and wire list→detail navigation from `UptimeScreen.tsx` (depends on T021)
-- [ ] T023 [US3] Run T020's test, confirm it passes (depends on T021)
+- [x] T023 [US3] Run T020's test, confirm it passes (depends on T021)
 
 **Checkpoint**: Constitution Principle V's requirement is honored and proven, not just asserted.
 
@@ -181,8 +187,8 @@ thresholds).
 
 ## Phase 6: User Story 4 - Get notified outside the dashboard (Priority: P3)
 
-**Goal**: An incident open/resolve fires exactly one webhook request each, without ever blocking
-or corrupting the underlying incident record.
+**Goal**: An incident open/resolve fires exactly one webhook request each, without ever blocking or
+corrupting the underlying incident record.
 
 **Independent Test**: quickstart.md's "Validate User Story 4" — configure a webhook, drive an
 incident open then resolved, confirm exactly one request each.
@@ -191,18 +197,18 @@ incident open then resolved, confirm exactly one request each.
 
 ### Tests for User Story 4
 
-- [ ] T024 [P] [US4] Write a unit test for webhook payload construction and fire-and-forget
-      behavior (a failing/unreachable webhook `fetch()` does not throw out of `runCheck()` or
-      prevent the incident record from being correctly written, per spec FR-011) — expect it to
-      fail until T025 lands
+- [x] T024 [P] [US4] Write a unit test for webhook payload construction and fire-and-forget behavior
+      (a failing/unreachable webhook `fetch()` does not throw out of `runCheck()` or prevent the
+      incident record from being correctly written, per spec FR-011) — expect it to fail until T025
+      lands
 
 ### Implementation for User Story 4
 
-- [ ] T025 [US4] Extend `runCheck()`'s incident open/resolve logic to POST to `checks.webhook_url`
+- [x] T025 [US4] Extend `runCheck()`'s incident open/resolve logic to POST to `checks.webhook_url`
       when set — single attempt, short timeout, no retry (research.md §7) (depends on T024, T016)
-- [ ] T026 [P] [US4] Add a webhook URL field to the check creation/edit form
+- [x] T026 [P] [US4] Add a webhook URL field to the check creation/edit form
       (`UptimeScreen.tsx`/`CheckDetailScreen.tsx`) (depends on T025, T013)
-- [ ] T027 [US4] Run T024's test, confirm it passes (depends on T025)
+- [x] T027 [US4] Run T024's test, confirm it passes (depends on T025)
 
 **Checkpoint**: All four user stories are independently functional.
 
@@ -210,24 +216,24 @@ incident open then resolved, confirm exactly one request each.
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T028 Extend `worker/modules/ingest/retention.ts` to prune `check_runs` rows past their own
+- [x] T028 Extend `worker/modules/ingest/retention.ts` to prune `check_runs` rows past their own
       30-day window (research.md §5), on the same `scheduled()` cron trigger — `checks`/`incidents`
       are NOT pruned (data-model.md)
-- [ ] T029 [P] Write a unit test for the `check_runs` retention query logic, mirroring
+- [x] T029 [P] Write a unit test for the `check_runs` retention query logic, mirroring
       `tests/unit/retention.test.ts`'s existing pattern
-- [ ] T030 Implement `PATCH /api/internal/checks/:id` and `DELETE /api/internal/checks/:id` in
+- [x] T030 Implement `PATCH /api/internal/checks/:id` and `DELETE /api/internal/checks/:id` in
       `worker/modules/uptime/routes.ts` — delete auto-resolves any open incident for that check as
-      part of the same operation (research.md §6); both write `audit_log` (constitution Principle
-      X) (depends on T012, T016)
-- [ ] T031 [P] Extend `tests/contract/uptime-checks.spec.ts` with webhook-delivery coverage (a
+      part of the same operation (research.md §6); both write `audit_log` (constitution Principle X)
+      (depends on T012, T016)
+- [x] T031 [P] Extend `tests/contract/uptime-checks.spec.ts` with webhook-delivery coverage (a
       request-capturing test endpoint the contract test controls)
-- [ ] T032 [P] Write `tests/e2e/uptime-and-alerts.spec.ts` — check creation, manual trigger, and
+- [x] T032 [P] Write `tests/e2e/uptime-and-alerts.spec.ts` — check creation, manual trigger, and
       incident visibility across the Uptime and Alerts screens
-- [ ] T033 [P] Run `deno fmt` and `deno lint` across `worker/`, `app/`, `tests/`; fix violations
-- [ ] T034 [P] Run `deno check` (typecheck) across every new/changed `.ts`/`.tsx` file
-- [ ] T035 Run the full `quickstart.md` validation end-to-end (all four user stories) and record
+- [x] T033 [P] Run `deno fmt` and `deno lint` across `worker/`, `app/`, `tests/`; fix violations
+- [x] T034 [P] Run `deno check` (typecheck) across every new/changed `.ts`/`.tsx` file
+- [x] T035 Run the full `quickstart.md` validation end-to-end (all four user stories) and record
       results
-- [ ] T036 Update `README.md`'s Status section to reference `specs/006-uptime-monitoring`; document
+- [x] T036 Update `README.md`'s Status section to reference `specs/006-uptime-monitoring`; document
       the new `triggers.crons` entry and note the single-region deviation from the constitution's
       original "multi-region" wording explicitly (plan.md's Complexity Tracking)
 
@@ -242,17 +248,17 @@ incident open then resolved, confirm exactly one request each.
 - **User Story 1 (Phase 3)**: Depends on Foundational only.
 - **User Story 2 (Phase 4)**: Depends on User Story 1 (`runCheck()`/`checks` must exist).
 - **User Story 3 (Phase 5)**: Depends on User Story 1 only. Independent of User Story 2.
-- **User Story 4 (Phase 6)**: Depends on User Story 2 (webhooks fire on the incident transitions
-  it introduces).
+- **User Story 4 (Phase 6)**: Depends on User Story 2 (webhooks fire on the incident transitions it
+  introduces).
 - **Polish (Phase 7)**: Depends on all four user stories.
 
 ### Parallel Opportunities
 
 - Setup: T001 alone.
-- Foundational: T002→T003 sequential (migration then apply); T004, T005 can proceed in parallel
-  once T001 lands; T006 after all.
-- Within US1: T007 alone before T009; T008 (contract test) can be written in parallel with T007,
-  but both fail until T009-T012 land.
+- Foundational: T002→T003 sequential (migration then apply); T004, T005 can proceed in parallel once
+  T001 lands; T006 after all.
+- Within US1: T007 alone before T009; T008 (contract test) can be written in parallel with T007, but
+  both fail until T009-T012 land.
 - User Story 2 and User Story 3 can proceed in parallel with each other once User Story 1 is
   complete (neither depends on the other).
 - Within US2: T015 alone before T016.
