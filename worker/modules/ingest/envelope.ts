@@ -112,3 +112,15 @@ export function parseTransactionPayload(item: EnvelopeItem): Record<string, unkn
   const decoder = new TextDecoder();
   return parseJsonLine(item.payload, decoder);
 }
+
+// "session" (one session update) or "sessions" (a pre-aggregated batch) — both feed the same
+// aggregation function (specs/005-releases research.md §5). Server-mode SDKs SHOULD pre-aggregate
+// before sending, so "sessions" is the common case in practice, "session" the simpler one.
+export function isSessionItem(item: EnvelopeItem): boolean {
+  return item.header.type === "session" || item.header.type === "sessions";
+}
+
+export function parseSessionPayload(item: EnvelopeItem): Record<string, unknown> | null {
+  const decoder = new TextDecoder();
+  return parseJsonLine(item.payload, decoder);
+}
