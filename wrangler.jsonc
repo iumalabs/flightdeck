@@ -37,6 +37,10 @@
     {
       "tag": "v1",
       "new_sqlite_classes": ["RateLimiter"]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["LiveTail"]
     }
   ],
 
@@ -70,7 +74,18 @@
         // see FlareTower's wrangler.jsonc for why `--env production` breaks this on a shared
         // Worker script), then promoted with `wrangler versions deploy`. GITHUB_APP_PRIVATE_KEY
         // signs short-lived App JWTs on demand (research.md §10) — never a per-project credential.
-        "required": ["SESSION_SECRET", "GITHUB_APP_PRIVATE_KEY"]
+        "required": [
+          "SESSION_SECRET",
+          "GITHUB_APP_PRIVATE_KEY",
+          // Account-level R2 bucket/token management (specs/004-structured-logs research.md §8) —
+          // distinct from this Worker's own static SOURCE_MAPS binding below: dynamically
+          // provisions ONE R2 bucket per project on demand, so it needs account-scope R2 admin
+          // permissions a static per-Worker binding can't grant. Set via `wrangler versions secret
+          // put CLOUDFLARE_R2_ADMIN_TOKEN` (no `--env` flag, same reasoning as the other secrets
+          // here) — a real Cloudflare API Token with "Workers R2 Storage Write" + "Account API
+          // Tokens Write" permissions, scoped to this account only.
+          "CLOUDFLARE_R2_ADMIN_TOKEN"
+        ]
       },
       "d1_databases": [
         {
@@ -84,21 +99,33 @@
         {
           "binding": "SOURCE_MAPS",
           "bucket_name": "flightdeck-production-source-maps"
+        },
+        {
+          // Shared across all projects, prefix-keyed by project_id (research.md §8's corrected
+          // architecture, specs/004-structured-logs) — same isolation-by-D1-query pattern as
+          // SOURCE_MAPS above, NOT one bucket per project (that's reserved for the export feature's
+          // dynamically-provisioned, genuinely-isolated buckets, which can't use a static binding).
+          "binding": "LOGS",
+          "bucket_name": "flightdeck-production-logs"
         }
       ],
       "durable_objects": {
         "bindings": [
-          { "name": "RATE_LIMITER", "class_name": "RateLimiter" }
+          { "name": "RATE_LIMITER", "class_name": "RateLimiter" },
+          { "name": "LIVE_TAIL", "class_name": "LiveTail" }
         ]
       },
       // Trace ingest is asynchronous (research.md §4, specs/003-distributed-tracing) — trace
       // volume is structurally higher per session than error volume, so writes go through a
       // Queue rather than synchronously in the request path the way Module 2's error ingest does.
-      // The queue/dead-letter-queue resources themselves must be created once via
-      // `wrangler queues create` before first deploy — not a config-only step.
+      // specs/004-structured-logs adds a SECOND, independent queue for logs (log volume is
+      // structurally higher than trace volume — a backlog in one must never delay the other,
+      // research.md §4 there). The queue/dead-letter-queue resources themselves must be created
+      // once via `wrangler queues create` before first deploy — not a config-only step.
       "queues": {
         "producers": [
-          { "queue": "flightdeck-production-trace-ingest", "binding": "TRACE_INGEST" }
+          { "queue": "flightdeck-production-trace-ingest", "binding": "TRACE_INGEST" },
+          { "queue": "flightdeck-production-log-ingest", "binding": "LOG_INGEST" }
         ],
         "consumers": [
           {
@@ -107,6 +134,13 @@
             "max_batch_timeout": 5,
             "max_retries": 3,
             "dead_letter_queue": "flightdeck-production-trace-ingest-dlq"
+          },
+          {
+            "queue": "flightdeck-production-log-ingest",
+            "max_batch_size": 50,
+            "max_batch_timeout": 5,
+            "max_retries": 3,
+            "dead_letter_queue": "flightdeck-production-log-ingest-dlq"
           }
         ]
       },
@@ -131,7 +165,7 @@
         "GITHUB_APP_ID": "4675571"
       },
       "secrets": {
-        "required": ["SESSION_SECRET", "GITHUB_APP_PRIVATE_KEY"]
+        "required": ["SESSION_SECRET", "GITHUB_APP_PRIVATE_KEY", "CLOUDFLARE_R2_ADMIN_TOKEN"]
       },
       "d1_databases": [
         {
@@ -145,16 +179,22 @@
         {
           "binding": "SOURCE_MAPS",
           "bucket_name": "flightdeck-preview-source-maps"
+        },
+        {
+          "binding": "LOGS",
+          "bucket_name": "flightdeck-preview-logs"
         }
       ],
       "durable_objects": {
         "bindings": [
-          { "name": "RATE_LIMITER", "class_name": "RateLimiter" }
+          { "name": "RATE_LIMITER", "class_name": "RateLimiter" },
+          { "name": "LIVE_TAIL", "class_name": "LiveTail" }
         ]
       },
       "queues": {
         "producers": [
-          { "queue": "flightdeck-preview-trace-ingest", "binding": "TRACE_INGEST" }
+          { "queue": "flightdeck-preview-trace-ingest", "binding": "TRACE_INGEST" },
+          { "queue": "flightdeck-preview-log-ingest", "binding": "LOG_INGEST" }
         ],
         "consumers": [
           {
@@ -163,6 +203,13 @@
             "max_batch_timeout": 5,
             "max_retries": 3,
             "dead_letter_queue": "flightdeck-preview-trace-ingest-dlq"
+          },
+          {
+            "queue": "flightdeck-preview-log-ingest",
+            "max_batch_size": 50,
+            "max_batch_timeout": 5,
+            "max_retries": 3,
+            "dead_letter_queue": "flightdeck-preview-log-ingest-dlq"
           }
         ]
       },

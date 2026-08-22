@@ -8,6 +8,7 @@
     "hono": "npm:hono@^4.13.0",
     "jose": "npm:jose@^6.2.8",
     "@jridgewell/trace-mapping": "npm:@jridgewell/trace-mapping@^0.3.25",
+    "aws4fetch": "npm:aws4fetch@^1.0.20",
     "react": "npm:react@^19.2.8",
     "react/jsx-runtime": "npm:react@^19.2.8/jsx-runtime",
     "react/jsx-dev-runtime": "npm:react@^19.2.8/jsx-dev-runtime",
