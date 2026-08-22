@@ -185,6 +185,95 @@ function GitHubConnect({ project }: { project: Project | null }) {
   );
 }
 
+type ExportStatus = { kind: "idle" } | { kind: "provisioned"; credential: ExportCredential } | {
+  kind: "revoked";
+} | { kind: "error" };
+
+interface ExportCredential {
+  accessKeyId: string;
+  secretAccessKey: string;
+  endpoint: string;
+  bucket: string;
+}
+
+// contracts/logs-internal-api.md (specs/004-structured-logs) — the secret is shown ONCE, at
+// provisioning time, and never retrievable again (data-model.md's Export Credential section).
+function LogExport({ project }: { project: Project | null }) {
+  const [status, setStatus] = useState<ExportStatus>({ kind: "idle" });
+
+  const provision = async () => {
+    if (!project) return;
+    const res = await fetch(`/api/internal/projects/${project.id}/log-export/credential`, {
+      method: "POST",
+      credentials: "same-origin",
+    });
+    if (res.ok) {
+      setStatus({ kind: "provisioned", credential: await res.json() as ExportCredential });
+    } else {
+      setStatus({ kind: "error" });
+    }
+  };
+
+  const revoke = async () => {
+    if (!project) return;
+    const res = await fetch(`/api/internal/projects/${project.id}/log-export/credential`, {
+      method: "DELETE",
+      credentials: "same-origin",
+    });
+    setStatus(res.ok ? { kind: "revoked" } : { kind: "error" });
+  };
+
+  return (
+    <div
+      style={{
+        border: "1px solid var(--line)",
+        background: "var(--panel)",
+        maxWidth: 480,
+        padding: 18,
+        marginTop: 20,
+      }}
+    >
+      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
+        S3-compatible log export
+      </div>
+      <p style={{ fontSize: 12.5, color: "var(--fg3)", marginBottom: 12 }}>
+        Provision revocable, project-scoped credentials for a standard S3-compatible client — the
+        secret is shown once, here, and never retrievable again.
+      </p>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button type="button" onClick={provision} disabled={!project} style={buttonStyle}>
+          Generate credentials
+        </button>
+        <button type="button" onClick={revoke} disabled={!project} style={secondaryButtonStyle}>
+          Revoke
+        </button>
+      </div>
+      {status.kind === "provisioned" && (
+        <div
+          style={{
+            marginTop: 12,
+            fontFamily: "var(--font-mono)",
+            fontSize: 11.5,
+            color: "var(--fg2)",
+            wordBreak: "break-all",
+          }}
+        >
+          <div>Access Key ID: {status.credential.accessKeyId}</div>
+          <div>Secret Access Key: {status.credential.secretAccessKey}</div>
+          <div>Endpoint: {status.credential.endpoint}</div>
+          <div>Bucket: {status.credential.bucket}</div>
+        </div>
+      )}
+      {status.kind === "revoked" && (
+        <span style={{ color: "var(--fg2)", fontSize: 12.5 }}>Export access revoked.</span>
+      )}
+      {status.kind === "error" && (
+        <span style={{ color: "#FF4D4D", fontSize: 12.5 }}>Request failed.</span>
+      )}
+    </div>
+  );
+}
+
 const inputStyle: React.CSSProperties = {
   fontSize: 13,
   padding: "6px 10px",
@@ -277,6 +366,7 @@ export function SettingsScreen({ session }: { session: Session }) {
 
       <SourceMapUpload project={project} />
       <GitHubConnect project={project} />
+      <LogExport project={project} />
 
       <p style={{ fontSize: 13, color: "var(--fg3)", marginTop: 16, maxWidth: 480 }}>
         Member management, project settings and billing are not part of this workspace yet.

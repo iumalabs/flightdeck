@@ -104,7 +104,7 @@ function renderScreen(
         )
         : <TracesScreen onSelectTransaction={onSelectTransaction} />;
     case "logs":
-      return <LogsScreen />;
+      return <LogsScreen onSelectTrace={onViewTrace} />;
     case "releases":
       return <ReleasesScreen />;
     case "uptime":
