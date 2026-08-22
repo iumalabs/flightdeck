@@ -21,10 +21,13 @@ US2=P1, US3=P2, US4=P3). US2 depends on US1 (releases must exist before health d
 them, and the API-token infrastructure US1 builds gates all release-management writes). US3 depends
 on US1 (releases must exist and be ordered) but not on US2. US4 depends on US1 only.
 
-**⚠️ Status**: Planned, not yet authorized for implementation — see plan.md's Summary. Do not begin
-executing these tasks without a separate explicit go-ahead. Unlike Module 4, this module's
-dependency (Module 2) is fully implemented and merged already — no "wait for an earlier module to
-land" caveat beyond the ordinary review-before-implementation posture.
+**✅ Status**: Implemented (all 44 tasks). Verified live against a real `wrangler dev`: the full
+sentry-cli-compatible flow (create/upload-sourcemaps/finalize/set-commits/deploys/list), API token
+generate/revoke/reject-on-invalid/reject-on-revoked, session-ingest release health with numerically
+confirmed adoption/crash-free figures, and BOTH directions of regression detection (reopens on a
+later release, stays resolved on the same/earlier one) — research.md §7. One real bug found and
+fixed via this live testing: the finalize/set-commits PUT response was echoing stale request-body
+state instead of the release's actual current DB state — research.md §1.
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -42,7 +45,7 @@ bindings.
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] T001 [P] Create directory skeleton: `worker/modules/releases/`
+- [X] T001 [P] Create directory skeleton: `worker/modules/releases/`
 
 ---
 
@@ -53,27 +56,27 @@ story needs.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T002 Create `worker/db/migrations/0005_releases.sql` — additive `releases.date_released`/
+- [X] T002 Create `worker/db/migrations/0005_releases.sql` — additive `releases.date_released`/
       `ref`/`url`; additive `issues.status`/`resolved_release_id`/`resolved_mode`; new
       `api_tokens`, `release_commits`, `deploys`, `release_health`, `release_health_users` tables
       per data-model.md, including `release_health`'s `UNIQUE(project_id, release_id, environment,
       date)` and `release_health_users`' `UNIQUE(project_id, release_id, environment, date, did)`
-- [ ] T003 Apply the migration locally: `deno task db:migrations:apply:local` (depends on T002)
-- [ ] T004 Implement `worker/auth/api-token.ts` — token generation (a cryptographically random
+- [X] T003 Apply the migration locally: `deno task db:migrations:apply:local` (depends on T002)
+- [X] T004 Implement `worker/auth/api-token.ts` — token generation (a cryptographically random
       value, shown once), salted-hash computation via Web Crypto (matching the defensive posture
       already used for session/DSN credentials), and a `verify(token)` function checking a hash
       against `api_tokens` (depends on T001)
-- [ ] T005 Implement the `apiTokenAuth` middleware (parallel to `worker/auth/session.ts`'s
+- [X] T005 Implement the `apiTokenAuth` middleware (parallel to `worker/auth/session.ts`'s
       `sessionAuth`) — extracts `Authorization: Bearer <token>`, verifies via T004, fails closed
       (403) on missing/invalid/revoked (constitution Principle III's posture, research.md §4)
       (depends on T004)
-- [ ] T006 Add `isSessionItem()` to `worker/modules/ingest/envelope.ts` alongside the existing
+- [X] T006 Add `isSessionItem()` to `worker/modules/ingest/envelope.ts` alongside the existing
       `isEventItem()`/`isTransactionItem()`/`isLogItem()`, dispatching on `"session"`/`"sessions"`
       item types (research.md §5) (depends on T001)
-- [ ] T007 Mount an empty, `apiTokenAuth`-gated `releasesRoutes` router under `/api/0` in
+- [X] T007 Mount an empty, `apiTokenAuth`-gated `releasesRoutes` router under `/api/0` in
       `worker/index.ts` (sentry-cli-facing) and an empty, `sessionAuth`-gated router under
       `/api/internal/releases` (dashboard-facing) (depends on T005, T001)
-- [ ] T008 Verify `deno task build` and `deno check` still pass with the new bindings/tables/empty
+- [X] T008 Verify `deno task build` and `deno check` still pass with the new bindings/tables/empty
       routes wired in (smoke check, no new files)
 
 **Checkpoint**: Foundation ready — user story implementation can now begin.
@@ -92,14 +95,14 @@ subsequently-ingested error.
 
 ### Tests for User Story 1
 
-- [ ] T009 [P] [US1] Write `tests/unit/api-token.test.ts` (a generated token's hash verifies
+- [X] T009 [P] [US1] Write `tests/unit/api-token.test.ts` (a generated token's hash verifies
       correctly; a wrong/tampered token fails verification; a revoked token's hash fails
       verification even if otherwise correct) — expect it to fail until T012 lands
-- [ ] T010 [P] [US1] Write a unit test for sentry-cli endpoint request-shape parsing (the `org_slug`
+- [X] T010 [P] [US1] Write a unit test for sentry-cli endpoint request-shape parsing (the `org_slug`
       path segment is accepted regardless of value; `projects: [slugs]` in the release-creation body
       correctly resolves which real project(s) a release belongs to) — expect it to fail until
       T014 lands
-- [ ] T011 [US1] Write `tests/contract/release-management-api.spec.ts` (against real `wrangler
+- [X] T011 [US1] Write `tests/contract/release-management-api.spec.ts` (against real `wrangler
       dev`: hand-crafted requests matching contracts/release-management-api.md's confirmed wire
       format for create/upload-sourcemaps/finalize; asserts a repeated `releases new` for the same
       version is a no-op per spec FR-004; asserts `403` for an invalid or revoked token) — expect
@@ -107,27 +110,27 @@ subsequently-ingested error.
 
 ### Implementation for User Story 1
 
-- [ ] T012 [US1] Implement `worker/auth/api-token.ts`'s DB-backed generate/verify against
+- [X] T012 [US1] Implement `worker/auth/api-token.ts`'s DB-backed generate/verify against
       `api_tokens` (depends on T004, T002, T009)
-- [ ] T013 [US1] Wire `apiTokenAuth` against T012's real verify function, replacing any stub
+- [X] T013 [US1] Wire `apiTokenAuth` against T012's real verify function, replacing any stub
       (depends on T005, T012)
-- [ ] T014 [US1] Implement `POST /api/0/organizations/:orgSlug/releases/` (create) in
+- [X] T014 [US1] Implement `POST /api/0/organizations/:orgSlug/releases/` (create) in
       `worker/modules/releases/routes.ts` per contracts/release-management-api.md (depends on T013,
       T003, T010)
-- [ ] T015 [US1] Implement `POST /api/0/projects/:orgSlug/:projectSlug/releases/:version/files/`
+- [X] T015 [US1] Implement `POST /api/0/projects/:orgSlug/:projectSlug/releases/:version/files/`
       (upload source maps) — writes into Module 2's EXISTING `source_maps`/`releases` tables, an
       additive second front door alongside Module 2's dashboard upload endpoint (depends on T013,
       T003)
-- [ ] T016 [US1] Implement the finalize endpoint (sets `releases.date_released`, idempotent)
+- [X] T016 [US1] Implement the finalize endpoint (sets `releases.date_released`, idempotent)
       (depends on T013, T003)
-- [ ] T017 [US1] Wire the real `releasesRoutes` into `worker/index.ts` under `/api/0`, replacing
+- [X] T017 [US1] Wire the real `releasesRoutes` into `worker/index.ts` under `/api/0`, replacing
       T007's stub (depends on T014-T016, T007)
-- [ ] T018 [P] [US1] Implement `POST /api/internal/projects/:id/api-tokens` and
+- [X] T018 [P] [US1] Implement `POST /api/internal/projects/:id/api-tokens` and
       `DELETE .../api-tokens/:tokenId` (`sessionAuth`-gated) per contracts/releases-internal-api.md
       (depends on T012)
-- [ ] T019 [P] [US1] Add an API token management section to `app/shell/SettingsScreen.tsx`
+- [X] T019 [P] [US1] Add an API token management section to `app/shell/SettingsScreen.tsx`
       (generate — showing the raw token once — and revoke) (depends on T018)
-- [ ] T020 [US1] Run T009-T011's tests, confirm all pass (depends on T012-T017)
+- [X] T020 [US1] Run T009-T011's tests, confirm all pass (depends on T012-T017)
 
 **Checkpoint**: A real `sentry-cli` release flow works end to end against FlightDeck.
 
@@ -146,30 +149,30 @@ infrastructure gates release-management writes this data references).
 
 ### Tests for User Story 2
 
-- [ ] T021 [P] [US2] Write `tests/unit/release-health.test.ts` (folding `"session"`/`"sessions"`
+- [X] T021 [P] [US2] Write `tests/unit/release-health.test.ts` (folding `"session"`/`"sessions"`
       items into correct daily counters; crash-free session/user rate computation against a known
       distribution; the `release_health_users` cap behavior at and beyond 10,000 distinct `did`
       values, research.md §6) — expect it to fail until T023 lands
-- [ ] T022 [US2] Extend `tests/contract/release-management-api.spec.ts` (or a sibling file) with
+- [X] T022 [US2] Extend `tests/contract/release-management-api.spec.ts` (or a sibling file) with
       session-ingest coverage: hand-crafted `"session"`/`"sessions"` envelope items, polling
       `GET /api/internal/releases/{id}` until the aggregate reflects them, asserting correctness
       against the known ingested distribution — expect it to fail until T024-T025 land
 
 ### Implementation for User Story 2
 
-- [ ] T023 [US2] Implement `worker/modules/ingest/release-health.ts` — the pure aggregation
+- [X] T023 [US2] Implement `worker/modules/ingest/release-health.ts` — the pure aggregation
       function (session outcomes → daily counters, crash-free rate computation) (depends on T021)
-- [ ] T024 [US2] Wire `"session"`/`"sessions"` dispatch into `worker/modules/ingest/routes.ts`,
+- [X] T024 [US2] Wire `"session"`/`"sessions"` dispatch into `worker/modules/ingest/routes.ts`,
       calling T023's aggregation and UPSERTing `release_health` + (capped) `release_health_users`
       rows (depends on T006, T023, T003)
-- [ ] T025 [US2] Implement `GET /api/internal/releases` and `GET /api/internal/releases/:id` in
+- [X] T025 [US2] Implement `GET /api/internal/releases` and `GET /api/internal/releases/:id` in
       `worker/modules/releases/routes.ts`, computing adoption/crash-free figures from
       `release_health`, with the "no data yet" honest-empty-state behavior (spec FR-006) (depends
       on T024)
-- [ ] T026 [P] [US2] Create `app/shell/ReleasesScreen.tsx`'s real list (replacing Module 1's static
+- [X] T026 [P] [US2] Create `app/shell/ReleasesScreen.tsx`'s real list (replacing Module 1's static
       empty state) and `app/shell/ReleaseDetailScreen.tsx` (per-environment breakdown) (depends on
       T025)
-- [ ] T027 [US2] Run T021-T022's tests, confirm all pass (depends on T023-T026)
+- [X] T027 [US2] Run T021-T022's tests, confirm all pass (depends on T023-T026)
 
 **Checkpoint**: Release health is visible and correct, independent of regression detection or
 commits/deploys.
@@ -189,7 +192,7 @@ Story 2.
 
 ### Tests for User Story 3
 
-- [ ] T028 [P] [US3] Write `tests/unit/regression.test.ts` (a later release correctly triggers
+- [X] T028 [P] [US3] Write `tests/unit/regression.test.ts` (a later release correctly triggers
       reopening for both resolution modes; the same or an earlier release does NOT trigger
       reopening; "resolved in next release" mode correctly uses the resolution-time latest release
       as its comparison basis, not a release created before the resolution) — expect it to fail
@@ -197,18 +200,18 @@ Story 2.
 
 ### Implementation for User Story 3
 
-- [ ] T029 [US3] Implement `worker/modules/ingest/regression.ts` — the pure release-ordering
+- [X] T029 [US3] Implement `worker/modules/ingest/regression.ts` — the pure release-ordering
       comparison function, both resolution modes (research.md §7) (depends on T028)
-- [ ] T030 [US3] Wire the regression check into `worker/modules/ingest/routes.ts`'s EXISTING
+- [X] T030 [US3] Wire the regression check into `worker/modules/ingest/routes.ts`'s EXISTING
       `"event"` item handler, immediately after Module 2's issue-upsert logic (depends on T029,
       T003)
-- [ ] T031 [US3] Implement `POST /api/internal/issues/:id/resolve` in Module 2's EXISTING
+- [X] T031 [US3] Implement `POST /api/internal/issues/:id/resolve` in Module 2's EXISTING
       `worker/modules/issues/routes.ts`, both modes, per contracts/releases-internal-api.md
       (depends on T003)
-- [ ] T032 [P] [US3] Add a resolve action and a "regressed in release X" indicator (inferred from
+- [X] T032 [P] [US3] Add a resolve action and a "regressed in release X" indicator (inferred from
       `status`/`resolved_release_id`, data-model.md — no history table) to
       `app/shell/IssueDetailScreen.tsx` (depends on T031)
-- [ ] T033 [US3] Run T028's test, confirm it passes (depends on T029-T030)
+- [X] T033 [US3] Run T028's test, confirm it passes (depends on T029-T030)
 
 **Checkpoint**: Regression detection works correctly for both resolution modes.
 
@@ -225,21 +228,21 @@ FlightDeck.
 
 ### Tests for User Story 4
 
-- [ ] T034 [P] [US4] Write a unit test for the commit-range-to-`release_commits` mapping logic
+- [X] T034 [P] [US4] Write a unit test for the commit-range-to-`release_commits` mapping logic
       (given a list of commits from Module 2's GitHub App infrastructure, correctly shapes the
       rows to insert) — expect it to fail until T035 lands
 
 ### Implementation for User Story 4
 
-- [ ] T035 [US4] Implement the `set-commits` endpoint in `worker/modules/releases/routes.ts`,
+- [X] T035 [US4] Implement the `set-commits` endpoint in `worker/modules/releases/routes.ts`,
       integrating Module 2's EXISTING `worker/modules/github/app-auth.ts` for the commit-range
       lookup against the project's connected repository (depends on T034, T017)
-- [ ] T036 [US4] Implement the `deploys new` endpoint (depends on T017)
-- [ ] T037 [US4] Implement the `releases list`/`delete` endpoints, both org- and project-scoped
+- [X] T036 [US4] Implement the `deploys new` endpoint (depends on T017)
+- [X] T037 [US4] Implement the `releases list`/`delete` endpoints, both org- and project-scoped
       path variants (depends on T017)
-- [ ] T038 [P] [US4] Add commits and deploys sections to `app/shell/ReleaseDetailScreen.tsx`
+- [X] T038 [P] [US4] Add commits and deploys sections to `app/shell/ReleaseDetailScreen.tsx`
       (depends on T035, T036, T026)
-- [ ] T039 [US4] Run T034's test, confirm it passes (depends on T035)
+- [X] T039 [US4] Run T034's test, confirm it passes (depends on T035)
 
 **Checkpoint**: All four user stories are independently functional — the full sentry-cli release
 surface works.
@@ -248,13 +251,13 @@ surface works.
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T040 [P] Run `deno fmt` and `deno lint` across `worker/`, `app/`, `tests/`; fix violations
-- [ ] T041 [P] Run `deno check` (typecheck) across every new/changed `.ts`/`.tsx` file
-- [ ] T042 [P] Write `tests/e2e/releases-and-resolve.spec.ts` — releases list→detail UI flow, the
+- [X] T040 [P] Run `deno fmt` and `deno lint` across `worker/`, `app/`, `tests/`; fix violations
+- [X] T041 [P] Run `deno check` (typecheck) across every new/changed `.ts`/`.tsx` file
+- [X] T042 [P] Write `tests/e2e/releases-and-resolve.spec.ts` — releases list→detail UI flow, the
       issue-resolve action from `IssueDetailScreen.tsx`
-- [ ] T043 Run the full `quickstart.md` validation end-to-end (all four user stories, including a
+- [X] T043 Run the full `quickstart.md` validation end-to-end (all four user stories, including a
       REAL `sentry-cli` installation per research.md §8) and record results
-- [ ] T044 Update `README.md`'s Status section to reference `specs/005-releases`; document the new
+- [X] T044 Update `README.md`'s Status section to reference `specs/005-releases`; document the new
       API-token auth mechanism in the Authentication section, distinguishing it clearly from
       session auth and DSN-key ingest auth (research.md §4)
 

@@ -26,17 +26,24 @@ interface IssueRow {
   event_count: number;
   first_seen: string;
   last_seen: string;
+  status: string;
+  resolved_release_id: string | null;
 }
 
 // contracts/internal-api.md (specs/002-error-monitoring) — scoped to whatever project(s) the
 // caller's session can see. Module 1/2 only ever seed the single "demo" project, so this isn't
 // filtered by an explicit project selector yet; that's a later module's concern.
+// specs/005-releases: defaults to the active-issues view (status = 'unresolved', spec.md
+// Acceptance Scenario 1) — ?status=all shows everything, including resolved ones.
 issuesRoutes.get("/", async (c) => {
+  const showAll = c.req.query("status") === "all";
   const { results } = await c.env.DB
     .prepare(
-      `SELECT id, title, culprit, level, event_count, first_seen, last_seen
-       FROM issues
-       ORDER BY last_seen DESC`,
+      showAll
+        ? `SELECT id, title, culprit, level, event_count, first_seen, last_seen, status, resolved_release_id
+           FROM issues ORDER BY last_seen DESC`
+        : `SELECT id, title, culprit, level, event_count, first_seen, last_seen, status, resolved_release_id
+           FROM issues WHERE status = 'unresolved' ORDER BY last_seen DESC`,
     )
     .all<IssueRow>();
 
@@ -49,6 +56,10 @@ issuesRoutes.get("/", async (c) => {
       eventCount: row.event_count,
       firstSeen: row.first_seen,
       lastSeen: row.last_seen,
+      status: row.status,
+      // A "regressed" indicator is inferred from the current state (data-model.md,
+      // specs/005-releases research.md §9) — unresolved but with a resolution history.
+      regressed: row.status === "unresolved" && row.resolved_release_id !== null,
     })),
   });
 });
@@ -86,7 +97,7 @@ issuesRoutes.get("/:id", async (c) => {
   const id = c.req.param("id");
   const issue = await c.env.DB
     .prepare(
-      `SELECT id, project_id, title, culprit, level, event_count, first_seen, last_seen
+      `SELECT id, project_id, title, culprit, level, event_count, first_seen, last_seen, status, resolved_release_id
        FROM issues WHERE id = ?1`,
     )
     .bind(id)
@@ -136,5 +147,70 @@ issuesRoutes.get("/:id", async (c) => {
     // event's trace_id, null when it carried no contexts.trace (spec FR-009, "absent, not an
     // error state").
     traceId: latestEventRow?.trace_id ?? null,
+    status: issue.status,
+    regressed: issue.status === "unresolved" && issue.resolved_release_id !== null,
   });
+});
+
+interface ResolveBody {
+  mode?: "exact" | "next-release";
+  releaseId?: string;
+}
+
+// contracts/releases-internal-api.md's POST /api/internal/issues/{id}/resolve (specs/005-releases).
+issuesRoutes.post("/:id/resolve", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json().catch(() => null) as ResolveBody | null;
+  if (!body || (body.mode !== "exact" && body.mode !== "next-release")) {
+    return c.text("Bad Request", 400);
+  }
+
+  const issue = await c.env.DB
+    .prepare(`SELECT id, project_id FROM issues WHERE id = ?1`)
+    .bind(id)
+    .first<{ id: string; project_id: string }>();
+  if (!issue) return c.text("Not Found", 404);
+
+  let releaseId = body.releaseId ?? null;
+  if (body.mode === "exact" && !releaseId) {
+    // Defaults to the issue's most-recently-seen event's release, when determinable
+    // (contracts/releases-internal-api.md).
+    const latest = await c.env.DB
+      .prepare(
+        `SELECT r.id FROM events e
+         JOIN releases r ON r.project_id = e.project_id AND r.version = e.release
+         WHERE e.issue_id = ?1 ORDER BY e.received_at DESC LIMIT 1`,
+      )
+      .bind(id)
+      .first<{ id: string }>();
+    releaseId = latest?.id ?? null;
+  } else if (body.mode === "next-release") {
+    // The resolution-time latest known release (research.md §7) — the comparison basis is
+    // recomputed relative to THIS at regression-check time, not fixed at resolve time.
+    const latest = await c.env.DB
+      .prepare(`SELECT id FROM releases WHERE project_id = ?1 ORDER BY created_at DESC LIMIT 1`)
+      .bind(issue.project_id)
+      .first<{ id: string }>();
+    releaseId = latest?.id ?? null;
+  }
+
+  await c.env.DB
+    .prepare(
+      `UPDATE issues SET status = 'resolved', resolved_release_id = ?2, resolved_mode = ?3 WHERE id = ?1`,
+    )
+    .bind(id, releaseId, body.mode)
+    .run();
+
+  const identity = c.get("identity");
+  await c.env.DB
+    .prepare(`INSERT INTO audit_log (id, actor_sub, action, after_json) VALUES (?1, ?2, ?3, ?4)`)
+    .bind(
+      crypto.randomUUID(),
+      identity.sub,
+      "issue.resolve",
+      JSON.stringify({ issueId: id, mode: body.mode, releaseId }),
+    )
+    .run();
+
+  return c.json({ status: "resolved", resolvedReleaseId: releaseId, resolvedMode: body.mode });
 });

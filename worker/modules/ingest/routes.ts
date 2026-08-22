@@ -3,15 +3,24 @@ import { extractSentryKey, resolveProjectByDsnKey } from "./dsn-auth.ts";
 import {
   isEventItem,
   isLogItem,
+  isSessionItem,
   isTransactionItem,
   parseEnvelope,
   parseEventPayload,
   parseLogPayload,
+  parseSessionPayload,
   parseTransactionPayload,
 } from "./envelope.ts";
 import { computeFingerprint, deriveCulprit, deriveTitle } from "./fingerprint.ts";
 import { resolveStackTrace } from "./sourcemap.ts";
 import { extractTraceContext } from "./trace-context.ts";
+import {
+  extractSessionOutcomes,
+  foldOutcomesIntoCounters,
+  shouldTrackDistinctUser,
+} from "./release-health.ts";
+import { findNextReleaseAfter, resolveOrCreateRelease } from "./release-lookup.ts";
+import { isRegression } from "./regression.ts";
 import type { EventPayload } from "./types.ts";
 import type { QueuedTransaction } from "./trace-consumer.ts";
 import type { QueuedLogBatch, RawLogRecord } from "./log-consumer.ts";
@@ -132,6 +141,76 @@ ingestRoutes.post("/:projectId/envelope", async (c) => {
       ]);
       continue;
     }
+
+    if (isSessionItem(item)) {
+      // Direct D1 writes, no Queue (research.md §5) — server-mode SDKs pre-aggregate before
+      // sending, keeping request volume comparable to Module 2's error ingest, not Module 3/4's
+      // higher-volume surfaces.
+      const payload = parseSessionPayload(item);
+      if (!payload) continue;
+
+      const itemType = item.header.type === "session" ? "session" : "sessions";
+      const outcomes = extractSessionOutcomes(itemType, payload);
+      const buckets = foldOutcomesIntoCounters(outcomes);
+
+      for (const bucket of buckets.values()) {
+        const release = await resolveOrCreateRelease(c.env.DB, project.id, bucket.release);
+        await c.env.DB
+          .prepare(
+            `INSERT INTO release_health
+               (project_id, release_id, environment, date, sessions_total, sessions_crashed, sessions_errored)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+             ON CONFLICT(project_id, release_id, environment, date) DO UPDATE SET
+               sessions_total = sessions_total + ?5,
+               sessions_crashed = sessions_crashed + ?6,
+               sessions_errored = sessions_errored + ?7`,
+          )
+          .bind(
+            project.id,
+            release.id,
+            bucket.environment,
+            bucket.date,
+            bucket.sessionsTotal,
+            bucket.sessionsCrashed,
+            bucket.sessionsErrored,
+          )
+          .run();
+      }
+
+      // Distinct-user tracking (research.md §6) — only "session" (singular) items carry a `did`;
+      // capped per (project, release, environment, date) bucket, checked before each insert.
+      for (const outcome of outcomes) {
+        if (!outcome.did) continue;
+        const release = await resolveOrCreateRelease(c.env.DB, project.id, outcome.release);
+        const { count } = await c.env.DB
+          .prepare(
+            `SELECT COUNT(*) as count FROM release_health_users
+             WHERE project_id = ?1 AND release_id = ?2 AND environment = ?3 AND date = ?4`,
+          )
+          .bind(project.id, release.id, outcome.environment, outcome.date)
+          .first<{ count: number }>() ?? { count: 0 };
+        if (!shouldTrackDistinctUser(count)) continue;
+
+        await c.env.DB
+          .prepare(
+            `INSERT INTO release_health_users (project_id, release_id, environment, date, did, crashed)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+             ON CONFLICT(project_id, release_id, environment, date, did) DO UPDATE SET
+               crashed = MAX(crashed, ?6)`,
+          )
+          .bind(
+            project.id,
+            release.id,
+            outcome.environment,
+            outcome.date,
+            outcome.did,
+            outcome.status === "crashed" ? 1 : 0,
+          )
+          .run();
+      }
+      continue;
+    }
+
     if (isTransactionItem(item)) {
       // Trace ingest is asynchronous (specs/003-distributed-tracing research.md §4) — enqueue and
       // move on, never a synchronous D1 write in this request path (unlike the "event" branch
@@ -197,12 +276,61 @@ ingestRoutes.post("/:projectId/envelope", async (c) => {
          ON CONFLICT(project_id, fingerprint) DO UPDATE SET
            event_count = event_count + 1,
            last_seen = datetime('now')
-         RETURNING id`,
+         RETURNING id, status, resolved_release_id, resolved_mode`,
       )
       .bind(crypto.randomUUID(), project.id, fingerprint, title, culprit, level)
-      .first<{ id: string }>();
+      .first<
+        {
+          id: string;
+          status: string;
+          resolved_release_id: string | null;
+          resolved_mode: string | null;
+        }
+      >();
 
     if (!issue) continue; // shouldn't happen — defensive, don't let one bad item 500 the request
+
+    // specs/005-releases research.md §7: a resolved issue automatically reopens when a later
+    // release's occurrence arrives — extends this existing "event" path, not a new endpoint/job.
+    if (
+      issue.status === "resolved" && issue.resolved_release_id && event.release &&
+      (issue.resolved_mode === "exact" || issue.resolved_mode === "next-release")
+    ) {
+      const resolvedReleaseRow = await c.env.DB
+        .prepare(`SELECT id, created_at FROM releases WHERE id = ?1`)
+        .bind(issue.resolved_release_id)
+        .first<{ id: string; created_at: string }>();
+      const newEventReleaseRow = await resolveOrCreateRelease(c.env.DB, project.id, event.release);
+
+      if (resolvedReleaseRow) {
+        const resolvedRelease = {
+          id: resolvedReleaseRow.id,
+          createdAt: resolvedReleaseRow.created_at,
+        };
+        const newEventRelease = {
+          id: newEventReleaseRow.id,
+          createdAt: newEventReleaseRow.created_at,
+        };
+        const nextReleaseRow = issue.resolved_mode === "next-release"
+          ? await findNextReleaseAfter(c.env.DB, project.id, resolvedReleaseRow.created_at)
+          : null;
+        const nextRelease = nextReleaseRow
+          ? { id: nextReleaseRow.id, createdAt: nextReleaseRow.created_at }
+          : null;
+        const regressed = isRegression(
+          issue.resolved_mode,
+          resolvedRelease,
+          nextRelease,
+          newEventRelease,
+        );
+        if (regressed) {
+          await c.env.DB
+            .prepare(`UPDATE issues SET status = 'unresolved' WHERE id = ?1`)
+            .bind(issue.id)
+            .run();
+        }
+      }
+    }
 
     // contexts.trace is the same context object transactions carry (specs/003-distributed-tracing
     // research.md §3) — recorded here whether or not a transaction for this trace was ever
