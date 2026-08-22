@@ -3,9 +3,11 @@ import { sessionAuth } from "../../auth/session.ts";
 import type { SessionIdentity } from "../../auth/session.ts";
 import { fetchPercentile, operationsListSql } from "../ingest/percentiles.ts";
 import type { RawSpan } from "../ingest/waterfall-layout.ts";
+import { extractMatchingLines } from "../logs/extract.ts";
 
 interface Env {
   DB: D1Database;
+  LOGS: R2Bucket;
 }
 
 export const tracesRoutes = new Hono<
@@ -122,6 +124,24 @@ tracesRoutes.get("/:id", async (c) => {
     .bind(transaction.project_id, transaction.trace_id)
     .all<LinkedErrorRow>();
 
+  // contracts/logs-internal-api.md's addition (specs/004-structured-logs) — resolved via
+  // log_batch_traces then the same read-time R2 extraction search uses (research.md §6 there).
+  const { results: logBatches } = await c.env.DB
+    .prepare(
+      `SELECT lb.r2_object_key FROM log_batch_traces lbt
+       JOIN log_batches lb ON lb.id = lbt.batch_id
+       WHERE lbt.trace_id = ?1`,
+    )
+    .bind(transaction.trace_id)
+    .all<{ r2_object_key: string }>();
+  const logs = (
+    await Promise.all(
+      (logBatches ?? []).map((batch) =>
+        extractMatchingLines(c.env.LOGS, batch.r2_object_key, { traceId: transaction.trace_id })
+      ),
+    )
+  ).flat();
+
   return c.json({
     id: transaction.id,
     traceId: transaction.trace_id,
@@ -143,6 +163,11 @@ tracesRoutes.get("/:id", async (c) => {
       issueId: row.issue_id,
       title: row.title,
       level: row.level,
+    })),
+    logs: logs.map((line) => ({
+      timestamp: line.timestamp,
+      level: line.level,
+      body: line.body,
     })),
   });
 });
