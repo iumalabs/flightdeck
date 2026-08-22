@@ -124,3 +124,16 @@ export function parseSessionPayload(item: EnvelopeItem): Record<string, unknown>
   const decoder = new TextDecoder();
   return parseJsonLine(item.payload, decoder);
 }
+
+// Event-based, at most one per envelope (specs/007-user-feedback research.md §3, spec.md's
+// protocol grounding) — mirrors isEventItem() exactly.
+export function isFeedbackItem(item: EnvelopeItem): boolean {
+  return item.header.type === "feedback";
+}
+
+// Same generic JSON decode as parseEventPayload — a distinct name only for call-site clarity at
+// the "feedback" dispatch branch.
+export function parseFeedbackPayload(item: EnvelopeItem): Record<string, unknown> | null {
+  const decoder = new TextDecoder();
+  return parseJsonLine(item.payload, decoder);
+}
