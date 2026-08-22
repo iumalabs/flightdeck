@@ -87,6 +87,20 @@ export function isTransactionItem(item: EnvelopeItem): boolean {
   return item.header.type === "transaction";
 }
 
+// A "log" item batches MANY independent log records (up to 100, SDK-side cap) inside one item's
+// payload — a materially different shape from "event"/"transaction" (specs/004-structured-logs
+// research.md §1), but still just another item type in the same envelope.
+export function isLogItem(item: EnvelopeItem): boolean {
+  return item.header.type === "log";
+}
+
+// Same generic JSON decode as parseEventPayload/parseTransactionPayload — a distinct name only for
+// call-site clarity at the "log" dispatch branch.
+export function parseLogPayload(item: EnvelopeItem): Record<string, unknown> | null {
+  const decoder = new TextDecoder();
+  return parseJsonLine(item.payload, decoder);
+}
+
 export function parseEventPayload(item: EnvelopeItem): Record<string, unknown> | null {
   const decoder = new TextDecoder();
   return parseJsonLine(item.payload, decoder);
