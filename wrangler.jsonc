@@ -91,9 +91,29 @@
           { "name": "RATE_LIMITER", "class_name": "RateLimiter" }
         ]
       },
+      // Trace ingest is asynchronous (research.md §4, specs/003-distributed-tracing) — trace
+      // volume is structurally higher per session than error volume, so writes go through a
+      // Queue rather than synchronously in the request path the way Module 2's error ingest does.
+      // The queue/dead-letter-queue resources themselves must be created once via
+      // `wrangler queues create` before first deploy — not a config-only step.
+      "queues": {
+        "producers": [
+          { "queue": "flightdeck-production-trace-ingest", "binding": "TRACE_INGEST" }
+        ],
+        "consumers": [
+          {
+            "queue": "flightdeck-production-trace-ingest",
+            "max_batch_size": 50,
+            "max_batch_timeout": 5,
+            "max_retries": 3,
+            "dead_letter_queue": "flightdeck-production-trace-ingest-dlq"
+          }
+        ]
+      },
       "triggers": {
         // Daily retention prune (constitution Principle IX — specs/002-error-monitoring
-        // research.md §8). Exact hour is not significant; picked to run during low-traffic UTC
+        // research.md §8, extended by specs/003-distributed-tracing research.md §8 to also prune
+        // `transactions`). Exact hour is not significant; picked to run during low-traffic UTC
         // hours.
         "crons": ["0 3 * * *"]
       }
@@ -130,6 +150,20 @@
       "durable_objects": {
         "bindings": [
           { "name": "RATE_LIMITER", "class_name": "RateLimiter" }
+        ]
+      },
+      "queues": {
+        "producers": [
+          { "queue": "flightdeck-preview-trace-ingest", "binding": "TRACE_INGEST" }
+        ],
+        "consumers": [
+          {
+            "queue": "flightdeck-preview-trace-ingest",
+            "max_batch_size": 50,
+            "max_batch_timeout": 5,
+            "max_retries": 3,
+            "dead_letter_queue": "flightdeck-preview-trace-ingest-dlq"
+          }
         ]
       },
       "triggers": {
