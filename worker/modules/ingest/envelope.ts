@@ -74,13 +74,27 @@ export function parseEnvelope(bytes: Uint8Array): ParsedEnvelope | null {
   return { header, items };
 }
 
-// Item types other than "event" are recognized-and-skipped, never rejected (research.md §2) — a
-// standard SDK routinely bundles session/transaction/etc. items alongside an event in one envelope.
+// Item types other than "event"/"transaction" are recognized-and-skipped, never rejected
+// (research.md §2) — a standard SDK routinely bundles session/etc. items alongside an event or
+// transaction in one envelope.
 export function isEventItem(item: EnvelopeItem): boolean {
   return item.header.type === "event";
 }
 
+// "transaction" is mutually exclusive with "event" within one envelope item, per Sentry's own
+// protocol (specs/003-distributed-tracing research.md §2) — never both on the same item.
+export function isTransactionItem(item: EnvelopeItem): boolean {
+  return item.header.type === "transaction";
+}
+
 export function parseEventPayload(item: EnvelopeItem): Record<string, unknown> | null {
+  const decoder = new TextDecoder();
+  return parseJsonLine(item.payload, decoder);
+}
+
+// Same generic JSON decode as parseEventPayload — a distinct name only for call-site clarity at
+// the "transaction" dispatch branch (specs/003-distributed-tracing research.md §2).
+export function parseTransactionPayload(item: EnvelopeItem): Record<string, unknown> | null {
   const decoder = new TextDecoder();
   return parseJsonLine(item.payload, decoder);
 }

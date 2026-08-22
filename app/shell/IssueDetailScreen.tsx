@@ -39,14 +39,19 @@ interface IssueDetail {
     contexts: Record<string, unknown>;
   } | null;
   suspectCommit: SuspectCommit | null;
+  // contracts/traces-internal-api.md's addition (specs/003-distributed-tracing) — the latest
+  // event's trace_id, null when it carried no active trace (spec FR-009, "absent, not an error
+  // state").
+  traceId: string | null;
 }
 
 export interface IssueDetailScreenProps {
   issueId: string;
   onBack: () => void;
+  onViewTrace: (traceId: string) => void;
 }
 
-export function IssueDetailScreen({ issueId, onBack }: IssueDetailScreenProps) {
+export function IssueDetailScreen({ issueId, onBack, onViewTrace }: IssueDetailScreenProps) {
   const [loading, setLoading] = useState(true);
   const [issue, setIssue] = useState<IssueDetail | null>(null);
 
@@ -109,6 +114,21 @@ export function IssueDetailScreen({ issueId, onBack }: IssueDetailScreenProps) {
           }}
         >
           {issue.culprit}
+        </div>
+      )}
+
+      {issue.traceId && (
+        <div
+          onClick={() => onViewTrace(issue.traceId!)}
+          style={{
+            display: "inline-block",
+            cursor: "pointer",
+            color: "var(--accent)",
+            fontSize: 12.5,
+            marginBottom: 20,
+          }}
+        >
+          View trace →
         </div>
       )}
 

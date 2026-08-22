@@ -41,7 +41,7 @@ cross-entity relationship section).
 ```json
 {
   "id": "string", "traceId": "string", "name": "string", "op": "string|null",
-  "durationMs": 0, "startedAt": "string",
+  "durationMs": 0, "startedAt": "string", "startTimestamp": 0,
   "spans": [
     { "spanId": "string", "parentSpanId": "string|null", "op": "string",
       "description": "string|null", "startTimestamp": 0, "timestamp": 0, "status": "string|null" }
@@ -52,6 +52,12 @@ cross-entity relationship section).
 }
 ```
 
+`startTimestamp` (raw epoch seconds, the transaction's own root-span start) is included alongside
+the human-readable `startedAt` string specifically so `app/shell/TraceDetailScreen.tsx` can call
+`waterfall-layout.ts`'s `layoutWaterfall()` client-side — discovered during implementation that the
+text-formatted `startedAt` alone can't be used for span-relative axis arithmetic (an omission in
+this contract's original design, corrected here rather than left undocumented).
+
 `{id}` is the `transactions.id` (FlightDeck's own server-generated id), not the raw `trace_id` —
 mirrors Module 2's `GET /api/internal/issues/{id}` using `issues.id`, not a fingerprint, as the path
 parameter. `linkedErrors` is `[]`, not omitted, when no error shares this transaction's `trace_id`
@@ -59,6 +65,16 @@ parameter. `linkedErrors` is `[]`, not omitted, when no error shares this transa
 matching how Module 2's `suspectCommit` uses `null` for the absent case of a single-object field).
 
 **Response `404`**: no transaction with that id in the caller's project.
+
+## `GET /api/internal/traces/by-trace-id/{traceId}`
+
+The trace_id → transaction resolution step referenced below (discovered as a genuine gap during
+implementation: the original contract described the need for this lookup but never specified it as
+its own route).
+
+**Response `200`**: `{ "transactionId": "string|null" }` — `null` when no transaction has been
+ingested for that `trace_id` (e.g. tracing disabled but `contexts.trace` still attached to an error,
+per data-model.md's cross-entity relationship section).
 
 ## Addition to `GET /api/internal/issues/{id}` (Module 2's existing contract)
 

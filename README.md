@@ -20,15 +20,19 @@ README covers day-to-day setup and operation only.
 
 ## Status
 
-Module 1 (**Landing site, Access login, and app-shell skeleton**) and Module 2 (**Error
-monitoring**) are implemented — see
-[`specs/001-landing-access-login/`](specs/001-landing-access-login/) and
-[`specs/002-error-monitoring/`](specs/002-error-monitoring/) for their specs, plans, and tasks.
-Module 2 adds the platform's first public, DSN-authenticated ingest surface (Sentry envelope
+Module 1 (**Landing site, Access login, and app-shell skeleton**), Module 2 (**Error monitoring**),
+and Module 3 (**Distributed tracing**) are implemented — see
+[`specs/001-landing-access-login/`](specs/001-landing-access-login/),
+[`specs/002-error-monitoring/`](specs/002-error-monitoring/), and
+[`specs/003-distributed-tracing/`](specs/003-distributed-tracing/) for their specs, plans, and
+tasks. Module 2 adds the platform's first public, DSN-authenticated ingest surface (Sentry envelope
 protocol), issue grouping with source-map-aware fingerprinting, source map upload/resolution, and
-GitHub App-based suspect commits — see the constitution for the full trust-surface split. Not yet
-deployed — see [Deployment](#deployment) for the one-time Cloudflare-dashboard step that has to
-happen before `release` builds go live.
+GitHub App-based suspect commits. Module 3 extends that same envelope endpoint with a
+`"transaction"` item type, written asynchronously through a Cloudflare Queue (`TRACE_INGEST`) to a
+new `transactions` table, with a visual span waterfall and trace-to-error cross-linking in both
+directions — see the constitution for the full trust-surface split. Not yet deployed — see
+[Deployment](#deployment) for the one-time Cloudflare-dashboard steps that have to happen before
+`release` builds go live.
 
 ## Authentication
 
@@ -107,6 +111,13 @@ production branch to `release`, not `main`. In the setup form:
 | Protect with Cloudflare Access       | **leave disabled** — see [Authentication](#authentication)'s post-deploy step instead |
 
 `workers_dev` is `false` from the first commit and MUST stay that way (constitution Principle I).
+
+**Required one-time Queue provisioning** (Module 3, cannot be scripted via Workers Builds config):
+`wrangler.jsonc`'s `queues` block declares the `TRACE_INGEST` producer/consumer binding, but the
+underlying queue and dead-letter-queue resources must exist before first deploy —
+`wrangler queues create flightdeck-production-trace-ingest`,
+`wrangler queues create flightdeck-production-trace-ingest-dlq`, and the same two commands with
+`-preview-` in place of `-production-` for the preview environment.
 
 **D1 migrations are not applied by Workers Builds.** `.github/workflows/d1-migrations.yml` runs
 `wrangler d1 migrations apply --remote` against both the production and preview databases on every
