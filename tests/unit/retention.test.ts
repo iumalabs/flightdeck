@@ -1,5 +1,10 @@
 import { assertEquals } from "@std/assert";
-import { pruneOldEvents, RETENTION_DAYS } from "../../worker/modules/ingest/retention.ts";
+import {
+  pruneOldEvents,
+  pruneOldTransactions,
+  RETENTION_DAYS,
+  TRANSACTION_RETENTION_DAYS,
+} from "../../worker/modules/ingest/retention.ts";
 
 class FakeD1 {
   lastSql: string | null = null;
@@ -42,4 +47,26 @@ Deno.test("pruneOldEvents returns 0 when nothing was old enough to delete", asyn
   const db = new FakeD1(0) as unknown as D1Database;
   const deleted = await pruneOldEvents(db);
   assertEquals(deleted, 0);
+});
+
+// specs/003-distributed-tracing research.md §8: transactions get their own, shorter window — a
+// separate function/query from pruneOldEvents, never touching the events table.
+Deno.test("pruneOldTransactions deletes from the transactions table only, never events", async () => {
+  const db = new FakeD1(0);
+  await pruneOldTransactions(db as unknown as D1Database);
+  assertEquals(db.lastSql?.includes("DELETE FROM transactions"), true);
+  assertEquals(db.lastSql?.toLowerCase().includes("events"), false);
+});
+
+Deno.test("pruneOldTransactions binds its own, shorter retention window", async () => {
+  const db = new FakeD1(0);
+  await pruneOldTransactions(db as unknown as D1Database);
+  assertEquals(db.lastBinding, `-${TRANSACTION_RETENTION_DAYS} days`);
+  assertEquals(TRANSACTION_RETENTION_DAYS < RETENTION_DAYS, true);
+});
+
+Deno.test("pruneOldTransactions returns the number of rows deleted", async () => {
+  const db = new FakeD1(4) as unknown as D1Database;
+  const deleted = await pruneOldTransactions(db);
+  assertEquals(deleted, 4);
 });
