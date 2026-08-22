@@ -1,28 +1,30 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 1.0.0 → 1.1.0
-Modified principles: II. Defense-in-Depth JWT Validation, Fail Closed — expanded
-  from a single-step "verify Cf-Access-Jwt-Assertion on every control-plane
-  request" model to a two-step bounce+session model, discovered mid-
-  implementation once the actual (manually provisioned) Cloudflare Access
-  application turned out to be scoped to the single `/login` path rather than
-  the whole control-plane surface. Access cannot inject its JWT header on
-  paths it doesn't cover, so `/login` now mints FlightDeck's own signed
-  session token for every other control-plane request. See
-  specs/001-landing-access-login/research.md §1 for the concrete decision
-  record.
+Version change: 1.1.0 → 1.1.1
+Modified principles: n/a (no Core Principle changed)
+Modified sections: Product Scope & Module Roadmap, item 6 (Uptime monitoring) —
+  wording corrected from "multi-region HTTP/TCP checks" to "single-region
+  HTTP/TCP checks (multi-region deferred)". This documents an already-reasoned,
+  already-approved scope deviation discovered during Module 6's own planning
+  (surfaced to the project owner via an explicit scoping question before that
+  module's spec was written, and already recorded as that module's plan.md
+  Complexity Tracking entry): Cloudflare Workers Cron Triggers have no
+  documented API to pin, choose, or fan out a scheduled invocation across
+  deliberately different geographic regions, and Cloudflare's native Health
+  Checks / Load Balancing health checks are both the wrong shape (monitor an
+  origin already on Cloudflare's own zone, not an arbitrary third-party URL a
+  customer supplies) and the wrong tier (paid-plan-gated, conflicting with the
+  free-tier/self-hostable posture this constitution protects elsewhere — see
+  Module 4's identical rejection of Cloudflare Pipelines). This is a wording
+  sync to match a decision already made and already documented, not a new
+  governance decision made here. See specs/006-uptime-monitoring/research.md
+  §1 and that module's plan.md Complexity Tracking table for the full record.
 Added sections: n/a
 Removed sections: n/a
-Templates requiring alignment:
-  - .specify/templates/plan-template.md — ⚠ pending review (verify Constitution
-    Check gates reference principles I–XI, not a FlareTower-shaped set)
-  - .specify/templates/spec-template.md — ⚠ pending review (verify module-scope
-    language matches "Module 1 only" build order below)
-  - .specify/templates/tasks-template.md — ⚠ pending review (verify task
-    categories cover Deno/Playwright/D1/Access-JWT/session-cookie/DSN-auth
-    split)
-Follow-up TODOs: none — all placeholders resolved from the founding brief.
+Templates requiring alignment: none — this change touches roadmap prose only,
+  no principle or gate structure changed.
+Follow-up TODOs: none.
 -->
 
 # FlightDeck Constitution
@@ -255,9 +257,11 @@ of it now):
    export.
 5. **Releases** — adoption, crash-free sessions, regression detection,
    sentry-cli-compatible release/source-map upload (Principle IV).
-6. **Uptime monitoring** — multi-region HTTP/TCP checks, incident-aware
-   alerting, the first scheduled-handler consumer of Principle V's shared
-   evaluation-logic rule.
+6. **Uptime monitoring** — single-region HTTP/TCP checks (multi-region
+   deferred — Cloudflare Cron Triggers have no controllable execution region;
+   see specs/006-uptime-monitoring/research.md), incident-aware alerting, the
+   first scheduled-handler consumer of Principle V's shared evaluation-logic
+   rule.
 7. **User feedback** — drop-in widget, crash-report dialog, linkage to the
    originating event.
 
@@ -355,4 +359,4 @@ begins. Deviations discovered during implementation MUST be raised for
 resolution (either fixing the implementation or amending the constitution)
 before merge, not silently absorbed.
 
-**Version**: 1.1.0 | **Ratified**: 2026-08-21 | **Last Amended**: 2026-08-21
+**Version**: 1.1.1 | **Ratified**: 2026-08-21 | **Last Amended**: 2026-08-22
