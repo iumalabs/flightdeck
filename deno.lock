@@ -13,6 +13,7 @@
     "npm:@types/react-dom@^19.2.4": "19.2.4_@types+react@19.2.18",
     "npm:@types/react@^19.2.18": "19.2.18",
     "npm:@vitejs/plugin-react@5": "5.2.0_vite@8.2.1",
+    "npm:aws4fetch@^1.0.20": "1.0.20",
     "npm:hono@^4.13.0": "4.13.1",
     "npm:jose@6.2.8": "6.2.8",
     "npm:jose@^6.2.8": "6.2.8",
@@ -742,6 +743,9 @@
         "vite"
       ]
     },
+    "aws4fetch@1.0.20": {
+      "integrity": "sha512-/djoAN709iY65ETD6LKCtyyEI04XIBP5xVvfmNxsEP0uJB5tyaGBztSryRr4HqMStr9R06PisQE7m9zDTXKu6g=="
+    },
     "baseline-browser-mapping@2.11.13": {
       "integrity": "sha512-k9HNuUVMlqVjQ9UHzfPjIqiDbWw7WqT1AoT7GL8VwvF3r0ZfArtgiSPAlmupyNquNgOJHTuH4CKYf8ttMTWBTQ==",
       "bin": true
@@ -1201,6 +1205,7 @@
       "npm:@types/react-dom@^19.2.4",
       "npm:@types/react@^19.2.18",
       "npm:@vitejs/plugin-react@5",
+      "npm:aws4fetch@^1.0.20",
       "npm:hono@^4.13.0",
       "npm:jose@^6.2.8",
       "npm:react-dom@^19.2.8",

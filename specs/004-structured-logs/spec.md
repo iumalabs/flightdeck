@@ -7,19 +7,18 @@
 **Status**: Draft
 
 **Input**: User description: "Module 4 — Structured logs (live tail, search, retention,
-S3-compatible export)." (full brief in conversation history, including protocol grounding
-researched against real Sentry developer docs, Cloudflare live-tail/search/export research, and
-scope decisions already made — see plan.md's Technical Context and research.md for the detailed
-technical record)
+S3-compatible export)." (full brief in conversation history, including protocol grounding researched
+against real Sentry developer docs, Cloudflare live-tail/search/export research, and scope decisions
+already made — see plan.md's Technical Context and research.md for the detailed technical record)
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Watch logs arrive in real time (Priority: P1)
 
 A developer who already uses a Sentry SDK enables structured logging (the SDK's standard logging
 option). Without changing any other code, log lines their application emits appear in FlightDeck's
-dashboard within moments of being emitted, as a live, scrolling stream — not something the
-developer has to refresh to see.
+dashboard within moments of being emitted, as a live, scrolling stream — not something the developer
+has to refresh to see.
 
 **Why this priority**: This is the entire value proposition named first in this module's scope
 ("live tail") — a developer actively debugging a live issue wants to watch logs as they happen, not
@@ -52,14 +51,14 @@ appear in the live view within seconds, correctly attributed (level, message, so
 
 ### User Story 2 - Find what happened after the fact (Priority: P1)
 
-A developer investigating an issue searches their project's log history — by text, by level, by
-time range — to find the log lines relevant to what went wrong, without needing to have had the
-live tail view open at the time.
+A developer investigating an issue searches their project's log history — by text, by level, by time
+range — to find the log lines relevant to what went wrong, without needing to have had the live tail
+view open at the time.
 
 **Why this priority**: Live tail (User Story 1) only helps if a developer happens to be watching at
 the right moment; most real investigation happens after the fact. This is equally core to the
-module's value, not a lesser feature — a logging product that only shows what's happening live,
-with no way to look back, isn't useful for post-incident investigation.
+module's value, not a lesser feature — a logging product that only shows what's happening live, with
+no way to look back, isn't useful for post-incident investigation.
 
 **Independent Test**: Ingest a batch of log lines with varied content and levels, then search by a
 distinctive word from one of them, confirm it's found; filter by level and by a time range, confirm
@@ -107,9 +106,9 @@ to the other.
 
 ### User Story 4 - Take log data elsewhere (Priority: P3)
 
-An operations team archives their project's log history to their own storage, or feeds it into
-their own external tooling, using standard S3-compatible clients rather than a FlightDeck-specific
-export mechanism.
+An operations team archives their project's log history to their own storage, or feeds it into their
+own external tooling, using standard S3-compatible clients rather than a FlightDeck-specific export
+mechanism.
 
 **Why this priority**: Valuable for teams with compliance/retention needs beyond FlightDeck's own
 window, or who want to feed logs into their own analytics — but nothing else in this module depends
@@ -137,9 +136,9 @@ the provided credentials.
   maximum submission size.
 - The same log submission is received twice (e.g. a client retry after a network blip): log lines
   are not duplicated in search results or live tail.
-- No one has the live tail view open when a log line arrives: the log line is still durably
-  recorded and later findable via search — live tail is a real-time convenience, not the only way
-  logs are captured.
+- No one has the live tail view open when a log line arrives: the log line is still durably recorded
+  and later findable via search — live tail is a real-time convenience, not the only way logs are
+  captured.
 - A search query matches an extremely large number of log lines: results are returned in a bounded,
   paginated way rather than attempting to return everything at once.
 - Log lines carry no trace correlation (emitted with no active trace): they are still fully visible
@@ -153,7 +152,7 @@ the provided credentials.
 - Export credentials are compromised or need to be revoked: revoking them stops all further access
   without affecting the underlying log data or any other project's export access.
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
@@ -168,8 +167,8 @@ the provided credentials.
   way the sending SDK recognizes as a rate-limit signal.
 - **FR-004**: The system MUST provide a live view per project showing newly arriving log lines in
   real time, filterable by level, without requiring the viewer to manually refresh.
-- **FR-005**: The system MUST durably record every accepted log line regardless of whether anyone
-  is viewing the live view at the time it arrives.
+- **FR-005**: The system MUST durably record every accepted log line regardless of whether anyone is
+  viewing the live view at the time it arrives.
 - **FR-006**: The system MUST provide search over a project's log history by free-text content,
   filterable by level and by time range, returning results in a bounded, paginated way.
 - **FR-007**: The system MUST link a log line to the trace that was active when it was emitted, when
@@ -191,7 +190,7 @@ the provided credentials.
 - **FR-013**: The system MUST allow revoking previously provisioned export access, after which
   further access attempts with the revoked credentials fail.
 
-### Key Entities *(include if feature involves data)*
+### Key Entities _(include if feature involves data)_
 
 - **Log line**: one structured log entry — timestamp, level, message, optional structured
   attributes, and (when available) the trace/span it was emitted during.
@@ -201,7 +200,7 @@ the provided credentials.
 - **Export credential**: a project-scoped, revocable set of access details granting S3-compatible
   read access to that project's archived log data.
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 
@@ -218,14 +217,13 @@ the provided credentials.
 - **SC-006**: A provisioned S3-compatible export credential can list and retrieve exactly one
   project's log data and no other project's, verified by automated test.
 - **SC-007**: Under sustained log volume consistent with an early-stage product's real usage (not a
-  load-test-scale burst), live tail and search stay responsive with no observable ingestion
-  backlog.
+  load-test-scale burst), live tail and search stay responsive with no observable ingestion backlog.
 
 ## Assumptions
 
-- "Unmodified, standard Sentry SDK" carries the same meaning established in Modules 2-3: the
-  current stable major version of `@sentry/browser` (or `@sentry/react`) and `sentry-sdk` (Python),
-  with structured logging enabled via each SDK's standard logging option.
+- "Unmodified, standard Sentry SDK" carries the same meaning established in Modules 2-3: the current
+  stable major version of `@sentry/browser` (or `@sentry/react`) and `sentry-sdk` (Python), with
+  structured logging enabled via each SDK's standard logging option.
 - The default log-retention window is shorter than Module 2's 90-day event retention and Module 3's
   30-day transaction retention, given log data's structurally higher volume — the exact number is an
   implementation default tuned during planning, not user-facing configuration in this module.

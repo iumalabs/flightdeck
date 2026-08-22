@@ -39,6 +39,7 @@ does not need to separately enforce a lower count limit, only the existing `MAX_
 overall payload-size guard (reused unchanged from Module 2).
 
 **Behavior**:
+
 1. Rate-limit check against the `` `${dsnKey}:log` ``-keyed `RateLimiter` DO instance (independent
    window, research.md §3).
 2. DSN resolution (unchanged).
@@ -47,10 +48,10 @@ overall payload-size guard (reused unchanged from Module 2).
 5. In parallel (not awaited before step 4's response), call the project's `LiveTail` Durable Object
    to broadcast the new records to any connected live-tail WebSocket viewers (research.md §7).
 6. Return `200` immediately — matches the same "enqueue acknowledgment, not durability guarantee"
-   semantics as Module 3's transaction-ingest contract. A client that receives `200` and
-   immediately searches may not yet find the content — search/trace-lookup queryability lags
-   ingest by the queue consumer's flush interval, same async-processing caveat Module 3's
-   trace-ingest contract documents.
+   semantics as Module 3's transaction-ingest contract. A client that receives `200` and immediately
+   searches may not yet find the content — search/trace-lookup queryability lags ingest by the queue
+   consumer's flush interval, same async-processing caveat Module 3's trace-ingest contract
+   documents.
 
 **Response**: `200` (enqueued — both the durable-storage path and the live-tail broadcast are
 triggered), `403` (auth failure), `429` (rate limited, `log_item` category), `400` (malformed

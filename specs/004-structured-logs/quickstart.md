@@ -5,8 +5,8 @@
 - Module 2 (Error monitoring) running locally, migration applied — its DSN issuance is what this
   module's ingest reuses.
 - Module 3 (Distributed tracing) implemented and its migration applied — this module's trace
-  correlation (`log_batch_traces`) needs Module 3's `trace_id` concept to exist end-to-end,
-  though log ingest itself does not hard-depend on Module 3's own tables.
+  correlation (`log_batch_traces`) needs Module 3's `trace_id` concept to exist end-to-end, though
+  log ingest itself does not hard-depend on Module 3's own tables.
 - This module's migration applied locally: `deno task db:migrations:apply:local` (re-run after
   `0004_structured_logs.sql` is added).
 - A local Cloudflare Queue configured for `wrangler dev` (`LOG_INGEST`) — see Module 3's quickstart

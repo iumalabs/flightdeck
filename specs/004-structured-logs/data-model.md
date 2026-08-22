@@ -2,16 +2,16 @@
 
 ## Log Batch
 
-| Field | Type | Notes |
-|---|---|---|
-| `id` | TEXT, PRIMARY KEY | Server-generated. |
-| `project_id` | TEXT, NOT NULL, REFERENCES projects(id) | |
-| `r2_object_key` | TEXT, NOT NULL | The NDJSON object's key in that project's dedicated R2 bucket (research.md §8) — `{project_id}/{yyyy}/{mm}/{dd}/{hh}/{batch-id}.ndjson`. |
-| `started_at` | TEXT, NOT NULL | Min `timestamp` across the batch's log records. |
-| `ended_at` | TEXT, NOT NULL | Max `timestamp` across the batch's log records. |
-| `record_count` | INTEGER, NOT NULL | How many log lines this batch's NDJSON object contains. |
-| `levels_present` | TEXT, NOT NULL | Comma-joined set of distinct `level` values in this batch — coarse pre-filter before any per-line extraction (research.md §5). |
-| `received_at` | TEXT, NOT NULL, DEFAULT `datetime('now')` | What the retention job (research.md §9) prunes against — distinct from `started_at`/`ended_at` (client-reported) for the same reason Module 3's `transactions.received_at` is. |
+| Field            | Type                                      | Notes                                                                                                                                                                          |
+| ---------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `id`             | TEXT, PRIMARY KEY                         | Server-generated.                                                                                                                                                              |
+| `project_id`     | TEXT, NOT NULL, REFERENCES projects(id)   |                                                                                                                                                                                |
+| `r2_object_key`  | TEXT, NOT NULL                            | The NDJSON object's key in that project's dedicated R2 bucket (research.md §8) — `{project_id}/{yyyy}/{mm}/{dd}/{hh}/{batch-id}.ndjson`.                                       |
+| `started_at`     | TEXT, NOT NULL                            | Min `timestamp` across the batch's log records.                                                                                                                                |
+| `ended_at`       | TEXT, NOT NULL                            | Max `timestamp` across the batch's log records.                                                                                                                                |
+| `record_count`   | INTEGER, NOT NULL                         | How many log lines this batch's NDJSON object contains.                                                                                                                        |
+| `levels_present` | TEXT, NOT NULL                            | Comma-joined set of distinct `level` values in this batch — coarse pre-filter before any per-line extraction (research.md §5).                                                 |
+| `received_at`    | TEXT, NOT NULL, DEFAULT `datetime('now')` | What the retention job (research.md §9) prunes against — distinct from `started_at`/`ended_at` (client-reported) for the same reason Module 3's `transactions.received_at` is. |
 
 **Validation rules**: one row per R2 object the queue consumer writes — NEVER one row per log line
 (research.md §4's central architectural decision). No uniqueness constraint on individual log lines
@@ -25,23 +25,24 @@ the retention job's window scan.
 
 ## Log Batch (FTS5 virtual table)
 
-`log_batches_fts` — a D1 FTS5 virtual table, rowid-linked to `log_batches`, indexing one column:
+`log_batches_fts` — a D1 FTS5 virtual table:
 
-| Field | Type | Notes |
-|---|---|---|
-| `search_text` | TEXT (FTS5-indexed) | The concatenation of every record's `body` plus its string-typed `attributes` values within that batch — written once, at the same time as the corresponding `log_batches` row, by the queue consumer. |
+| Field         | Type                | Notes                                                                                                                                                                                                                                                                                       |
+| ------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `search_text` | TEXT (FTS5-indexed) | The concatenation of every record's `body` plus its string-typed `attributes` values within that batch — written once, at the same time as the corresponding `log_batches` row, by the queue consumer.                                                                                      |
+| `batch_id`    | TEXT (UNINDEXED)    | `log_batches.id`, stored directly rather than relied on via FTS5's implicit integer rowid — corrected during implementation, since `log_batches.id` is a UUID (TEXT), like every other table's primary key in this project, not an integer FTS5's own rowid could transparently align with. |
 
 **Validation rules**: exists only to be queried via FTS5's `MATCH` syntax with BM25 ranking
 (research.md §5) — never queried or joined on for anything other than full-text search. A search
-result's rowid resolves back to `log_batches` for the batch's metadata (`r2_object_key`, etc.),
+result's `batch_id` resolves back to `log_batches` for the batch's metadata (`r2_object_key`, etc.),
 which is then used to fetch and filter the actual matching lines at read time.
 
 ## Log Batch Trace (junction table)
 
-| Field | Type | Notes |
-|---|---|---|
-| `batch_id` | TEXT, NOT NULL, REFERENCES log_batches(id) | |
-| `trace_id` | TEXT, NOT NULL | One of possibly several distinct trace_ids present in this batch's log lines (every log record carries a required `trace_id` per research.md §1 — unlike Module 3's nullable `events.trace_id`). |
+| Field      | Type                                       | Notes                                                                                                                                                                                            |
+| ---------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `batch_id` | TEXT, NOT NULL, REFERENCES log_batches(id) |                                                                                                                                                                                                  |
+| `trace_id` | TEXT, NOT NULL                             | One of possibly several distinct trace_ids present in this batch's log lines (every log record carries a required `trace_id` per research.md §1 — unlike Module 3's nullable `events.trace_id`). |
 
 **Validation rules**: `UNIQUE(batch_id, trace_id)` — one row per distinct trace_id per batch, not
 per log line, even if a given batch contains many log lines sharing the same trace_id.
@@ -53,9 +54,10 @@ batch's R2 object at read time (same read-time-extraction pattern as search, res
 ## Export Credential (represents R2 API token state, not a new D1 entity in its own right)
 
 Export access (spec.md's Export Credential entity) is represented by:
-- A per-project R2 bucket (created on first request, research.md §8) — its EXISTENCE is the
-  durable, persisted fact; FlightDeck does not need its own D1 row to track "does this project have
-  a bucket," since the bucket's existence is queryable from R2 directly.
+
+- A per-project R2 bucket (created on first request, research.md §8) — its EXISTENCE is the durable,
+  persisted fact; FlightDeck does not need its own D1 row to track "does this project have a
+  bucket," since the bucket's existence is queryable from R2 directly.
 - A bucket-scoped R2 API token (Object Read only), created/revoked via Cloudflare's own API — the
   token's secret is returned ONCE at creation time (standard API-credential behavior) and is never
   stored by FlightDeck itself, only the fact that a token was issued (for `audit_log` purposes,

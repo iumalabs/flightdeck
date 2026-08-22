@@ -8,6 +8,12 @@ interface LinkedError {
   level: string;
 }
 
+interface LinkedLog {
+  timestamp: string;
+  level: string;
+  body: string;
+}
+
 interface TransactionDetail {
   id: string;
   traceId: string;
@@ -18,6 +24,7 @@ interface TransactionDetail {
   startTimestamp: number;
   spans: RawSpan[];
   linkedErrors: LinkedError[];
+  logs: LinkedLog[];
 }
 
 export interface TraceDetailScreenProps {
@@ -133,6 +140,43 @@ export function TraceDetailScreen(
                   }}
                 />
                 <span style={{ fontFamily: "var(--font-mono)" }}>{err.title}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {transaction.logs.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>
+            Logs during this trace
+          </div>
+          <div style={{ border: "1px solid var(--line)", background: "var(--panel)" }}>
+            {transaction.logs.map((log, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  padding: "8px 14px",
+                  borderBottom: "1px solid var(--line2)",
+                  fontSize: 12.5,
+                }}
+              >
+                <span style={{ fontFamily: "var(--font-mono)", color: "var(--fg3)" }}>
+                  {log.timestamp}
+                </span>
+                <span
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    color: "var(--fg2)",
+                    textTransform: "uppercase",
+                    width: 44,
+                  }}
+                >
+                  {log.level}
+                </span>
+                <span style={{ flex: 1 }}>{log.body}</span>
               </div>
             ))}
           </div>

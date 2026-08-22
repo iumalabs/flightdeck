@@ -16,15 +16,21 @@ timestamps, optional — time-range bounds), `cursor` (string, optional — pagi
 **Behavior**: resolves candidate `log_batches` rows (via `log_batches_fts` MATCH when `q` is
 present, filtered by `levels_present`/`started_at`/`ended_at` for `level`/`from`/`to` regardless),
 then fetches and parses each candidate batch's R2 NDJSON object to extract the actual matching lines
-(research.md §5) — using the shared extraction function (`worker/modules/logs/extract.ts`) also
-used by the trace-linkage lookup below.
+(research.md §5) — using the shared extraction function (`worker/modules/logs/extract.ts`) also used
+by the trace-linkage lookup below.
 
 **Response `200`**:
+
 ```json
 {
   "lines": [
-    { "timestamp": "string", "level": "string", "body": "string", "attributes": {},
-      "traceId": "string|null" }
+    {
+      "timestamp": "string",
+      "level": "string",
+      "body": "string",
+      "attributes": {},
+      "traceId": "string|null"
+    }
   ],
   "nextCursor": "string|null"
 }
@@ -47,11 +53,17 @@ freshly-opened connection only sees records ingested after it connects (searchin
 `GET /api/internal/logs/search`'s job, not live tail's).
 
 **Message shape** (server → client, one per broadcast):
+
 ```json
 {
   "records": [
-    { "timestamp": "string", "level": "string", "body": "string", "attributes": {},
-      "traceId": "string|null" }
+    {
+      "timestamp": "string",
+      "level": "string",
+      "body": "string",
+      "attributes": {},
+      "traceId": "string|null"
+    }
   ]
 }
 ```
@@ -67,6 +79,7 @@ X). The token's secret is returned ONCE in this response and is never stored by 
 re-provision, not retrieve it again.
 
 **Response `201`**:
+
 ```json
 {
   "accessKeyId": "string",
@@ -101,14 +114,14 @@ The existing response gains one new field:
 ```
 
 `logs` is `[]`, not omitted, when no log lines share this trace's `trace_id` (spec.md's "absent, not
-an error state" pattern, matching Module 3's own `linkedErrors` field on the same endpoint). Resolved
-via `log_batch_traces` (data-model.md) plus the same read-time R2 extraction search uses.
+an error state" pattern, matching Module 3's own `linkedErrors` field on the same endpoint).
+Resolved via `log_batch_traces` (data-model.md) plus the same read-time R2 extraction search uses.
 
 ## Non-goals for this contract
 
-- No endpoint to configure the retention window or search result page size — both are
-  implementation defaults (research.md §9, this contract's `cursor` pagination), not user-facing
-  configuration in this module.
+- No endpoint to configure the retention window or search result page size — both are implementation
+  defaults (research.md §9, this contract's `cursor` pagination), not user-facing configuration in
+  this module.
 - No structured query language (field:value syntax, boolean operators) for search — free-text `q`
   plus `level`/`from`/`to` filters only, per spec.md's Assumptions.
 - No endpoint to list/browse a project's raw R2 bucket contents directly — that's what the

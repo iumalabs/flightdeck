@@ -1,8 +1,7 @@
 # Specification Quality Checklist: Structured Logs
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
-**Created**: 2026-08-22
-**Feature**: [spec.md](../spec.md)
+**Created**: 2026-08-22 **Feature**: [spec.md](../spec.md)
 
 ## Content Quality
 
@@ -34,10 +33,10 @@
 - Protocol-level detail (envelope item shape, storage architecture, live-tail transport) lives in
   the conversation history / plan.md's Technical Context and research.md, not in spec.md.
 - One item flagged during scoping as needing its own investigation during planning, not resolved
-  here: the exact R2 credential-scoping mechanism behind FR-012/FR-013 (per-project export access)
-  — spec.md states the user-facing requirement (project-scoped, revocable S3-compatible access)
-  without committing to a specific implementation mechanism, consistent with this checklist's
-  "no implementation details" criterion; research.md must resolve the mechanism before data-model.md
+  here: the exact R2 credential-scoping mechanism behind FR-012/FR-013 (per-project export access) —
+  spec.md states the user-facing requirement (project-scoped, revocable S3-compatible access)
+  without committing to a specific implementation mechanism, consistent with this checklist's "no
+  implementation details" criterion; research.md must resolve the mechanism before data-model.md
   commits to a specific credential-issuance design.
 - All items pass on first validation pass; no [NEEDS CLARIFICATION] markers were needed since the
   scope decisions (storage architecture, search depth) were already resolved via research and an

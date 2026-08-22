@@ -24,3 +24,35 @@ export async function pruneOldTransactions(db: D1Database): Promise<number> {
     .run();
   return result.meta.changes ?? 0;
 }
+
+// specs/004-structured-logs research.md §9: logs get the shortest window of any module — this
+// project's highest-volume ingest surface. A log_batches row has no separate summary/aggregate
+// to preserve (like Module 3's transactions), so pruning is full deletion — D1 rows AND the
+// underlying R2 NDJSON object.
+export const LOG_RETENTION_DAYS = 7;
+
+interface PrunableBatch {
+  id: string;
+  r2_object_key: string;
+}
+
+export async function pruneOldLogBatches(db: D1Database, bucket: R2Bucket): Promise<number> {
+  const { results } = await db
+    .prepare(`SELECT id, r2_object_key FROM log_batches WHERE received_at < datetime('now', ?1)`)
+    .bind(`-${LOG_RETENTION_DAYS} days`)
+    .all<PrunableBatch>();
+  const prunable = results ?? [];
+  if (prunable.length === 0) return 0;
+
+  await Promise.all(prunable.map((batch) => bucket.delete(batch.r2_object_key)));
+
+  const ids = prunable.map((batch) => batch.id);
+  const placeholders = ids.map((_, i) => `?${i + 1}`).join(",");
+  await db.batch([
+    db.prepare(`DELETE FROM log_batches WHERE id IN (${placeholders})`).bind(...ids),
+    db.prepare(`DELETE FROM log_batches_fts WHERE batch_id IN (${placeholders})`).bind(...ids),
+    db.prepare(`DELETE FROM log_batch_traces WHERE batch_id IN (${placeholders})`).bind(...ids),
+  ]);
+
+  return prunable.length;
+}

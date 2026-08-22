@@ -2,9 +2,11 @@ import { Hono } from "hono";
 import { extractSentryKey, resolveProjectByDsnKey } from "./dsn-auth.ts";
 import {
   isEventItem,
+  isLogItem,
   isTransactionItem,
   parseEnvelope,
   parseEventPayload,
+  parseLogPayload,
   parseTransactionPayload,
 } from "./envelope.ts";
 import { computeFingerprint, deriveCulprit, deriveTitle } from "./fingerprint.ts";
@@ -12,13 +14,25 @@ import { resolveStackTrace } from "./sourcemap.ts";
 import { extractTraceContext } from "./trace-context.ts";
 import type { EventPayload } from "./types.ts";
 import type { QueuedTransaction } from "./trace-consumer.ts";
+import type { QueuedLogBatch, RawLogRecord } from "./log-consumer.ts";
+import { normalizeRecord } from "./log-consumer.ts";
 import type { RateLimiter } from "../../durable-objects/rate-limiter.ts";
+import type { LiveTail } from "../../durable-objects/live-tail.ts";
 
 interface Env {
   DB: D1Database;
   SOURCE_MAPS: R2Bucket;
   RATE_LIMITER: DurableObjectNamespace<RateLimiter>;
+  LIVE_TAIL: DurableObjectNamespace<LiveTail>;
   TRACE_INGEST: Queue<QueuedTransaction>;
+  LOG_INGEST: Queue<QueuedLogBatch>;
+}
+
+// "log" item shape (specs/004-structured-logs research.md §1) — a `"log"`-type item batches many
+// independent records inside its own `items` array, a materially different shape from
+// one-record-per-item "event"/"transaction".
+interface LogItemPayload {
+  items?: RawLogRecord[];
 }
 
 // "transaction" item shape (specs/003-distributed-tracing research.md §2) — loose/optional like
@@ -54,23 +68,6 @@ ingestRoutes.post("/:projectId/envelope", async (c) => {
     return c.text("Forbidden", 403);
   }
 
-  // Step 2: rate limit, sharded per raw DSN key (research.md §4) — before touching D1, so a
-  // throttled project's traffic never reaches the database at all.
-  const limiterId = c.env.RATE_LIMITER.idFromName(sentryKey);
-  const limiter = c.env.RATE_LIMITER.get(limiterId);
-  const { allowed, retryAfterSeconds } = await limiter.checkAndIncrement();
-  if (!allowed) {
-    return c.text("Too Many Requests", 429, {
-      "X-Sentry-Rate-Limits": `${retryAfterSeconds}::key`,
-    });
-  }
-
-  // Step 3: resolve the key against this specific project. Fail closed on any mismatch.
-  const project = await resolveProjectByDsnKey(c.env.DB, projectId, sentryKey);
-  if (!project) {
-    return c.text("Forbidden", 403);
-  }
-
   const bodyBuffer = await c.req.arrayBuffer();
   if (bodyBuffer.byteLength > MAX_ENVELOPE_BYTES) {
     return c.text("Payload Too Large", 413);
@@ -81,7 +78,60 @@ ingestRoutes.post("/:projectId/envelope", async (c) => {
     return c.text("Bad Request", 400);
   }
 
+  // Rate limiting (research.md §4/specs/002; §3/specs/004-structured-logs) is checked per
+  // item-type CATEGORY present in this envelope, not once for the whole request — logs get their
+  // own independently-keyed budget (`${dsnKey}:log`) so a burst of log traffic can never exhaust
+  // the same counter that protects error/transaction ingestion, and vice versa (spec SC-004). An
+  // envelope mixing categories checks each relevant limiter independently; either one denying is
+  // enough to reject the whole request (simpler and safer than partially processing an envelope).
+  const hasLogItem = envelope.items.some(isLogItem);
+  const hasOtherItem = envelope.items.some((item) => isEventItem(item) || isTransactionItem(item));
+
+  if (hasOtherItem) {
+    const limiter = c.env.RATE_LIMITER.get(c.env.RATE_LIMITER.idFromName(sentryKey));
+    const { allowed, retryAfterSeconds } = await limiter.checkAndIncrement();
+    if (!allowed) {
+      return c.text("Too Many Requests", 429, {
+        "X-Sentry-Rate-Limits": `${retryAfterSeconds}::key`,
+      });
+    }
+  }
+  if (hasLogItem) {
+    const logLimiter = c.env.RATE_LIMITER.get(c.env.RATE_LIMITER.idFromName(`${sentryKey}:log`));
+    const { allowed, retryAfterSeconds } = await logLimiter.checkAndIncrement();
+    if (!allowed) {
+      return c.text("Too Many Requests", 429, {
+        "X-Sentry-Rate-Limits": `${retryAfterSeconds}:log_item:key`,
+      });
+    }
+  }
+
+  // Resolve the key against this specific project. Fail closed on any mismatch.
+  const project = await resolveProjectByDsnKey(c.env.DB, projectId, sentryKey);
+  if (!project) {
+    return c.text("Forbidden", 403);
+  }
+
   for (const item of envelope.items) {
+    if (isLogItem(item)) {
+      // Durable storage (queue) and live-tail broadcast happen IN PARALLEL, not sequentially
+      // (specs/004-structured-logs research.md §7) — live tail must not wait on the queue
+      // consumer's own batched write.
+      const logItem = parseLogPayload(item) as LogItemPayload | null;
+      const records = (logItem?.items ?? []).filter(
+        (record): record is RawLogRecord =>
+          typeof record?.timestamp === "number" && typeof record?.level === "string" &&
+          typeof record?.body === "string",
+      );
+      if (records.length === 0) continue; // an unparseable/empty log item is dropped, not fatal
+
+      const liveTailStub = c.env.LIVE_TAIL.get(c.env.LIVE_TAIL.idFromName(project.id));
+      await Promise.all([
+        c.env.LOG_INGEST.send({ projectId: project.id, records }),
+        liveTailStub.broadcast(records.map(normalizeRecord)),
+      ]);
+      continue;
+    }
     if (isTransactionItem(item)) {
       // Trace ingest is asynchronous (specs/003-distributed-tracing research.md §4) — enqueue and
       // move on, never a synchronous D1 write in this request path (unlike the "event" branch
