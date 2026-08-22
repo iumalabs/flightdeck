@@ -103,14 +103,19 @@ module's scoping discussion.
   ingested transaction, since transactions arrive independently over HTTP, not pre-batched),
   consumer batch max 100 messages, dead-letter retention up to 14 days.
 
-**Open verification item, spike-style (see tasks.md)**: whether Cloudflare Queues' local emulation
-under `wrangler dev` reliably delivers producer→consumer end-to-end (needed for this module's
-contract tests to assert against real queued/consumed data, not just the producer's `200`
-response). If local queue emulation proves flaky, the contract-test design falls back to testing the
-producer (message enqueued) and the consumer's D1-write logic (as a directly-invoked pure function)
-separately rather than relying on full local end-to-end delivery — analogous to how Module 2's T027
-spike could have fallen back to a hand-rolled VLQ decoder if `@jridgewell/trace-mapping` hadn't
-worked, though in that case the primary approach did work.
+**Verification item, spike-style (T010) — CONFIRMED during implementation, not left open**: whether
+Cloudflare Queues' local emulation under `wrangler dev` reliably delivers producer→consumer
+end-to-end. Verified live: started `wrangler dev --env preview`, POSTed a hand-crafted `"transaction"`
+envelope item to `/api/demo/envelope`, and confirmed the resulting row landed in the local
+`transactions` table with correct `duration_ms`/`trace_id`/`name`/`op` — no manual queue-flush step,
+no fallback needed. Also verified, in the same live session: the p50/p95 percentile query
+(single-transaction case, `computeOffset`'s edge case), the `GET /api/internal/traces/{id}` detail
+response's span mapping, the new `by-trace-id` resolution endpoint, and BOTH directions of the
+trace-to-error linkage (an error ingested with a matching `contexts.trace.trace_id` correctly showed
+up in the transaction's `linkedErrors`, and the issue's own detail response correctly showed the
+resolved `traceId`). The documented fallback (test the producer and the consumer's write logic
+separately) was therefore not needed — the contract test suite polls against real end-to-end local
+delivery, per the primary design below, not the fallback.
 
 **Source**: https://developers.cloudflare.com/queues/platform/limits/,
 https://developers.cloudflare.com/queues/,

@@ -2,15 +2,11 @@
 
 **Branch**: `003-distributed-tracing` | **Date**: 2026-08-22 | **Spec**: [spec.md](./spec.md)
 
-**Status note**: Planned per explicit user instruction ("продолжай планировать Module 3"), same
-posture as Module 2 — `tasks.md` is produced for review, but starting implementation is a separate
-decision. This branch was cut from `origin/main` while Module 2 (`002-error-monitoring`, PR #7) is
-still unmerged — per git-workflow's "don't stack open branches" rule, planning proceeds
-independently since it's text-only and creates no file conflicts with that PR. This module's own
-migration is numbered `0003_distributed_tracing.sql` on the assumption Module 2's
-`0002_error_monitoring.sql` lands first; implementation of this module should not begin before PR
-#7 merges, since it directly extends files PR #7 introduces (`worker/modules/ingest/routes.ts`,
-`envelope.ts`, `retention.ts`, the `events` table).
+**Status note**: Implemented. Originally planned per explicit user instruction ("продолжай
+планировать Module 3") while Module 2 (`002-error-monitoring`, PR #7) was still unmerged; Module 2
+has since merged and shipped (v0.3.0), and this module's implementation was built directly on top of
+its real, live `worker/modules/ingest/routes.ts`/`envelope.ts`/`retention.ts` and `events` table, as
+this plan anticipated.
 
 ## Summary
 
