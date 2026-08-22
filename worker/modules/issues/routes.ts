@@ -133,6 +133,25 @@ issuesRoutes.get("/:id", async (c) => {
     culpritFrame?.filename,
   );
 
+  // contracts/feedback-internal-api.md's addition (specs/007-user-feedback) — non-empty only when
+  // at least one Feedback row's issue_id matches (FR-008); an empty array is what tells the
+  // frontend to render no feedback section at all, not an empty-state placeholder.
+  const { results: feedbackRows } = await c.env.DB
+    .prepare(
+      `SELECT id, message, name, contact_email, received_at
+       FROM feedback WHERE issue_id = ?1 ORDER BY received_at DESC`,
+    )
+    .bind(id)
+    .all<
+      {
+        id: string;
+        message: string;
+        name: string | null;
+        contact_email: string | null;
+        received_at: string;
+      }
+    >();
+
   return c.json({
     id: issue.id,
     title: issue.title,
@@ -149,6 +168,13 @@ issuesRoutes.get("/:id", async (c) => {
     traceId: latestEventRow?.trace_id ?? null,
     status: issue.status,
     regressed: issue.status === "unresolved" && issue.resolved_release_id !== null,
+    feedback: (feedbackRows ?? []).map((row) => ({
+      id: row.id,
+      message: row.message,
+      name: row.name,
+      contactEmail: row.contact_email,
+      receivedAt: row.received_at,
+    })),
   });
 });
 

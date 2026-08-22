@@ -9,6 +9,8 @@ import { tracesRoutes } from "./modules/traces/routes.ts";
 import { logExportRoutes, logsRoutes } from "./modules/logs/routes.ts";
 import { uptimeRoutes } from "./modules/uptime/routes.ts";
 import { runCheck } from "./modules/uptime/evaluate.ts";
+import { feedbackRoutes } from "./modules/feedback/routes.ts";
+import { handleDialogGet, handleDialogPost } from "./modules/feedback/dialog.ts";
 import {
   apiTokensRoutes,
   releasesCliRoutes,
@@ -64,6 +66,7 @@ app.route("/api/internal/logs", logsRoutes);
 app.route("/api/internal/releases", releasesInternalRoutes);
 app.route("/api/internal/projects", apiTokensRoutes);
 app.route("/api/internal", uptimeRoutes);
+app.route("/api/internal/feedback", feedbackRoutes);
 
 // Public, DSN-key-authenticated ingest (constitution Principle III) — deliberately NOT behind
 // sessionAuth or Access. Registered as a sibling to /api/internal, not nested inside it; Hono
@@ -105,6 +108,18 @@ async function runDueUptimeChecks(env: Env): Promise<void> {
       .run();
   }
 }
+
+// Crash-report dialog (constitution Principle III, specs/007-user-feedback) — public,
+// DSN-authenticated (via the `dsn` query param, not sessionAuth/Access), matching the real SDK's
+// confirmed request shape exactly (research.md §1). No project ID in the path — project resolution
+// happens via the embedded DSN. Registered with AND without the trailing slash: the real SDK
+// requests the trailing-slash form (`/api/embed/error-page/`, confirmed from Sentry's own source),
+// while this project's own contract docs/quickstart curl examples use the bare form — both must
+// work, not just whichever this project's own tests happen to exercise.
+app.get("/api/embed/error-page", (c) => handleDialogGet(c.req.raw, c.env));
+app.get("/api/embed/error-page/", (c) => handleDialogGet(c.req.raw, c.env));
+app.post("/api/embed/error-page", (c) => handleDialogPost(c.req.raw, c.env));
+app.post("/api/embed/error-page/", (c) => handleDialogPost(c.req.raw, c.env));
 
 export default {
   fetch(request: Request, env: Env, ctx: ExecutionContext): Response | Promise<Response> {

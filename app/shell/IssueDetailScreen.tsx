@@ -24,6 +24,14 @@ interface SuspectCommit {
   url: string;
 }
 
+interface LinkedFeedback {
+  id: string;
+  message: string;
+  name: string | null;
+  contactEmail: string | null;
+  receivedAt: string;
+}
+
 interface IssueDetail {
   id: string;
   title: string;
@@ -46,6 +54,9 @@ interface IssueDetail {
   // contracts/releases-internal-api.md's addition (specs/005-releases).
   status: string;
   regressed: boolean;
+  // contracts/feedback-internal-api.md's addition (specs/007-user-feedback) — always an array,
+  // possibly empty; the frontend (not the API) decides not to render a section when it's empty.
+  feedback: LinkedFeedback[];
 }
 
 export interface IssueDetailScreenProps {
@@ -294,6 +305,36 @@ export function IssueDetailScreen({ issueId, onBack, onViewTrace }: IssueDetailS
               >
                 {key}: {value}
               </span>
+            ))}
+          </div>
+        </>
+      )}
+
+      {issue.feedback.length > 0 && (
+        <>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>User feedback</div>
+          <div style={{ border: "1px solid var(--line)", background: "var(--panel)" }}>
+            {issue.feedback.map((item) => (
+              <div
+                key={item.id}
+                style={{
+                  padding: "10px 14px",
+                  borderBottom: "1px solid var(--line2)",
+                  fontSize: 13,
+                }}
+              >
+                <div style={{ color: "var(--fg)", marginBottom: 4 }}>{item.message}</div>
+                <div
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 11.5,
+                    color: "var(--fg3)",
+                  }}
+                >
+                  {item.name ?? "Anonymous"}
+                  {item.contactEmail ? ` · ${item.contactEmail}` : ""} · {item.receivedAt}
+                </div>
+              </div>
             ))}
           </div>
         </>
