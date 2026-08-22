@@ -21,18 +21,22 @@ README covers day-to-day setup and operation only.
 ## Status
 
 Module 1 (**Landing site, Access login, and app-shell skeleton**), Module 2 (**Error monitoring**),
-and Module 3 (**Distributed tracing**) are implemented — see
+Module 3 (**Distributed tracing**), and Module 4 (**Structured logs**) are implemented — see
 [`specs/001-landing-access-login/`](specs/001-landing-access-login/),
-[`specs/002-error-monitoring/`](specs/002-error-monitoring/), and
-[`specs/003-distributed-tracing/`](specs/003-distributed-tracing/) for their specs, plans, and
-tasks. Module 2 adds the platform's first public, DSN-authenticated ingest surface (Sentry envelope
-protocol), issue grouping with source-map-aware fingerprinting, source map upload/resolution, and
-GitHub App-based suspect commits. Module 3 extends that same envelope endpoint with a
-`"transaction"` item type, written asynchronously through a Cloudflare Queue (`TRACE_INGEST`) to a
-new `transactions` table, with a visual span waterfall and trace-to-error cross-linking in both
-directions — see the constitution for the full trust-surface split. Not yet deployed — see
-[Deployment](#deployment) for the one-time Cloudflare-dashboard steps that have to happen before
-`release` builds go live.
+[`specs/002-error-monitoring/`](specs/002-error-monitoring/),
+[`specs/003-distributed-tracing/`](specs/003-distributed-tracing/), and
+[`specs/004-structured-logs/`](specs/004-structured-logs/) for their specs, plans, and tasks. Module
+2 adds the platform's first public, DSN-authenticated ingest surface (Sentry envelope protocol),
+issue grouping with source-map-aware fingerprinting, source map upload/resolution, and GitHub
+App-based suspect commits. Module 3 extends that same envelope endpoint with a `"transaction"` item
+type, written asynchronously through a Cloudflare Queue (`TRACE_INGEST`) to a new `transactions`
+table, with a visual span waterfall and trace-to-error cross-linking in both directions. Module 4
+extends it again with a `"log"` item type — a shared `LOGS` R2 bucket holds NDJSON log batches (D1
+only indexes at batch granularity, via FTS5), a `LiveTail` Durable Object streams new lines over
+WebSocket in real time, and revocable S3-compatible export access can be provisioned per project
+(its own, dynamically-created R2 bucket, since R2 tokens can't be prefix-scoped) — see the
+constitution for the full trust-surface split. Not yet deployed — see [Deployment](#deployment) for
+the one-time Cloudflare-dashboard steps that have to happen before `release` builds go live.
 
 ## Authentication
 
@@ -54,14 +58,15 @@ setup flow either, for the same reason — it is not scoped to previews-only the
 
 ## Environment
 
-| Variable                 | Example                              | Notes                                                                                                                                                                                                       |
-| ------------------------ | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TEAM_DOMAIN`            | `https://yugai.cloudflareaccess.com` | Cloudflare Access team domain; enables JWT verification. Non-secret.                                                                                                                                        |
-| `POLICY_AUD`             | _(Access application AUD tag)_       | Expected audience claim of `Cf-Access-Jwt-Assertion`. Non-secret.                                                                                                                                           |
-| `CF_ACCOUNT_ID`          | `8b655d0dde6d223b9ce11116a014973a`   | Cloudflare account id. Non-secret.                                                                                                                                                                          |
-| `SESSION_SECRET`         | _(random string)_                    | **Secret** — HMAC key `/login` signs the `fd_session` cookie with. Set via `wrangler versions secret put SESSION_SECRET` (no `--env` flag — see the comment in `wrangler.jsonc`), never as a plain `var`.   |
-| `GITHUB_APP_ID`          | _(GitHub App ID)_                    | Non-secret. Identifies the GitHub App used for User Story 4's suspect-commit lookups (specs/002-error-monitoring/research.md §10).                                                                          |
-| `GITHUB_APP_PRIVATE_KEY` | _(PEM-encoded RSA private key)_      | **Secret** — signs short-lived App JWTs on demand; installation access tokens exchanged from it are never persisted. Set via `wrangler versions secret put GITHUB_APP_PRIVATE_KEY`, never as a plain `var`. |
+| Variable                    | Example                              | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| --------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TEAM_DOMAIN`               | `https://yugai.cloudflareaccess.com` | Cloudflare Access team domain; enables JWT verification. Non-secret.                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `POLICY_AUD`                | _(Access application AUD tag)_       | Expected audience claim of `Cf-Access-Jwt-Assertion`. Non-secret.                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `CF_ACCOUNT_ID`             | `8b655d0dde6d223b9ce11116a014973a`   | Cloudflare account id. Non-secret.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `SESSION_SECRET`            | _(random string)_                    | **Secret** — HMAC key `/login` signs the `fd_session` cookie with. Set via `wrangler versions secret put SESSION_SECRET` (no `--env` flag — see the comment in `wrangler.jsonc`), never as a plain `var`.                                                                                                                                                                                                                                                            |
+| `GITHUB_APP_ID`             | _(GitHub App ID)_                    | Non-secret. Identifies the GitHub App used for User Story 4's suspect-commit lookups (specs/002-error-monitoring/research.md §10).                                                                                                                                                                                                                                                                                                                                   |
+| `GITHUB_APP_PRIVATE_KEY`    | _(PEM-encoded RSA private key)_      | **Secret** — signs short-lived App JWTs on demand; installation access tokens exchanged from it are never persisted. Set via `wrangler versions secret put GITHUB_APP_PRIVATE_KEY`, never as a plain `var`.                                                                                                                                                                                                                                                          |
+| `CLOUDFLARE_R2_ADMIN_TOKEN` | _(Cloudflare API Token)_             | **Secret** — account-scoped R2 bucket/token management for Module 4's per-project export credential feature (specs/004-structured-logs/research.md §8). A real Cloudflare API Token with "Workers R2 Storage Write" + "Account API Tokens Write" permissions, this account only. Set via `wrangler versions secret put CLOUDFLARE_R2_ADMIN_TOKEN`, never as a plain `var`. Not required for log ingest/search/live-tail — only for the S3-compatible export feature. |
 
 Copy `.dev.vars.example` to `.dev.vars` (gitignored) for local `deno task dev`.
 
@@ -112,12 +117,20 @@ production branch to `release`, not `main`. In the setup form:
 
 `workers_dev` is `false` from the first commit and MUST stay that way (constitution Principle I).
 
-**Required one-time Queue provisioning** (Module 3, cannot be scripted via Workers Builds config):
-`wrangler.jsonc`'s `queues` block declares the `TRACE_INGEST` producer/consumer binding, but the
-underlying queue and dead-letter-queue resources must exist before first deploy —
-`wrangler queues create flightdeck-production-trace-ingest`,
-`wrangler queues create flightdeck-production-trace-ingest-dlq`, and the same two commands with
+**Required one-time Queue provisioning** (Modules 3-4, cannot be scripted via Workers Builds
+config): `wrangler.jsonc`'s `queues` block declares the `TRACE_INGEST` and `LOG_INGEST`
+producer/consumer bindings, but the underlying queue and dead-letter-queue resources must exist
+before first deploy — `wrangler queues create flightdeck-production-trace-ingest`,
+`wrangler queues create flightdeck-production-trace-ingest-dlq`,
+`wrangler queues create flightdeck-production-log-ingest`,
+`wrangler queues create flightdeck-production-log-ingest-dlq`, and the same four commands with
 `-preview-` in place of `-production-` for the preview environment.
+
+**Required one-time R2 bucket provisioning** (Module 4): `wrangler.jsonc`'s `r2_buckets` block
+declares the `LOGS` binding, but the bucket itself must exist before first deploy —
+`wrangler r2 bucket create flightdeck-production-logs` and
+`wrangler r2 bucket create flightdeck-preview-logs`. Per-project export buckets (User Story 4) are
+provisioned dynamically at runtime via the Cloudflare API, not created ahead of time.
 
 **D1 migrations are not applied by Workers Builds.** `.github/workflows/d1-migrations.yml` runs
 `wrangler d1 migrations apply --remote` against both the production and preview databases on every

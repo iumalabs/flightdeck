@@ -21,11 +21,14 @@ US2=P1, US3=P2, US4=P3). US3 and US4 both depend on US1's ingest/storage pipelin
 (search) also depends on US1's write path (nothing to search without it). US3 and US4 are
 independent of each other.
 
-**⚠️ Status**: Planned, not yet authorized for implementation — see plan.md's Summary. Do not begin
-executing these tasks without a separate explicit go-ahead. Also note plan.md's dependency caveat:
-implementation should not start before Module 3 is implemented and merged, since this module's
-trace-correlation work (US3) directly depends on Module 3's `transactions`/trace-detail code
-existing, not just being planned.
+**✅ Status**: Implemented (all 43 tasks) — Module 3 was implemented and merged first, satisfying
+plan.md's dependency caveat. Two real bugs were found and fixed during live verification against a
+real `wrangler dev` (not just unit-level reasoning): FTS5's `MATCH` argument needed explicit quoting
+(a hyphenated search query otherwise threw `SQLITE_ERROR`), and `webSocketClose` needed to guard
+against the WebSocket spec's reserved close codes (1005/1006) that real browsers send — see
+research.md §5 and §7. User Story 4 (S3 export)'s live behavior against a real Cloudflare account is
+NOT automated-test-verified (research.md §8's Testing honesty note) — only its request construction
+is (`tests/unit/log-export-token.test.ts`).
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -42,8 +45,8 @@ layout — see plan.md's Structure Decision. No new top-level directories.
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] T001 [P] Create directory skeleton: `worker/modules/logs/`
-- [ ] T002 Add `LOG_INGEST` Queue producer binding + consumer config (`max_batch_size`,
+- [x] T001 [P] Create directory skeleton: `worker/modules/logs/`
+- [x] T002 Add `LOG_INGEST` Queue producer binding + consumer config (`max_batch_size`,
       `max_batch_timeout`, `max_retries`, a `log-ingest-dlq` dead-letter queue, mirroring Module 3's
       `TRACE_INGEST` config shape), a `LIVE_TAIL` Durable Object binding (`LiveTail` class), and a
       new required secret `CLOUDFLARE_R2_ADMIN_TOKEN` (account-level R2 bucket/token management —
@@ -60,25 +63,25 @@ needs.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T003 Create `worker/db/migrations/0004_structured_logs.sql` — `log_batches` (`id`,
+- [x] T003 Create `worker/db/migrations/0004_structured_logs.sql` — `log_batches` (`id`,
       `project_id`, `r2_object_key`, `started_at`, `ended_at`, `record_count`, `levels_present`,
       `received_at`) with the `(project_id, started_at)` index; `log_batches_fts` (FTS5 virtual
       table, rowid-linked, indexing `search_text`); `log_batch_traces` (`batch_id`, `trace_id`,
       `UNIQUE(batch_id, trace_id)`, indexed on `trace_id`) per data-model.md
-- [ ] T004 Apply the migration locally: `deno task db:migrations:apply:local` (depends on T003)
-- [ ] T005 Add `isLogItem()` to `worker/modules/ingest/envelope.ts` alongside the existing
+- [x] T004 Apply the migration locally: `deno task db:migrations:apply:local` (depends on T003)
+- [x] T005 Add `isLogItem()` to `worker/modules/ingest/envelope.ts` alongside the existing
       `isEventItem()`/`isTransactionItem()`, dispatching on the envelope item's `type` field
       (research.md §1-2) (depends on T001)
-- [ ] T006 Extend `worker/index.ts`'s `queue()` export to dispatch by `batch.queue` name (routing to
+- [x] T006 Extend `worker/index.ts`'s `queue()` export to dispatch by `batch.queue` name (routing to
       Module 3's trace consumer vs. this module's log consumer — a Worker exports one `queue()`
       handler total but can bind to multiple queues); mount an empty `logsRoutes` router under
       `/api/internal/logs` as a sibling to `tracesRoutes`/`issuesRoutes` (depends on T002)
-- [ ] T007 Implement `worker/modules/logs/r2-provision.ts`'s `getOrCreateProjectBucket(projectId)` —
+- [x] T007 Implement `worker/modules/logs/r2-provision.ts`'s `getOrCreateProjectBucket(projectId)` —
       idempotent: checks whether a project's dedicated R2 bucket already exists (via the Cloudflare
       API, using `CLOUDFLARE_R2_ADMIN_TOKEN`) and creates it if not, returning the bucket name for
       the queue consumer to write into (research.md §8) — this is the bucket-resolution half only;
       export-credential/token issuance is US4's concern, not this task's (depends on T002)
-- [ ] T008 Verify `deno task build` and `deno check` still pass with the new bindings/tables/empty
+- [x] T008 Verify `deno task build` and `deno check` still pass with the new bindings/tables/empty
       routes/stub module wired in (smoke check, no new files)
 
 **Checkpoint**: Foundation ready — user story implementation can now begin.
@@ -96,44 +99,44 @@ lines both stream live and are durably recorded.
 
 ### Tests for User Story 1
 
-- [ ] T009 [P] [US1] Write `tests/unit/log-dispatch.test.ts` (envelope item-type dispatch correctly
+- [x] T009 [P] [US1] Write `tests/unit/log-dispatch.test.ts` (envelope item-type dispatch correctly
       identifies `"log"` items and extracts the batched `items` array; NDJSON serialization of a
       batch of records round-trips correctly) — expect it to fail until T013-T014 land
-- [ ] T010 [US1] **Spike**: confirm Cloudflare Queues' local emulation under `wrangler dev`
-      reliably delivers producer→consumer for the `LOG_INGEST` queue specifically — a second,
-      independent queue from Module 3's `TRACE_INGEST`, so Module 3's own spike outcome (tasks.md
-      T010 there) does not automatically transfer; record the outcome in research.md §10, applying
-      the same fallback reasoning Module 3's spike established if local emulation proves unreliable
-- [ ] T011 [P] [US1] Write the live-tail portion of `tests/e2e/logs-live-tail-and-search.spec.ts`,
+- [x] T010 [US1] **Spike**: confirm Cloudflare Queues' local emulation under `wrangler dev` reliably
+      delivers producer→consumer for the `LOG_INGEST` queue specifically — a second, independent
+      queue from Module 3's `TRACE_INGEST`, so Module 3's own spike outcome (tasks.md T010 there)
+      does not automatically transfer; record the outcome in research.md §10, applying the same
+      fallback reasoning Module 3's spike established if local emulation proves unreliable
+- [x] T011 [P] [US1] Write the live-tail portion of `tests/e2e/logs-live-tail-and-search.spec.ts`,
       using Playwright's native `page.waitForEvent('websocket')` support (research.md §10) — open
       the live-tail view, ingest a log line via a parallel `request` call, assert the expected
       WebSocket frame arrives — expect it to fail until T012-T017 land
 
 ### Implementation for User Story 1
 
-- [ ] T012 [US1] Implement `worker/durable-objects/live-tail.ts` — `LiveTail extends DurableObject`,
+- [x] T012 [US1] Implement `worker/durable-objects/live-tail.ts` — `LiveTail extends DurableObject`,
       one instance per project, using the WebSocket Hibernation API (`state.acceptWebSocket()`,
       research.md §7); a `broadcast(records)` RPC method pushes to all connected sockets; a
       `fetch()` handler completes the WebSocket upgrade (depends on T002)
-- [ ] T013 [US1] Implement `"log"`-item dispatch in `worker/modules/ingest/routes.ts`: rate-limit
+- [x] T013 [US1] Implement `"log"`-item dispatch in `worker/modules/ingest/routes.ts`: rate-limit
       check against the independently-keyed `` `${dsnKey}:log` `` `RateLimiter` DO instance
       (research.md §3), DSN auth (unchanged), parse the batched `items` array, then
       `env.LOG_INGEST.send()` and a `LiveTail` broadcast RPC call IN PARALLEL (not sequential —
       research.md §7), returning `200` (contracts/log-ingest-api.md) (depends on T005, T002, T012,
       T009)
-- [ ] T014 [US1] Implement `worker/modules/ingest/log-consumer.ts` — the `queue()` batch handler for
+- [x] T014 [US1] Implement `worker/modules/ingest/log-consumer.ts` — the `queue()` batch handler for
       `LOG_INGEST`: resolves the project's R2 bucket via T007, concatenates the flush's records into
       one NDJSON object and writes it, then `db.batch()` writes the `log_batches` +
       `log_batches_fts` rows (data-model.md) — `log_batch_traces` junction rows are deferred to User
       Story 3, not written here (depends on T003, T004, T007, T010)
-- [ ] T015 [US1] Wire the `LOG_INGEST` case into `worker/index.ts`'s `queue()` dispatch, replacing
+- [x] T015 [US1] Wire the `LOG_INGEST` case into `worker/index.ts`'s `queue()` dispatch, replacing
       T006's stub routing (depends on T014, T006)
-- [ ] T016 [US1] Implement `GET /api/internal/logs/live-tail`'s WebSocket upgrade in
+- [x] T016 [US1] Implement `GET /api/internal/logs/live-tail`'s WebSocket upgrade in
       `worker/modules/logs/routes.ts`, `sessionAuth`-gated before proxying to the project's
       `LiveTail` DO (contracts/logs-internal-api.md) (depends on T012, T006)
-- [ ] T017 [P] [US1] Create `app/shell/LogsScreen.tsx`'s live tail view — opens the WebSocket,
+- [x] T017 [P] [US1] Create `app/shell/LogsScreen.tsx`'s live tail view — opens the WebSocket,
       renders a scrolling, level-filterable stream (depends on T016)
-- [ ] T018 [US1] Run T009-T011's tests, confirm all pass (depends on T013-T017)
+- [x] T018 [US1] Run T009-T011's tests, confirm all pass (depends on T013-T017)
 
 **Checkpoint**: A real SDK's log lines reliably stream live and are durably recorded.
 
@@ -151,10 +154,10 @@ search-by-text, level filtering, and time-range filtering all return the correct
 
 ### Tests for User Story 2
 
-- [ ] T019 [P] [US2] Write `tests/unit/log-extract.test.ts` (given a fake R2 object's NDJSON
+- [x] T019 [P] [US2] Write `tests/unit/log-extract.test.ts` (given a fake R2 object's NDJSON
       content, correctly extracts lines matching a text query, a level, and/or a time range; returns
       an empty result gracefully for no matches) — expect it to fail until T021 lands
-- [ ] T020 [US2] Write `tests/contract/log-ingest.spec.ts` (against real `wrangler dev`:
+- [x] T020 [US2] Write `tests/contract/log-ingest.spec.ts` (against real `wrangler dev`:
       hand-crafted `"log"` envelope items matching contracts/log-ingest-api.md; polls
       `GET /api/internal/logs/search` with bounded retries per research.md §10's async-delivery
       pattern rather than asserting immediately; asserts FTS5 search finds ingested content by text;
@@ -163,16 +166,16 @@ search-by-text, level filtering, and time-range filtering all return the correct
 
 ### Implementation for User Story 2
 
-- [ ] T021 [US2] Implement `worker/modules/logs/extract.ts` — the shared "fetch R2 object(s), parse
+- [x] T021 [US2] Implement `worker/modules/logs/extract.ts` — the shared "fetch R2 object(s), parse
       NDJSON, filter lines" function (research.md §5), used by both search and (later, User Story 3)
       the trace-linkage lookup (depends on T019)
-- [ ] T022 [US2] Implement `GET /api/internal/logs/search` in `worker/modules/logs/routes.ts` —
-      FTS5 `MATCH` query construction against `log_batches_fts`, level/time-range filtering on
+- [x] T022 [US2] Implement `GET /api/internal/logs/search` in `worker/modules/logs/routes.ts` — FTS5
+      `MATCH` query construction against `log_batches_fts`, level/time-range filtering on
       `log_batches`' plain columns, cursor-based pagination, calling T021's extraction for the final
       matched lines (contracts/logs-internal-api.md) (depends on T021, T015)
-- [ ] T023 [P] [US2] Create `app/shell/LogsScreen.tsx`'s search view — query text, level, and
+- [x] T023 [P] [US2] Create `app/shell/LogsScreen.tsx`'s search view — query text, level, and
       time-range filters, paginated results list (depends on T022)
-- [ ] T024 [US2] Run T019-T020's tests, confirm all pass (depends on T021-T023)
+- [x] T024 [US2] Run T019-T020's tests, confirm all pass (depends on T021-T023)
 
 **Checkpoint**: Historical log search works correctly and independently of live tail.
 
@@ -191,27 +194,27 @@ extraction function this reuses). Independent of User Story 4.
 
 ### Tests for User Story 3
 
-- [ ] T025 [P] [US3] Write a unit test for building `log_batch_traces` junction rows from a batch of
+- [x] T025 [P] [US3] Write a unit test for building `log_batch_traces` junction rows from a batch of
       log records (extracts the correct set of DISTINCT trace_ids, one row each, not one per log
       line) — expect it to fail until T026 lands
 
 ### Implementation for User Story 3
 
-- [ ] T026 [US3] Extend `worker/modules/ingest/log-consumer.ts` (T014) to also write
+- [x] T026 [US3] Extend `worker/modules/ingest/log-consumer.ts` (T014) to also write
       `log_batch_traces` rows — one per distinct `trace_id` present in the flush's records (depends
       on T025, T014)
-- [ ] T027 [US3] Add a `logs` field to `GET /api/internal/traces/:id` in Module 3's
+- [x] T027 [US3] Add a `logs` field to `GET /api/internal/traces/:id` in Module 3's
       `worker/modules/traces/routes.ts`, querying `log_batch_traces` by `trace_id` then extracting
       matching lines via T021 (contracts/logs-internal-api.md's addition to Module 3's contract)
       (depends on T026, T021)
-- [ ] T028 [US3] Add `traceId` to each line in `GET /api/internal/logs/search`'s response (depends
+- [x] T028 [US3] Add `traceId` to each line in `GET /api/internal/logs/search`'s response (depends
       on T022)
-- [ ] T029 [P] [US3] Add a logs-during-this-trace section to Module 3's
+- [x] T029 [P] [US3] Add a logs-during-this-trace section to Module 3's
       `app/shell/TraceDetailScreen.tsx` (depends on T027)
-- [ ] T030 [P] [US3] Add trace-link rendering to `LogsScreen.tsx`'s search results, shown when
-      `traceId` is present (absent — not an error state — otherwise, per spec.md FR-008) (depends
-      on T028, T023)
-- [ ] T031 [US3] Run T025's test, confirm it passes (depends on T026)
+- [x] T030 [P] [US3] Add trace-link rendering to `LogsScreen.tsx`'s search results, shown when
+      `traceId` is present (absent — not an error state — otherwise, per spec.md FR-008) (depends on
+      T028, T023)
+- [x] T031 [US3] Run T025's test, confirm it passes (depends on T026)
 
 **Checkpoint**: Logs and traces are cross-linked in both directions.
 
@@ -231,23 +234,23 @@ resolution helper). Independent of User Stories 2 and 3.
 
 ### Tests for User Story 4
 
-- [ ] T032 [P] [US4] Write a unit test for the export-token request-shape logic (given a bucket
+- [x] T032 [P] [US4] Write a unit test for the export-token request-shape logic (given a bucket
       name, constructs the correct Cloudflare API request for a bucket-scoped, Object-Read-only
       token) — expect it to fail until T033 lands
 
 ### Implementation for User Story 4
 
-- [ ] T033 [US4] Extend `worker/modules/logs/r2-provision.ts` with `createExportToken(bucketName)`/
+- [x] T033 [US4] Extend `worker/modules/logs/r2-provision.ts` with `createExportToken(bucketName)`/
       `revokeExportToken(tokenId)`, calling Cloudflare's account-level API via
       `CLOUDFLARE_R2_ADMIN_TOKEN` (research.md §8) (depends on T032, T002)
-- [ ] T034 [US4] Implement `POST /api/internal/projects/:id/log-export/credential` and
+- [x] T034 [US4] Implement `POST /api/internal/projects/:id/log-export/credential` and
       `DELETE /api/internal/projects/:id/log-export/credential` in `worker/modules/logs/routes.ts`
       per contracts/logs-internal-api.md, each writing an `audit_log` entry (constitution Principle
       X) (depends on T033, T007)
-- [ ] T035 [P] [US4] Add an S3-compatible export section to `app/shell/SettingsScreen.tsx`
+- [x] T035 [P] [US4] Add an S3-compatible export section to `app/shell/SettingsScreen.tsx`
       (generate/revoke credential), matching Module 2's source-map-upload/GitHub-connect form style
       (depends on T034)
-- [ ] T036 [US4] Run T032's test, confirm it passes (depends on T033)
+- [x] T036 [US4] Run T032's test, confirm it passes (depends on T033)
 
 **Checkpoint**: All four user stories are independently functional.
 
@@ -255,19 +258,19 @@ resolution helper). Independent of User Stories 2 and 3.
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T037 Extend `worker/modules/ingest/retention.ts` to prune `log_batches` rows (+ their
+- [x] T037 Extend `worker/modules/ingest/retention.ts` to prune `log_batches` rows (+ their
       `log_batches_fts` rows + `log_batch_traces` rows + the underlying R2 NDJSON objects) past
       their own 7-day window (research.md §9), on the same `scheduled()` cron trigger
-- [ ] T038 [P] Write a unit test for the log-retention query logic (prunes old batches, leaves
+- [x] T038 [P] Write a unit test for the log-retention query logic (prunes old batches, leaves
       recent ones), mirroring `tests/unit/retention.test.ts`'s existing pattern
-- [ ] T039 [P] Write the search-and-cross-linking portion of
-      `tests/e2e/logs-live-tail-and-search.spec.ts` (extends T011's file) — search UI flow, trace↔log
-      cross-linking in both directions
-- [ ] T040 [P] Run `deno fmt` and `deno lint` across `worker/`, `app/`, `tests/`; fix violations
-- [ ] T041 [P] Run `deno check` (typecheck) across every new/changed `.ts`/`.tsx` file
-- [ ] T042 Run the full `quickstart.md` validation end-to-end (all four user stories) and record
+- [x] T039 [P] Write the search-and-cross-linking portion of
+      `tests/e2e/logs-live-tail-and-search.spec.ts` (extends T011's file) — search UI flow,
+      trace↔log cross-linking in both directions
+- [x] T040 [P] Run `deno fmt` and `deno lint` across `worker/`, `app/`, `tests/`; fix violations
+- [x] T041 [P] Run `deno check` (typecheck) across every new/changed `.ts`/`.tsx` file
+- [x] T042 Run the full `quickstart.md` validation end-to-end (all four user stories) and record
       results
-- [ ] T043 Update `README.md`'s Status section to reference `specs/004-structured-logs`; document
+- [x] T043 Update `README.md`'s Status section to reference `specs/004-structured-logs`; document
       the new `CLOUDFLARE_R2_ADMIN_TOKEN` secret and `LOG_INGEST`/`LIVE_TAIL` bindings in the
       Environment/Deployment sections
 
@@ -329,7 +332,7 @@ resolution helper). Independent of User Stories 2 and 3.
   after US2, unlike Module 2's US3/US4 which had a strict linear dependency chain.
 - Tests are written first within each story's phase and are expected to fail until that story's
   implementation tasks land (constitution Principle VIII).
-- T010 (the `LOG_INGEST` local-Queues-emulation spike) is a NECESSARY re-verification, not
-  redundant with Module 3's T010 — they're two independent queue bindings, and Module 3's outcome
-  does not automatically transfer, even though the underlying platform question (does `wrangler dev`
-  reliably emulate Queues locally) is the same one being asked twice.
+- T010 (the `LOG_INGEST` local-Queues-emulation spike) is a NECESSARY re-verification, not redundant
+  with Module 3's T010 — they're two independent queue bindings, and Module 3's outcome does not
+  automatically transfer, even though the underlying platform question (does `wrangler dev` reliably
+  emulate Queues locally) is the same one being asked twice.

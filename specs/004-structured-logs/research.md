@@ -54,11 +54,19 @@ one per-DSN counter would let a legitimate burst of log traffic exhaust the same
 protects error ingestion, effectively letting verbose logging silently break error reporting. Spec
 SC-004 makes this an explicit, testable requirement, not just an implementation nicety.
 
+**Implementation consequence**: since which rate-limit key(s) apply depends on which item TYPES an
+envelope actually contains, the rate-limit check moved from "before parsing" (Module 2/3's original
+ordering) to "after parsing, before project resolution" — parsing itself is cheap/bounded (already
+gated by `MAX_ENVELOPE_BYTES`), so this doesn't weaken the fail-fast posture, it just needs to know
+an envelope's item types before it can pick the right limiter(s). An envelope mixing log items with
+error/transaction items checks both limiters independently; either one denying rejects the whole
+request.
+
 ## 4. Storage architecture: Queue + R2 NDJSON + batch-granularity D1 index, not Cloudflare Pipelines
 
-**Decision (confirmed via explicit scoping choice)**: ingest pushes each envelope's batched
-log-item array as ONE Cloudflare Queue message onto a new `LOG_INGEST` queue (separate from Module
-3's `TRACE_INGEST` — different consumer logic and message shape; keeping them independent means a
+**Decision (confirmed via explicit scoping choice)**: ingest pushes each envelope's batched log-item
+array as ONE Cloudflare Queue message onto a new `LOG_INGEST` queue (separate from Module 3's
+`TRACE_INGEST` — different consumer logic and message shape; keeping them independent means a
 backlog in one doesn't delay the other). A `queue()` consumer accumulates incoming messages and, per
 flush, concatenates every record across the flush into ONE newline-delimited JSON (NDJSON) object,
 written to a new `LOGS` R2 bucket, time-partitioned:
@@ -67,8 +75,8 @@ per log line — a `log_batches` table (`id`, `project_id`, `r2_object_key`, `st
 `record_count`, `levels_present`).
 
 **Rationale, reasoned from actual volume, not assumed**: even a modest, realistic early-stage
-workload — 10 req/sec, 20 log lines per traced request — is ~17.3M log lines/day. One D1 row per
-log line would blow through the 100,000 row-writes/day free tier in under 9 minutes. This isn't a
+workload — 10 req/sec, 20 log lines per traced request — is ~17.3M log lines/day. One D1 row per log
+line would blow through the 100,000 row-writes/day free tier in under 9 minutes. This isn't a
 theoretical edge case; it's the expected common case for any app with routine `logger.info()`-style
 instrumentation.
 
@@ -95,20 +103,28 @@ log-item array, capped at 100 records by the SDK, comfortably fits)
 values within that batch. A search query narrows to candidate BATCHES via FTS5 (BM25-ranked), then
 the actual matching individual lines are extracted at READ time by fetching the corresponding R2
 NDJSON object(s) and filtering/parsing them server-side — never pre-extracted into D1. Structured
-filters (level, project, time range) filter `log_batches`' plain columns directly;
-`levels_present` supports a coarse pre-filter before any per-line extraction happens.
+filters (level, project, time range) filter `log_batches`' plain columns directly; `levels_present`
+supports a coarse pre-filter before any per-line extraction happens.
 
 **Rationale**: this is the same fundamental tradeoff Module 2 made choosing R2-for-blobs over
-D1-for-blobs (source maps), applied here at a coarser, batch-level granularity because log volume
-is categorically higher than source-map-upload volume — a small amount of read-path latency
-(fetching and scanning a batch's NDJSON file) buys a large reduction in write volume and D1 storage,
-which is the actual scarce resource at this data volume. D1's FTS5 support is confirmed directly
-from Cloudflare's own SQL statements page ("FTS5 module for full-text search"), not assumed.
+D1-for-blobs (source maps), applied here at a coarser, batch-level granularity because log volume is
+categorically higher than source-map-upload volume — a small amount of read-path latency (fetching
+and scanning a batch's NDJSON file) buys a large reduction in write volume and D1 storage, which is
+the actual scarce resource at this data volume. D1's FTS5 support is confirmed directly from
+Cloudflare's own SQL statements page ("FTS5 module for full-text search"), not assumed.
 
 **Caveat, noted for the implementation phase**: FTS5 virtual tables cannot be included in D1's
-export/backup tooling directly (a documented gap — the workaround is drop-virtual-tables →
-export → recreate) — irrelevant to this module's own function, but worth flagging for whoever
-eventually writes an operator backup runbook.
+export/backup tooling directly (a documented gap — the workaround is drop-virtual-tables → export →
+recreate) — irrelevant to this module's own function, but worth flagging for whoever eventually
+writes an operator backup runbook.
+
+**Bug found and fixed during live verification**: a free-text query passed directly as FTS5's
+`MATCH` argument is interpreted using FTS5's OWN query syntax (hyphens, quotes, `AND`/`OR`/`NOT`,
+column filters) — a query like `"zzz-nonexistent-zzz"` gets parsed as a hyphen-prefixed NOT-clause
+and throws `SQLITE_ERROR: no such column`, confirmed live against a real `wrangler dev` (a genuine
+runtime error, not a hand-crafted edge case). Fixed by quoting the query as an FTS5 string literal
+(`"user query"`, doubling any embedded `"`) before binding it — `toFts5MatchLiteral()` in
+`worker/modules/logs/routes.ts`, unit-tested directly.
 
 **Source**: https://developers.cloudflare.com/d1/sql-api/sql-statements/
 
@@ -151,15 +167,25 @@ periodic pings (or rely on hibernation's wake-on-message behavior) so a genuinel
 live-tail tab doesn't silently disconnect; this is an implementation detail for the tasks phase, not
 a design blocker.
 
+**Bug found and fixed during live e2e verification**: `webSocketClose(ws, code, reason, wasClean)`
+re-closing with whatever `code` the client sent threw
+`InvalidAccessError: Invalid WebSocket close
+code` for real browser-initiated closes — a browser
+navigating away or dropping the connection often reports one of the WebSocket spec's RESERVED codes
+(1005 "No Status Received", 1006 "Abnormal Closure"), which are legal to receive but illegal to pass
+back into `.close()` yourself. Fixed by substituting a valid code (1000) whenever the received one
+falls in a reserved/invalid range, wrapped in try/catch as a last-resort guard — confirmed via a
+real Playwright e2e run against a real browser WebSocket connection, not just unit-level reasoning.
+
 **Source**: https://developers.cloudflare.com/durable-objects/best-practices/websockets/,
 https://developers.cloudflare.com/durable-objects/release-notes/,
 https://developers.cloudflare.com/changelog/2025-10-31-increased-websocket-message-size-limit
 
 ## 8. S3-compatible export: resolved — one R2 bucket per project, not prefix-scoped tokens
 
-**Decision (resolves spec.md's explicitly-flagged open item)**: R2 API tokens can be scoped to a
-SET OF BUCKETS, but **not to a path prefix within a bucket** — confirmed directly from Cloudflare's
-own token documentation: "Object Read & Write and Object Read only can both be scoped to specific
+**Decision (resolves spec.md's explicitly-flagged open item)**: R2 API tokens can be scoped to a SET
+OF BUCKETS, but **not to a path prefix within a bucket** — confirmed directly from Cloudflare's own
+token documentation: "Object Read & Write and Object Read only can both be scoped to specific
 buckets" with no mention of prefix/path-level scoping anywhere in the token-creation options. This
 was a real unknown going into this research pass, not assumed either way, and it resolves in the
 less-convenient direction: a single shared `LOGS` bucket with per-project prefix-scoped tokens is
@@ -179,14 +205,46 @@ ID/secret/endpoint; a corresponding `DELETE` revokes the token. Both are admin m
 `audit_log` entry (constitution Principle X), matching Module 2's GitHub connect/disconnect and
 source-map-upload precedent.
 
-**Consequence for the queue consumer (§4)**: since export access is per-project-bucket, not a
-shared bucket, the `LOG_INGEST` consumer must already be writing each project's NDJSON batches to
-that PROJECT'S OWN `LOGS`-purpose bucket, not one shared bucket across all projects — this needs a
-per-project R2 binding resolution at write time (Workers can't statically declare a dynamic,
-per-project set of R2 bucket bindings in `wrangler.jsonc`, since the project set isn't known at
-deploy time — the consumer must construct/access the bucket via the R2 API using the account-level
-credential, not a static `wrangler.jsonc` binding, the same way per-project Durable Object instances
-are resolved dynamically via `idFromName()` rather than one static binding per project).
+**Consequence for the queue consumer (§4) — CORRECTED during implementation**: the framing above
+(the hot ingest path writing directly into a dynamic, per-project bucket) turned out not to hold up.
+Workers R2 bindings are static — confirmed directly (no documented mechanism exists to resolve an R2
+bucket binding dynamically at runtime the way `idFromName()` resolves a Durable Object instance;
+object-level PUT/GET against a bucket with no static binding requires the S3-compatible API with AWS
+SigV4 request signing, a materially different and heavier mechanism than an `R2Bucket` binding
+call). Putting that on the HOT ingest path (every log-ingest request) for a P1 user story would be a
+real complexity/risk increase to the module's most load-bearing code path, for a requirement (export
+isolation) that only P3's User Story 4 actually needs.
+
+**Revised architecture**: primary log storage (User Stories 1-3) uses ONE shared, statically-bound
+`LOGS` R2 bucket — the exact same pattern Module 2's `SOURCE_MAPS` bucket already establishes (one
+bucket, `{project_id}/...`-prefixed keys, isolation enforced by FlightDeck's own D1-driven
+`project_id`-scoped queries, not by R2 ACLs). No new secret, no SigV4, needed for ingest/search/
+live-tail/trace-linkage at all. Per-project buckets are reserved for EXACTLY the case that actually
+needs bucket-level isolation: a customer's own external S3-compatible client (User Story 4), which
+genuinely cannot be prefix-scoped (the constraint this section already correctly identified). At
+export-credential-provisioning time, FlightDeck (a) creates the project's dedicated bucket and a
+customer-facing read-only token via `CLOUDFLARE_R2_ADMIN_TOKEN` (unchanged from below), then (b)
+mints a SHORT-LIVED, FlightDeck-owned write-scoped token for that same new bucket (same admin token,
+same token-creation call, different permission group), and (c) uses that token with `aws4fetch` (a
+purpose-built, Workers-compatible AWS SigV4 request-signing library — the standard, documented way
+to make S3-compatible calls from a Worker without hand-rolling signing) to copy that project's
+currently-known `log_batches` objects (enumerated precisely from D1, not guessed) from the shared
+`LOGS` bucket into the new dedicated bucket. This is a bounded, one-time SNAPSHOT at provisioning
+time, not an ongoing live sync — logs ingested after provisioning are not automatically mirrored
+into the export bucket; spec.md does not require this (SC-006 only requires a provisioned credential
+can list/retrieve that project's data, not that it stays current forever), and building continuous
+mirroring is out of this module's MVP scope. `aws4fetch` is added as this module's only new npm
+dependency, used exclusively by this one, low-frequency, P3 code path.
+
+**Testing honesty note**: User Story 4's actual behavior against a real Cloudflare account
+(bucket/token creation, the aws4fetch-signed copy, a real S3 client listing/retrieving the result)
+is NOT verified by this module's automated tests — no `CLOUDFLARE_R2_ADMIN_TOKEN` with genuine R2
+admin scope is available in this project's automated test/CI environment, and provisioning one is a
+real-account action outside what this implementation pass is authorized to do unilaterally. What IS
+verified: the request-CONSTRUCTION logic against Cloudflare's documented API shapes (unit tests,
+mocked `fetch`, `tests/unit/log-export-token.test.ts`). This mirrors Module 5's own precedent for
+its real-`sentry-cli` validation step — reserved for human-run verification, named explicitly here
+rather than silently assumed to work.
 
 **Alternatives considered**: presigned URLs generated by FlightDeck's own export endpoint (rejected
 — doesn't satisfy "standard S3-compatible client... list and retrieve" the way spec.md's FR-012
@@ -209,14 +267,14 @@ rows) is pruned after **7 days**, shorter than both Module 2's 90-day event rete
 30-day transaction retention.
 
 **Rationale**: logs are the highest-volume data type across all modules (§4's 17M-lines/day
-illustrative estimate) — against the same D1 free-tier ceilings (100k writes/day, 500MB storage)
-and R2's own storage costs at scale, a week of searchable/live-tail-able history is a considered,
-conservative MVP default (long enough to investigate "what happened this week," short enough to
-keep storage bounded even at real usage levels), not an arbitrary number. Extends the existing
-`worker/modules/ingest/retention.ts` (already pruning Module 2's `events`, and, per Module 3's
-plan, `transactions`) with the same full-deletion behavior Module 3 established: a `log_batches` row
-has no separate summary/aggregate to preserve (unlike Module 2's issue/event split), so pruning past
-the window is complete deletion, not partial.
+illustrative estimate) — against the same D1 free-tier ceilings (100k writes/day, 500MB storage) and
+R2's own storage costs at scale, a week of searchable/live-tail-able history is a considered,
+conservative MVP default (long enough to investigate "what happened this week," short enough to keep
+storage bounded even at real usage levels), not an arbitrary number. Extends the existing
+`worker/modules/ingest/retention.ts` (already pruning Module 2's `events`, and, per Module 3's plan,
+`transactions`) with the same full-deletion behavior Module 3 established: a `log_batches` row has
+no separate summary/aggregate to preserve (unlike Module 2's issue/event split), so pruning past the
+window is complete deletion, not partial.
 
 ## 10. Testing: async queue polling (Module 3's pattern) plus a WebSocket test harness decision
 
@@ -225,13 +283,21 @@ the window is complete deletion, not partial.
 bounded retries until the content becomes queryable, rather than asserting immediately after the
 `200` response (queue-consumer processing is asynchronous here too).
 
+**T009's `LOG_INGEST` local-Queues-emulation spike — CONFIRMED during implementation**: verified
+live, the same way Module 3's `TRACE_INGEST` spike was — started a real `wrangler dev`, POSTed a
+hand-crafted `"log"` envelope item, and confirmed the resulting `log_batches`/`log_batches_fts`/
+`log_batch_traces` rows and the R2 NDJSON object all landed correctly, independently of Module 3's
+own queue. This is a genuinely separate verification (two independent queue bindings), not assumed
+to transfer from Module 3's own confirmed outcome, and it did not need the documented fallback
+either.
+
 For live tail specifically: Playwright DOES support WebSocket assertions natively via
-`page.waitForEvent('websocket')` and the resulting `WebSocket` object's `framereceived`/
-`framesent` events — this is a real Playwright API, not a gap requiring an out-of-band test client.
-Live-tail e2e coverage therefore stays inside the existing Playwright suite (open the live-tail
-view, ingest a log line via a parallel `request` call, assert the expected frame arrives), rather
-than needing a separate raw-WebSocket-client test tool — consistent with keeping all UI-flow testing
-in one framework rather than introducing a second one for a single feature.
+`page.waitForEvent('websocket')` and the resulting `WebSocket` object's `framereceived`/ `framesent`
+events — this is a real Playwright API, not a gap requiring an out-of-band test client. Live-tail
+e2e coverage therefore stays inside the existing Playwright suite (open the live-tail view, ingest a
+log line via a parallel `request` call, assert the expected frame arrives), rather than needing a
+separate raw-WebSocket-client test tool — consistent with keeping all UI-flow testing in one
+framework rather than introducing a second one for a single feature.
 
 ## 11. Frontend: navigation and cross-linking
 
