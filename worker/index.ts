@@ -7,12 +7,15 @@ import { projectsRoutes } from "./modules/projects/routes.ts";
 import { githubRoutes } from "./modules/github/routes.ts";
 import { tracesRoutes } from "./modules/traces/routes.ts";
 import { logExportRoutes, logsRoutes } from "./modules/logs/routes.ts";
+import { uptimeRoutes } from "./modules/uptime/routes.ts";
+import { runCheck } from "./modules/uptime/evaluate.ts";
 import {
   apiTokensRoutes,
   releasesCliRoutes,
   releasesInternalRoutes,
 } from "./modules/releases/routes.ts";
 import {
+  pruneOldCheckRuns,
   pruneOldEvents,
   pruneOldLogBatches,
   pruneOldTransactions,
@@ -60,6 +63,7 @@ app.route("/api/internal/traces", tracesRoutes);
 app.route("/api/internal/logs", logsRoutes);
 app.route("/api/internal/releases", releasesInternalRoutes);
 app.route("/api/internal/projects", apiTokensRoutes);
+app.route("/api/internal", uptimeRoutes);
 
 // Public, DSN-key-authenticated ingest (constitution Principle III) — deliberately NOT behind
 // sessionAuth or Access. Registered as a sibling to /api/internal, not nested inside it; Hono
@@ -76,6 +80,32 @@ app.route("/api", ingestRoutes);
 // precedence over ingestRoutes' ":projectId/envelope" pattern that "internal" already does.
 app.route("/api/0", releasesCliRoutes);
 
+interface DueCheckRow {
+  id: string;
+  interval_seconds: number;
+}
+
+// specs/006-uptime-monitoring research.md §3 — queries checks whose schedule has come due, runs
+// each via runCheck() (constitution Principle V's shared evaluation function, same one
+// worker/modules/uptime/routes.ts's interactive trigger route calls), then advances next_run_at.
+// Sequential, not parallel: bounded by the 20-checks-per-project cap (research.md §4), so this
+// never runs long enough to risk missing the next minute's invocation.
+async function runDueUptimeChecks(env: Env): Promise<void> {
+  const { results } = await env.DB
+    .prepare(`SELECT id, interval_seconds FROM checks WHERE next_run_at <= datetime('now')`)
+    .all<DueCheckRow>();
+
+  for (const row of results ?? []) {
+    await runCheck(env, row.id, "scheduled");
+    await env.DB
+      .prepare(
+        `UPDATE checks SET next_run_at = datetime('now', '+' || ?2 || ' seconds') WHERE id = ?1`,
+      )
+      .bind(row.id, row.interval_seconds)
+      .run();
+  }
+}
+
 export default {
   fetch(request: Request, env: Env, ctx: ExecutionContext): Response | Promise<Response> {
     const url = new URL(request.url);
@@ -87,18 +117,30 @@ export default {
     return env.ASSETS.fetch(request);
   },
 
-  scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
+  // Two independent cron schedules share this one scheduled() export, dispatched by
+  // `controller.cron` (specs/006-uptime-monitoring research.md §3) — mirrors the queue() handler's
+  // own dispatch-by-name pattern below. Module 6's uptime cron fires every minute and must never be
+  // delayed behind the daily retention prune, or vice versa.
+  scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
+    if (controller.cron === "* * * * *") {
+      ctx.waitUntil(runDueUptimeChecks(env));
+      return;
+    }
+
     // Daily retention prune (constitution Principle IX, spec FR-015) — deletes events past the
     // default 90-day window (research.md §8); the owning issue's summary row is untouched.
     // specs/003-distributed-tracing research.md §8 extends this to transactions, on their own
     // shorter 30-day window. specs/004-structured-logs research.md §9 extends it further to
     // log_batches, on the shortest window of any module (7 days) — full deletion including the
     // underlying R2 NDJSON object, since a log_batches row is itself the summary.
+    // specs/006-uptime-monitoring research.md §5 extends it further to check_runs — `checks`/
+    // `incidents` are NOT pruned, low-volume summary/configuration data.
     ctx.waitUntil(
       Promise.all([
         pruneOldEvents(env.DB),
         pruneOldTransactions(env.DB),
         pruneOldLogBatches(env.DB, env.LOGS),
+        pruneOldCheckRuns(env.DB),
       ]).then(() => undefined),
     );
   },
