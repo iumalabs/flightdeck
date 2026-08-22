@@ -8,6 +8,11 @@ import { githubRoutes } from "./modules/github/routes.ts";
 import { tracesRoutes } from "./modules/traces/routes.ts";
 import { logExportRoutes, logsRoutes } from "./modules/logs/routes.ts";
 import {
+  apiTokensRoutes,
+  releasesCliRoutes,
+  releasesInternalRoutes,
+} from "./modules/releases/routes.ts";
+import {
   pruneOldEvents,
   pruneOldLogBatches,
   pruneOldTransactions,
@@ -53,6 +58,8 @@ app.route("/api/internal/projects", githubRoutes);
 app.route("/api/internal/projects", logExportRoutes);
 app.route("/api/internal/traces", tracesRoutes);
 app.route("/api/internal/logs", logsRoutes);
+app.route("/api/internal/releases", releasesInternalRoutes);
+app.route("/api/internal/projects", apiTokensRoutes);
 
 // Public, DSN-key-authenticated ingest (constitution Principle III) — deliberately NOT behind
 // sessionAuth or Access. Registered as a sibling to /api/internal, not nested inside it; Hono
@@ -62,6 +69,12 @@ app.route("/api/internal/logs", logsRoutes);
 // full ":projectId/envelope" pattern is defined directly inside ingestRoutes, rather than relying
 // on Hono's cross-router param propagation.
 app.route("/api", ingestRoutes);
+
+// sentry-cli-compatible, API-token-authenticated release management (constitution Principle I —
+// an extension of the control-plane trust surface's authorization, not a third one; research.md §4,
+// specs/005-releases) — the literal "0" path segment takes the same static-before-dynamic
+// precedence over ingestRoutes' ":projectId/envelope" pattern that "internal" already does.
+app.route("/api/0", releasesCliRoutes);
 
 export default {
   fetch(request: Request, env: Env, ctx: ExecutionContext): Response | Promise<Response> {
