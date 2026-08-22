@@ -9,6 +9,7 @@ import { LogsScreen } from "./LogsScreen.tsx";
 import { ReleasesScreen } from "./ReleasesScreen.tsx";
 import { ReleaseDetailScreen } from "./ReleaseDetailScreen.tsx";
 import { UptimeScreen } from "./UptimeScreen.tsx";
+import { CheckDetailScreen } from "./CheckDetailScreen.tsx";
 import { FeedbackScreen } from "./FeedbackScreen.tsx";
 import { AlertsScreen } from "./AlertsScreen.tsx";
 import { SettingsScreen } from "./SettingsScreen.tsx";
@@ -79,6 +80,9 @@ function renderScreen(
   selectedReleaseId: string | null,
   onSelectRelease: (id: string) => void,
   onBackToReleases: () => void,
+  selectedCheckId: string | null,
+  onSelectCheck: (id: string) => void,
+  onBackToUptime: () => void,
 ) {
   switch (screen) {
     case "overview":
@@ -122,11 +126,15 @@ function renderScreen(
     case "releases":
       return <ReleasesScreen onSelectRelease={onSelectRelease} />;
     case "uptime":
-      return <UptimeScreen />;
+      return <UptimeScreen onSelectCheck={onSelectCheck} />;
+    case "check-detail":
+      return selectedCheckId
+        ? <CheckDetailScreen checkId={selectedCheckId} onBack={onBackToUptime} />
+        : <UptimeScreen onSelectCheck={onSelectCheck} />;
     case "feedback":
       return <FeedbackScreen />;
     case "alerts":
-      return <AlertsScreen />;
+      return <AlertsScreen onSelectCheck={onSelectCheck} />;
     case "settings":
       return <SettingsScreen session={session} />;
     case "setup":
@@ -141,6 +149,7 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
   const [selectedReleaseId, setSelectedReleaseId] = useState<string | null>(null);
+  const [selectedCheckId, setSelectedCheckId] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[] | null>(null);
 
   const onSelectIssue = (id: string) => {
@@ -166,6 +175,14 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
   const onBackToReleases = () => {
     setSelectedReleaseId(null);
     setScreen("releases");
+  };
+  const onSelectCheck = (id: string) => {
+    setSelectedCheckId(id);
+    setScreen("check-detail");
+  };
+  const onBackToUptime = () => {
+    setSelectedCheckId(null);
+    setScreen("uptime");
   };
   // Resolves an issue's traceId (the raw trace_id column) to a transactions.id via
   // contracts/traces-internal-api.md's by-trace-id lookup — not a direct id match
@@ -270,7 +287,8 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
                 const isActive = screen === item.screen ||
                   (item.screen === "issues" && screen === "issue-detail") ||
                   (item.screen === "traces" && screen === "trace-detail") ||
-                  (item.screen === "releases" && screen === "release-detail");
+                  (item.screen === "releases" && screen === "release-detail") ||
+                  (item.screen === "uptime" && screen === "check-detail");
                 return (
                   <div
                     key={item.screen}
@@ -278,6 +296,7 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
                       setSelectedIssueId(null);
                       setSelectedTransactionId(null);
                       setSelectedReleaseId(null);
+                      setSelectedCheckId(null);
                       setScreen(item.screen);
                     }}
                     style={{
@@ -376,6 +395,9 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
           selectedReleaseId,
           onSelectRelease,
           onBackToReleases,
+          selectedCheckId,
+          onSelectCheck,
+          onBackToUptime,
         )}
       </div>
     </div>

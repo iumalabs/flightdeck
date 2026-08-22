@@ -1,6 +1,40 @@
+import { useEffect, useState } from "react";
 import { EmptyState } from "../components/EmptyState.tsx";
 
-export function AlertsScreen() {
+interface Incident {
+  id: string;
+  checkId: string;
+  checkName: string;
+  openedAt: string;
+  resolvedAt: string | null;
+}
+
+export interface AlertsScreenProps {
+  onSelectCheck: (id: string) => void;
+}
+
+export function AlertsScreen({ onSelectCheck }: AlertsScreenProps) {
+  const [loading, setLoading] = useState(true);
+  const [incidents, setIncidents] = useState<Incident[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/internal/incidents", { credentials: "same-origin" })
+      .then((res) => (res.ok ? res.json() as Promise<{ incidents: Incident[] }> : null))
+      .then((data) => {
+        if (!cancelled) setIncidents(data?.incidents ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setIncidents([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div>
       <h1
@@ -13,10 +47,54 @@ export function AlertsScreen() {
       >
         Alerts
       </h1>
-      <EmptyState
-        title="No alert rules yet"
-        body="Alert rules will show up here once your workspace has data to evaluate them against."
-      />
+
+      {loading
+        ? null
+        : incidents && incidents.length > 0
+        ? (
+          <div style={{ border: "1px solid var(--line)", background: "var(--panel)" }}>
+            {incidents.map((incident) => (
+              <div
+                key={incident.id}
+                onClick={() => onSelectCheck(incident.checkId)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "12px 16px",
+                  borderBottom: "1px solid var(--line2)",
+                  cursor: "pointer",
+                  fontSize: 13,
+                }}
+              >
+                <span
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    flex: "none",
+                    background: incident.resolvedAt ? "var(--fg3)" : "#FF4D4D",
+                  }}
+                />
+                <span style={{ flex: 1, fontFamily: "var(--font-mono)" }}>
+                  {incident.checkName}
+                </span>
+                <span
+                  style={{ color: incident.resolvedAt ? "var(--fg2)" : "#FF4D4D", fontSize: 12.5 }}
+                >
+                  {incident.resolvedAt ? "resolved" : "open"}
+                </span>
+                <span style={{ color: "var(--fg3)", fontSize: 12 }}>{incident.openedAt}</span>
+              </div>
+            ))}
+          </div>
+        )
+        : (
+          <EmptyState
+            title="No alert rules yet"
+            body="Alert rules will show up here once your workspace has data to evaluate them against."
+          />
+        )}
     </div>
   );
 }
