@@ -55,6 +55,7 @@ issuesRoutes.get("/", async (c) => {
 
 interface EventRow {
   payload: string;
+  trace_id: string | null;
 }
 
 interface LatestEvent {
@@ -97,7 +98,7 @@ issuesRoutes.get("/:id", async (c) => {
 
   const latestEventRow = await c.env.DB
     .prepare(
-      `SELECT payload FROM events WHERE issue_id = ?1 ORDER BY received_at DESC LIMIT 1`,
+      `SELECT payload, trace_id FROM events WHERE issue_id = ?1 ORDER BY received_at DESC LIMIT 1`,
     )
     .bind(id)
     .first<EventRow>();
@@ -131,5 +132,9 @@ issuesRoutes.get("/:id", async (c) => {
     lastSeen: issue.last_seen,
     latestEvent,
     suspectCommit,
+    // contracts/traces-internal-api.md's addition (specs/003-distributed-tracing) — the latest
+    // event's trace_id, null when it carried no contexts.trace (spec FR-009, "absent, not an
+    // error state").
+    traceId: latestEventRow?.trace_id ?? null,
   });
 });
