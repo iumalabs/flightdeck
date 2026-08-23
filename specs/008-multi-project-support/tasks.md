@@ -71,7 +71,7 @@ with its DSN, confirm it's attributed only to the new project.
 
 ### Tests for User Story 1
 
-- [ ] T005 [P] [US1] Write `tests/contract/projects-api.spec.ts`'s create-project cases (against
+- [x] T005 [P] [US1] Write `tests/contract/projects-api.spec.ts`'s create-project cases (against
       real `wrangler dev`: valid name creates a project with a working DSN; empty/missing name is
       rejected; the returned DSN's key, used to ingest an event, produces data visible ONLY under
       `?project={new-id}`, never under `?project=demo` — contracts/projects-internal-api.md's
@@ -83,11 +83,11 @@ with its DSN, confirm it's attributed only to the new project.
       validates `name`, generates `dsn_public_key` via `lower(hex(randomblob(16)))` (research.md
       §3), writes `audit_log` (`action: "project.create"`), returns `{ id, name, dsn }` per
       contracts/projects-internal-api.md (depends on T001)
-- [ ] T007 [US1] Verify live (not just by inspection) that the existing route mount for
+- [x] T007 [US1] Verify live (not just by inspection) that the existing route mount for
       `projectsRoutes` in `worker/index.ts` already covers `POST /api/internal/projects` with no
       change needed (Hono routers pick up new methods on an already-mounted path automatically) —
       confirm via T005's contract test, no code change expected here
-- [ ] T008 [US1] Run T005's test, confirm all cases pass (depends on T006, T007)
+- [x] T008 [US1] Run T005's test, confirm all cases pass (depends on T006, T007)
 
 **Checkpoint**: A second project can be created and its DSN genuinely works, in isolation.
 
@@ -105,9 +105,12 @@ a second project to meaningfully switch to).
 
 ### Tests for User Story 2
 
-- [ ] T009 [P] [US2] Extend `tests/contract/projects-api.spec.ts` with per-route `?project=`
+- [x] T009 [P] [US2] Extend `tests/contract/projects-api.spec.ts` with per-route `?project=`
       override cases for every route in contracts/projects-internal-api.md's list (issues, traces,
       logs, checks/incidents, releases, feedback) — expect it to fail until T010-T016 land
+      (traces/logs isolation is proven via the same synchronous surfaces every other case uses, not
+      by round-tripping the async ingest queue — orthogonal to this feature, see the spec file's own
+      header comment)
 - [ ] T010 [P] [US2] Write `tests/e2e/multi-project-switching.spec.ts` (create a second project via
       Settings, confirm the switcher renders only once `projects.length > 1`, switch to it, confirm
       empty states — not "demo"'s data — render across Issues/Traces/Logs/Releases/ Uptime/Feedback)
@@ -138,22 +141,22 @@ a second project to meaningfully switch to).
 
 ### Implementation for User Story 2 — frontend
 
-- [X] T017 [US2] Create `app/lib/use-selected-project.ts` — `sessionStorage`-backed hook mirroring
+- [x] T017 [US2] Create `app/lib/use-selected-project.ts` — `sessionStorage`-backed hook mirroring
       `use-session.ts`'s pattern (research.md §4) (depends on T006, since it needs
       `GET /api/internal/projects` to already be able to list a second project meaningfully)
-- [X] T018 [US2] `app/shell/AppShell.tsx` — project chip becomes a real switcher when
+- [x] T018 [US2] `app/shell/AppShell.tsx` — project chip becomes a real switcher when
       `projects.length > 1`, unchanged plain text otherwise (spec FR-009); wires
       `use-selected-project.ts` (depends on T017)
-- [X] T019 [P] [US2] `app/shell/IssuesScreen.tsx`, `IssueDetailScreen.tsx` — `fetch()` calls gain
+- [x] T019 [P] [US2] `app/shell/IssuesScreen.tsx`, `IssueDetailScreen.tsx` — `fetch()` calls gain
       `?project=${selectedProjectId}` (depends on T017, T011)
-- [X] T020 [P] [US2] `app/shell/TracesScreen.tsx`, `TraceDetailScreen.tsx` — same (depends on T017,
+- [x] T020 [P] [US2] `app/shell/TracesScreen.tsx`, `TraceDetailScreen.tsx` — same (depends on T017,
       T012)
-- [X] T021 [P] [US2] `app/shell/LogsScreen.tsx` — same (depends on T017, T013)
-- [X] T022 [P] [US2] `app/shell/UptimeScreen.tsx`, `CheckDetailScreen.tsx`, `AlertsScreen.tsx` —
+- [x] T021 [P] [US2] `app/shell/LogsScreen.tsx` — same (depends on T017, T013)
+- [x] T022 [P] [US2] `app/shell/UptimeScreen.tsx`, `CheckDetailScreen.tsx`, `AlertsScreen.tsx` —
       same (depends on T017, T014)
-- [X] T023 [P] [US2] `app/shell/ReleasesScreen.tsx`, `ReleaseDetailScreen.tsx` — same (depends on
+- [x] T023 [P] [US2] `app/shell/ReleasesScreen.tsx`, `ReleaseDetailScreen.tsx` — same (depends on
       T017, T015)
-- [X] T024 [P] [US2] `app/shell/FeedbackScreen.tsx` — same (depends on T017, T016)
+- [x] T024 [P] [US2] `app/shell/FeedbackScreen.tsx` — same (depends on T017, T016)
 - [ ] T025 [US2] Run T009-T010's tests, confirm all pass (depends on T011-T024)
 
 **Checkpoint**: Switching projects correctly re-scopes every dashboard screen.
@@ -170,7 +173,7 @@ a second project to meaningfully switch to).
 
 ### Implementation for User Story 3
 
-- [X] T026 [US3] Add the project-creation form to `app/shell/SettingsScreen.tsx` (name input,
+- [x] T026 [US3] Add the project-creation form to `app/shell/SettingsScreen.tsx` (name input,
       submit, shows the returned `dsn` inline on success) — the natural home alongside the existing
       source-map-upload/GitHub-connect/log-export/API-token sections (plan.md) (depends on T006)
 - [ ] T027 [US3] Manually verify (per quickstart.md's User Story 3 step) the DSN renders inline with
