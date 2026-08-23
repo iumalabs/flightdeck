@@ -47,9 +47,24 @@
   // Bindings are NOT inheritable across named environments — Wrangler requires each to redeclare
   // them in full, so both environments below are fully explicit and symmetric, mirroring
   // FlareTower's wrangler.jsonc (see that file's comments for the full rationale: no implicit
-  // top-level "production" environment, one Worker resource shared by both versions via Workers
-  // Builds' native preview mechanism). Local dev (`deno task dev`) picks an environment via the
+  // top-level "production" environment). Local dev (`deno task dev`) picks an environment via the
   // `CLOUDFLARE_ENV` var — see `.env.development` (defaults to `preview`).
+  //
+  // These two environments do NOT share one Worker script (a prior version of this comment claimed
+  // they safely did, via "Workers Builds' native preview mechanism" — that was wrong, and caused a
+  // real production outage). `wrangler deploy` (used for both envs, since Durable Objects rule out
+  // versioned/gradual deployment — see the preview env's own comment below) overwrites the LIVE
+  // script it targets, bindings included. With both envs deploying under this file's shared
+  // top-level "name", a preview build (triggered by pushing ANY non-main branch) landing after the
+  // last production build silently served production traffic with preview's bindings (wrong D1
+  // database, etc.) until the next production deploy overwrote it back — confirmed live: a routine
+  // feature-branch push's preview deploy lined up to the second with a production ingest outage
+  // (every DSN 403ing). `deno task deploy:preview` (deno.json) now passes `--name flightdeck-preview`
+  // to force preview onto a genuinely separate Worker resource that cannot touch this one — the only
+  // fix needed, no versioned-deployment migration required. One real side effect: Durable Objects are
+  // namespaced per script, so `flightdeck-preview` gets its own fresh RateLimiter/LiveTail storage,
+  // never shared with production's — which is the correct isolation (matches D1/R2/queues already
+  // being split per env below), not a regression.
   "env": {
     "production": {
       "routes": [
