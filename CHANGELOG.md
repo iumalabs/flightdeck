@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.9.0](https://github.com/iumalabs/flightdeck/compare/v0.8.0...v0.9.0) (2026-08-23)
+
+
+### Features
+
+* **api:** version FlightDeck's own control-plane API as /api/internal/v1 ([702a834](https://github.com/iumalabs/flightdeck/commit/702a834b8d93066e5f3ad67d066270fb959b7e8e))
+* **api:** version FlightDeck's own control-plane API as /api/internal/v1 ([2650283](https://github.com/iumalabs/flightdeck/commit/265028314b2fb278c3ba32ac2ae6a7f08aebd487))
+
+
+### Bug Fixes
+
+* **dashboard:** replace native &lt;select&gt; popups with themed dropdowns ([4b992c7](https://github.com/iumalabs/flightdeck/commit/4b992c7fb2470e3868f839cbac52f7fb597e0be4))
+* **dashboard:** replace native &lt;select&gt; popups with themed dropdowns ([5f9e79a](https://github.com/iumalabs/flightdeck/commit/5f9e79a84fe85b4c7f8a1d1762d8f2204b375432))
+
 ## [0.8.0](https://github.com/iumalabs/flightdeck/compare/v0.7.1...v0.8.0) (2026-08-23)
 
 
