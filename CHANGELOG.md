@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.1](https://github.com/iumalabs/flightdeck/compare/v0.7.0...v0.7.1) (2026-08-23)
+
+
+### Bug Fixes
+
+* **deploy:** isolate preview deploys onto their own Worker script ([8c13429](https://github.com/iumalabs/flightdeck/commit/8c13429c9a97b4ec6280483ad144f7547219d372))
+* **deploy:** isolate preview deploys onto their own Worker script ([7c41cf9](https://github.com/iumalabs/flightdeck/commit/7c41cf9fdf85bccee23796f118aca1f75adb8f2d))
+
 ## [0.7.0](https://github.com/iumalabs/flightdeck/compare/v0.6.0...v0.7.0) (2026-08-23)
 
 
