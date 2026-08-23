@@ -111,10 +111,14 @@ a second project to meaningfully switch to).
       (traces/logs isolation is proven via the same synchronous surfaces every other case uses, not
       by round-tripping the async ingest queue — orthogonal to this feature, see the spec file's own
       header comment)
-- [ ] T010 [P] [US2] Write `tests/e2e/multi-project-switching.spec.ts` (create a second project via
+- [x] T010 [P] [US2] Write `tests/e2e/multi-project-switching.spec.ts` (create a second project via
       Settings, confirm the switcher renders only once `projects.length > 1`, switch to it, confirm
       empty states — not "demo"'s data — render across Issues/Traces/Logs/Releases/ Uptime/Feedback)
-      — expect it to fail until T017-T024 land
+      — expect it to fail until T017-T024 land (the single-project plain-text precondition isn't
+      independently re-provable in this shared local-D1 environment, which already has several
+      non-demo projects from earlier contract-test runs — that case is covered by AppShell.tsx's own
+      `projects.length > 1` conditional, exercised directly by every other e2e test's single-project
+      session)
 
 ### Implementation for User Story 2 — backend (six pillar modules, independent of each other)
 
@@ -157,7 +161,11 @@ a second project to meaningfully switch to).
 - [x] T023 [P] [US2] `app/shell/ReleasesScreen.tsx`, `ReleaseDetailScreen.tsx` — same (depends on
       T017, T015)
 - [x] T024 [P] [US2] `app/shell/FeedbackScreen.tsx` — same (depends on T017, T016)
-- [ ] T025 [US2] Run T009-T010's tests, confirm all pass (depends on T011-T024)
+- [x] T025 [US2] Run T009-T010's tests, confirm all pass (depends on T011-T024) — 44/44 contract,
+      20/20 e2e, both passing serially; parallel e2e runs show pre-existing flake in this
+      environment (`wrangler d1 execute failed: NOSENTRY database is locked: SQLITE_BUSY` from
+      several tests' concurrent shell-outs to the same local D1 file, not specific to this feature
+      or this test) — noted for the user, not fixed here
 
 **Checkpoint**: Switching projects correctly re-scopes every dashboard screen.
 
@@ -176,9 +184,11 @@ a second project to meaningfully switch to).
 - [x] T026 [US3] Add the project-creation form to `app/shell/SettingsScreen.tsx` (name input,
       submit, shows the returned `dsn` inline on success) — the natural home alongside the existing
       source-map-upload/GitHub-connect/log-export/API-token sections (plan.md) (depends on T006)
-- [ ] T027 [US3] Manually verify (per quickstart.md's User Story 3 step) the DSN renders inline with
+- [x] T027 [US3] Manually verify (per quickstart.md's User Story 3 step) the DSN renders inline with
       no separate navigation — no new automated test beyond T005's existing create-project contract
-      coverage, since this is purely a rendering-location check
+      coverage, since this is purely a rendering-location check (confirmed via
+      multi-project-switching.spec.ts's own `DSN: https://` assertion right after the create-project
+      form submit, same page, no navigation)
 
 **Checkpoint**: All three user stories are independently functional.
 
