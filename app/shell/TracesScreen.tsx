@@ -11,16 +11,18 @@ interface Operation {
 }
 
 export interface TracesScreenProps {
+  projectId: string | null;
   onSelectTransaction: (id: string) => void;
 }
 
-export function TracesScreen({ onSelectTransaction }: TracesScreenProps) {
+export function TracesScreen({ projectId, onSelectTransaction }: TracesScreenProps) {
   const [loading, setLoading] = useState(true);
   const [operations, setOperations] = useState<Operation[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/internal/traces", { credentials: "same-origin" })
+    const params = projectId ? `?project=${projectId}` : "";
+    fetch(`/api/internal/traces${params}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<{ operations: Operation[] }> : null))
       .then((data) => {
         if (!cancelled) setOperations(data?.operations ?? []);
@@ -34,7 +36,7 @@ export function TracesScreen({ onSelectTransaction }: TracesScreenProps) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [projectId]);
 
   const sorted = [...(operations ?? [])].sort((a, b) => b.p95Ms - a.p95Ms);
 

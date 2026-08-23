@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Session } from "../lib/use-session.ts";
+import { useSelectedProject } from "../lib/use-selected-project.ts";
 import { OverviewScreen } from "./OverviewScreen.tsx";
 import { IssuesScreen } from "./IssuesScreen.tsx";
 import { IssueDetailScreen } from "./IssueDetailScreen.tsx";
@@ -70,6 +71,9 @@ const FOOTER_ITEMS: NavItem[] = [
 function renderScreen(
   screen: string,
   session: Session,
+  projectId: string | null,
+  projects: Project[] | null,
+  onProjectCreated: (project: Project) => void,
   selectedIssueId: string | null,
   onSelectIssue: (id: string) => void,
   onBackToIssues: () => void,
@@ -88,55 +92,70 @@ function renderScreen(
     case "overview":
       return <OverviewScreen session={session} />;
     case "issues":
-      return <IssuesScreen onSelectIssue={onSelectIssue} />;
+      return <IssuesScreen projectId={projectId} onSelectIssue={onSelectIssue} />;
     case "issue-detail":
       return selectedIssueId
         ? (
           <IssueDetailScreen
             issueId={selectedIssueId}
+            projectId={projectId}
             onBack={onBackToIssues}
             onViewTrace={onViewTrace}
           />
         )
-        : <IssuesScreen onSelectIssue={onSelectIssue} />;
+        : <IssuesScreen projectId={projectId} onSelectIssue={onSelectIssue} />;
     case "release-detail":
       return selectedReleaseId
         ? (
           <ReleaseDetailScreen
             releaseId={selectedReleaseId}
+            projectId={projectId}
             onBack={onBackToReleases}
             onSelectIssue={onSelectIssue}
           />
         )
-        : <ReleasesScreen onSelectRelease={onSelectRelease} />;
+        : <ReleasesScreen projectId={projectId} onSelectRelease={onSelectRelease} />;
     case "traces":
-      return <TracesScreen onSelectTransaction={onSelectTransaction} />;
+      return <TracesScreen projectId={projectId} onSelectTransaction={onSelectTransaction} />;
     case "trace-detail":
       return selectedTransactionId
         ? (
           <TraceDetailScreen
             transactionId={selectedTransactionId}
+            projectId={projectId}
             onBack={onBackToTraces}
             onSelectIssue={onSelectIssue}
           />
         )
-        : <TracesScreen onSelectTransaction={onSelectTransaction} />;
+        : <TracesScreen projectId={projectId} onSelectTransaction={onSelectTransaction} />;
     case "logs":
-      return <LogsScreen onSelectTrace={onViewTrace} />;
+      return <LogsScreen projectId={projectId} onSelectTrace={onViewTrace} />;
     case "releases":
-      return <ReleasesScreen onSelectRelease={onSelectRelease} />;
+      return <ReleasesScreen projectId={projectId} onSelectRelease={onSelectRelease} />;
     case "uptime":
-      return <UptimeScreen onSelectCheck={onSelectCheck} />;
+      return <UptimeScreen projectId={projectId} onSelectCheck={onSelectCheck} />;
     case "check-detail":
       return selectedCheckId
-        ? <CheckDetailScreen checkId={selectedCheckId} onBack={onBackToUptime} />
-        : <UptimeScreen onSelectCheck={onSelectCheck} />;
+        ? (
+          <CheckDetailScreen
+            checkId={selectedCheckId}
+            projectId={projectId}
+            onBack={onBackToUptime}
+          />
+        )
+        : <UptimeScreen projectId={projectId} onSelectCheck={onSelectCheck} />;
     case "feedback":
-      return <FeedbackScreen />;
+      return <FeedbackScreen projectId={projectId} />;
     case "alerts":
-      return <AlertsScreen onSelectCheck={onSelectCheck} />;
+      return <AlertsScreen projectId={projectId} onSelectCheck={onSelectCheck} />;
     case "settings":
-      return <SettingsScreen session={session} />;
+      return (
+        <SettingsScreen
+          session={session}
+          project={projects?.find((p) => p.id === projectId) ?? null}
+          onProjectCreated={onProjectCreated}
+        />
+      );
     case "setup":
       return <InstallSdkScreen />;
     default:
@@ -188,7 +207,8 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
   // contracts/traces-internal-api.md's by-trace-id lookup — not a direct id match
   // (specs/003-distributed-tracing).
   const onViewTrace = (traceId: string) => {
-    fetch(`/api/internal/traces/by-trace-id/${traceId}`, { credentials: "same-origin" })
+    const params = selectedProjectId ? `?project=${selectedProjectId}` : "";
+    fetch(`/api/internal/traces/by-trace-id/${traceId}${params}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<{ transactionId: string | null }> : null))
       .then((data) => {
         if (data?.transactionId) onSelectTransaction(data.transactionId);
@@ -196,23 +216,31 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
       .catch(() => {});
   };
 
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/internal/projects", { credentials: "same-origin" })
+  const refetchProjects = useCallback(() => {
+    return fetch("/api/internal/projects", { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<{ projects: Project[] }> : null))
       .then((data) => {
-        if (!cancelled && data) setProjects(data.projects);
+        setProjects(data?.projects ?? []);
       })
-      .catch(() => {
-        if (!cancelled) setProjects([]);
-      });
-    return () => {
-      cancelled = true;
-    };
+      .catch(() => setProjects([]));
   }, []);
 
+  useEffect(() => {
+    refetchProjects();
+  }, [refetchProjects]);
+
+  const { selectedProjectId, selectProject } = useSelectedProject(projects);
+
+  // specs/008-multi-project-support — the newly-created project isn't in `projects` yet (that list
+  // was fetched before this POST resolved), so it's appended locally and selected immediately
+  // rather than waiting on a second round-trip through refetchProjects().
+  const onProjectCreated = (project: Project) => {
+    setProjects((prev) => [...(prev ?? []), project]);
+    selectProject(project.id);
+  };
+
   const initials = session.email.slice(0, 2).toUpperCase();
-  const currentProject = projects?.[0];
+  const currentProject = projects?.find((p) => p.id === selectedProjectId) ?? null;
 
   return (
     <div style={{ display: "flex", height: "100vh", width: "100%", color: "var(--fg)" }}>
@@ -261,9 +289,34 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
               flex: "none",
             }}
           />
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {currentProject ? currentProject.name : "Loading…"}
-          </span>
+          {
+            /* spec FR-009 — a single-project workspace renders plain text, no extra step imposed;
+              the switcher only appears once there's something to switch to. */
+          }
+          {projects && projects.length > 1
+            ? (
+              <select
+                value={selectedProjectId ?? ""}
+                onChange={(e) => selectProject(e.target.value)}
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  background: "transparent",
+                  color: "var(--fg)",
+                  border: "none",
+                  fontSize: 12.5,
+                  fontFamily: "inherit",
+                  cursor: "pointer",
+                }}
+              >
+                {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            )
+            : (
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {currentProject ? currentProject.name : "Loading…"}
+              </span>
+            )}
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: "8px 10px" }}>
@@ -385,6 +438,9 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
         {renderScreen(
           screen,
           session,
+          selectedProjectId,
+          projects,
+          onProjectCreated,
           selectedIssueId,
           onSelectIssue,
           onBackToIssues,

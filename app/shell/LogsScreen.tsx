@@ -58,14 +58,22 @@ function LogRow(
   );
 }
 
-function LiveTail({ onSelectTrace }: { onSelectTrace?: (traceId: string) => void }) {
+function LiveTail(
+  { projectId, onSelectTrace }: {
+    projectId: string | null;
+    onSelectTrace?: (traceId: string) => void;
+  },
+) {
   const [lines, setLines] = useState<LogLine[]>([]);
   const [level, setLevel] = useState("");
   const socketRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    const socket = new WebSocket(`${proto}//${location.host}/api/internal/logs/live-tail`);
+    const params = projectId ? `?project=${projectId}` : "";
+    const socket = new WebSocket(
+      `${proto}//${location.host}/api/internal/logs/live-tail${params}`,
+    );
     socketRef.current = socket;
     socket.onmessage = (event) => {
       try {
@@ -76,7 +84,7 @@ function LiveTail({ onSelectTrace }: { onSelectTrace?: (traceId: string) => void
       }
     };
     return () => socket.close();
-  }, []);
+  }, [projectId]);
 
   const visible = level ? lines.filter((line) => line.level === level) : lines;
 
@@ -116,7 +124,12 @@ function LiveTail({ onSelectTrace }: { onSelectTrace?: (traceId: string) => void
   );
 }
 
-function Search({ onSelectTrace }: { onSelectTrace?: (traceId: string) => void }) {
+function Search(
+  { projectId, onSelectTrace }: {
+    projectId: string | null;
+    onSelectTrace?: (traceId: string) => void;
+  },
+) {
   const [q, setQ] = useState("");
   const [level, setLevel] = useState("");
   const [lines, setLines] = useState<LogLine[] | null>(null);
@@ -127,6 +140,7 @@ function Search({ onSelectTrace }: { onSelectTrace?: (traceId: string) => void }
     const params = new URLSearchParams();
     if (q) params.set("q", q);
     if (level) params.set("level", level);
+    if (projectId) params.set("project", projectId);
     fetch(`/api/internal/logs/search?${params.toString()}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<{ lines: LogLine[] }> : null))
       .then((data) => setLines(data?.lines ?? []))
@@ -202,10 +216,11 @@ function Search({ onSelectTrace }: { onSelectTrace?: (traceId: string) => void }
 }
 
 export interface LogsScreenProps {
+  projectId: string | null;
   onSelectTrace?: (traceId: string) => void;
 }
 
-export function LogsScreen({ onSelectTrace }: LogsScreenProps) {
+export function LogsScreen({ projectId, onSelectTrace }: LogsScreenProps) {
   const [tab, setTab] = useState<"live" | "search">("live");
 
   return (
@@ -245,8 +260,8 @@ export function LogsScreen({ onSelectTrace }: LogsScreenProps) {
       </div>
 
       {tab === "live"
-        ? <LiveTail onSelectTrace={onSelectTrace} />
-        : <Search onSelectTrace={onSelectTrace} />}
+        ? <LiveTail projectId={projectId} onSelectTrace={onSelectTrace} />
+        : <Search projectId={projectId} onSelectTrace={onSelectTrace} />}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { Session } from "../lib/use-session.ts";
 
 interface Project {
@@ -79,6 +79,79 @@ function SourceMapUpload({ project }: { project: Project | null }) {
         </button>
         {status.kind === "success" && (
           <span style={{ color: "var(--accent)", fontSize: 12.5 }}>Uploaded.</span>
+        )}
+        {status.kind === "error" && (
+          <span style={{ color: "#FF4D4D", fontSize: 12.5 }}>{status.message}</span>
+        )}
+      </form>
+    </div>
+  );
+}
+
+type CreateProjectStatus = { kind: "idle" } | { kind: "created"; dsn: string } | {
+  kind: "error";
+  message: string;
+};
+
+// contracts/projects-internal-api.md's POST /api/internal/projects (specs/008-multi-project-
+// support) — the natural home alongside this screen's other per-project admin sections. Shows the
+// returned `dsn` inline on success (spec User Story 3), no separate navigation.
+function CreateProjectForm({ onCreated }: { onCreated: (project: Project) => void }) {
+  const [name, setName] = useState("");
+  const [status, setStatus] = useState<CreateProjectStatus>({ kind: "idle" });
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+
+    const res = await fetch("/api/internal/projects", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+
+    if (res.ok) {
+      const project = await res.json() as Project & { dsn: string };
+      setStatus({ kind: "created", dsn: project.dsn });
+      setName("");
+      onCreated({ id: project.id, name: project.name });
+    } else {
+      setStatus({ kind: "error", message: "Could not create project." });
+    }
+  };
+
+  return (
+    <div
+      style={{
+        border: "1px solid var(--line)",
+        background: "var(--panel)",
+        maxWidth: 480,
+        padding: 18,
+        marginBottom: 24,
+      }}
+    >
+      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Create a project</div>
+      <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <input
+          placeholder="Project name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          style={inputStyle}
+        />
+        <button type="submit" style={buttonStyle}>Create project</button>
+        {status.kind === "created" && (
+          <div
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: 11.5,
+              color: "var(--fg2)",
+              wordBreak: "break-all",
+            }}
+          >
+            DSN: {status.dsn}
+          </div>
         )}
         {status.kind === "error" && (
           <span style={{ color: "#FF4D4D", fontSize: 12.5 }}>{status.message}</span>
@@ -393,24 +466,13 @@ const secondaryButtonStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
-export function SettingsScreen({ session }: { session: Session }) {
-  const [project, setProject] = useState<Project | null>(null);
+export interface SettingsScreenProps {
+  session: Session;
+  project: Project | null;
+  onProjectCreated: (project: Project) => void;
+}
 
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/internal/projects", { credentials: "same-origin" })
-      .then((res) => (res.ok ? res.json() as Promise<{ projects: Project[] }> : null))
-      .then((data) => {
-        if (!cancelled) setProject(data?.projects?.[0] ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setProject(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+export function SettingsScreen({ session, project, onProjectCreated }: SettingsScreenProps) {
   return (
     <div>
       <h1
@@ -453,6 +515,7 @@ export function SettingsScreen({ session }: { session: Session }) {
         ))}
       </div>
 
+      <CreateProjectForm onCreated={onProjectCreated} />
       <SourceMapUpload project={project} />
       <GitHubConnect project={project} />
       <LogExport project={project} />

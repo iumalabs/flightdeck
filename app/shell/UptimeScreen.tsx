@@ -21,10 +21,11 @@ function formatPercent(value: number | null): string {
 }
 
 export interface UptimeScreenProps {
+  projectId: string | null;
   onSelectCheck: (id: string) => void;
 }
 
-export function UptimeScreen({ onSelectCheck }: UptimeScreenProps) {
+export function UptimeScreen({ projectId, onSelectCheck }: UptimeScreenProps) {
   const [loading, setLoading] = useState(true);
   const [checks, setChecks] = useState<Check[] | null>(null);
   const [name, setName] = useState("");
@@ -34,19 +35,21 @@ export function UptimeScreen({ onSelectCheck }: UptimeScreenProps) {
 
   const load = () => {
     setLoading(true);
-    fetch("/api/internal/checks", { credentials: "same-origin" })
+    const params = projectId ? `?project=${projectId}` : "";
+    fetch(`/api/internal/checks${params}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<{ checks: Check[] }> : null))
       .then((data) => setChecks(data?.checks ?? []))
       .catch(() => setChecks([]))
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, []);
+  useEffect(load, [projectId]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const res = await fetch("/api/internal/checks", {
+    const params = projectId ? `?project=${projectId}` : "";
+    const res = await fetch(`/api/internal/checks${params}`, {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },

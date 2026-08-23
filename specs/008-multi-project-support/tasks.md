@@ -138,22 +138,22 @@ a second project to meaningfully switch to).
 
 ### Implementation for User Story 2 — frontend
 
-- [ ] T017 [US2] Create `app/lib/use-selected-project.ts` — `sessionStorage`-backed hook mirroring
+- [X] T017 [US2] Create `app/lib/use-selected-project.ts` — `sessionStorage`-backed hook mirroring
       `use-session.ts`'s pattern (research.md §4) (depends on T006, since it needs
       `GET /api/internal/projects` to already be able to list a second project meaningfully)
-- [ ] T018 [US2] `app/shell/AppShell.tsx` — project chip becomes a real switcher when
+- [X] T018 [US2] `app/shell/AppShell.tsx` — project chip becomes a real switcher when
       `projects.length > 1`, unchanged plain text otherwise (spec FR-009); wires
       `use-selected-project.ts` (depends on T017)
-- [ ] T019 [P] [US2] `app/shell/IssuesScreen.tsx`, `IssueDetailScreen.tsx` — `fetch()` calls gain
+- [X] T019 [P] [US2] `app/shell/IssuesScreen.tsx`, `IssueDetailScreen.tsx` — `fetch()` calls gain
       `?project=${selectedProjectId}` (depends on T017, T011)
-- [ ] T020 [P] [US2] `app/shell/TracesScreen.tsx`, `TraceDetailScreen.tsx` — same (depends on T017,
+- [X] T020 [P] [US2] `app/shell/TracesScreen.tsx`, `TraceDetailScreen.tsx` — same (depends on T017,
       T012)
-- [ ] T021 [P] [US2] `app/shell/LogsScreen.tsx` — same (depends on T017, T013)
-- [ ] T022 [P] [US2] `app/shell/UptimeScreen.tsx`, `CheckDetailScreen.tsx`, `AlertsScreen.tsx` —
+- [X] T021 [P] [US2] `app/shell/LogsScreen.tsx` — same (depends on T017, T013)
+- [X] T022 [P] [US2] `app/shell/UptimeScreen.tsx`, `CheckDetailScreen.tsx`, `AlertsScreen.tsx` —
       same (depends on T017, T014)
-- [ ] T023 [P] [US2] `app/shell/ReleasesScreen.tsx`, `ReleaseDetailScreen.tsx` — same (depends on
+- [X] T023 [P] [US2] `app/shell/ReleasesScreen.tsx`, `ReleaseDetailScreen.tsx` — same (depends on
       T017, T015)
-- [ ] T024 [P] [US2] `app/shell/FeedbackScreen.tsx` — same (depends on T017, T016)
+- [X] T024 [P] [US2] `app/shell/FeedbackScreen.tsx` — same (depends on T017, T016)
 - [ ] T025 [US2] Run T009-T010's tests, confirm all pass (depends on T011-T024)
 
 **Checkpoint**: Switching projects correctly re-scopes every dashboard screen.
@@ -170,7 +170,7 @@ a second project to meaningfully switch to).
 
 ### Implementation for User Story 3
 
-- [ ] T026 [US3] Add the project-creation form to `app/shell/SettingsScreen.tsx` (name input,
+- [X] T026 [US3] Add the project-creation form to `app/shell/SettingsScreen.tsx` (name input,
       submit, shows the returned `dsn` inline on success) — the natural home alongside the existing
       source-map-upload/GitHub-connect/log-export/API-token sections (plan.md) (depends on T006)
 - [ ] T027 [US3] Manually verify (per quickstart.md's User Story 3 step) the DSN renders inline with
