@@ -10,16 +10,18 @@ interface Incident {
 }
 
 export interface AlertsScreenProps {
+  projectId: string | null;
   onSelectCheck: (id: string) => void;
 }
 
-export function AlertsScreen({ onSelectCheck }: AlertsScreenProps) {
+export function AlertsScreen({ projectId, onSelectCheck }: AlertsScreenProps) {
   const [loading, setLoading] = useState(true);
   const [incidents, setIncidents] = useState<Incident[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/internal/incidents", { credentials: "same-origin" })
+    const params = projectId ? `?project=${projectId}` : "";
+    fetch(`/api/internal/incidents${params}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<{ incidents: Incident[] }> : null))
       .then((data) => {
         if (!cancelled) setIncidents(data?.incidents ?? []);
@@ -33,7 +35,7 @@ export function AlertsScreen({ onSelectCheck }: AlertsScreenProps) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [projectId]);
 
   return (
     <div>

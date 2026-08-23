@@ -7,6 +7,7 @@ import { generateRawToken, hashToken } from "../../auth/api-token.ts";
 import { resolveOrCreateRelease } from "../ingest/release-lookup.ts";
 import { computeCrashFreeRate } from "../ingest/release-health.ts";
 import { commitsToRows, isProjectAuthorized } from "./request-shape.ts";
+import { resolveRequestedProject } from "../projects/resolve.ts";
 
 interface Env {
   DB: D1Database;
@@ -370,12 +371,14 @@ interface ReleaseRow2 {
 }
 
 releasesInternalRoutes.get("/", async (c) => {
-  const projectId = "demo"; // Module 1-4's established single-seeded-project caveat
+  const project = await resolveRequestedProject(c.env.DB, c.req.query("project") ?? null);
+  if (!project) return c.json({ releases: [] });
+
   const { results } = await c.env.DB
     .prepare(
       `SELECT id, version, date_released FROM releases WHERE project_id = ?1 ORDER BY created_at DESC`,
     )
-    .bind(projectId)
+    .bind(project.id)
     .all<ReleaseRow2>();
 
   const releases = await Promise.all(
@@ -416,9 +419,12 @@ interface RegressedIssueRow {
 
 releasesInternalRoutes.get("/:id", async (c) => {
   const id = c.req.param("id");
+  const project = await resolveRequestedProject(c.env.DB, c.req.query("project") ?? null);
+  if (!project) return c.text("Not Found", 404);
+
   const release = await c.env.DB
-    .prepare(`SELECT id, version, date_released FROM releases WHERE id = ?1`)
-    .bind(id)
+    .prepare(`SELECT id, version, date_released FROM releases WHERE id = ?1 AND project_id = ?2`)
+    .bind(id, project.id)
     .first<ReleaseRow2>();
   if (!release) return c.text("Not Found", 404);
 

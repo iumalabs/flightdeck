@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { sessionAuth } from "../../auth/session.ts";
 import type { SessionIdentity } from "../../auth/session.ts";
 import { runCheck } from "./evaluate.ts";
+import { resolveRequestedProject } from "../projects/resolve.ts";
 
 interface Env {
   DB: D1Database;
@@ -16,9 +17,6 @@ uptimeRoutes.use("*", sessionAuth);
 // research.md §4 — real abuse-prevention bounds, not user-facing configuration.
 const MIN_INTERVAL_SECONDS = 60;
 const MAX_CHECKS_PER_PROJECT = 20;
-
-// Module 1-5's established single-seeded-project caveat (worker/modules/releases/routes.ts).
-const PROJECT_ID = "demo";
 
 interface CheckRow {
   id: string;
@@ -53,11 +51,14 @@ async function computeUptimePercent(db: D1Database, checkId: string): Promise<nu
 }
 
 uptimeRoutes.get("/checks", async (c) => {
+  const project = await resolveRequestedProject(c.env.DB, c.req.query("project") ?? null);
+  if (!project) return c.json({ checks: [] });
+
   const { results } = await c.env.DB
     .prepare(
       `SELECT id, name, type, target, status FROM checks WHERE project_id = ?1 ORDER BY created_at DESC`,
     )
-    .bind(PROJECT_ID)
+    .bind(project.id)
     .all<Pick<CheckRow, "id" | "name" | "type" | "target" | "status">>();
 
   const checks = await Promise.all(
@@ -98,9 +99,12 @@ uptimeRoutes.post("/checks", async (c) => {
     return c.text("Bad Request", 400);
   }
 
+  const project = await resolveRequestedProject(c.env.DB, c.req.query("project") ?? null);
+  if (!project) return c.text("Not Found", 404);
+
   const { count } = await c.env.DB
     .prepare(`SELECT COUNT(*) as count FROM checks WHERE project_id = ?1`)
-    .bind(PROJECT_ID)
+    .bind(project.id)
     .first<{ count: number }>() ?? { count: 0 };
   if (count >= MAX_CHECKS_PER_PROJECT) {
     return c.text("Forbidden", 403);
@@ -117,7 +121,7 @@ uptimeRoutes.post("/checks", async (c) => {
     )
     .bind(
       id,
-      PROJECT_ID,
+      project.id,
       body.name,
       body.type,
       body.target,
@@ -171,12 +175,15 @@ const RECENT_RUNS_LIMIT = 50;
 
 uptimeRoutes.get("/checks/:id", async (c) => {
   const id = c.req.param("id");
+  const project = await resolveRequestedProject(c.env.DB, c.req.query("project") ?? null);
+  if (!project) return c.text("Not Found", 404);
+
   const check = await c.env.DB
     .prepare(
       `SELECT id, name, type, target, interval_seconds, failure_threshold, recovery_threshold, webhook_url, status
        FROM checks WHERE id = ?1 AND project_id = ?2`,
     )
-    .bind(id, PROJECT_ID)
+    .bind(id, project.id)
     .first<CheckRow>();
   if (!check) return c.text("Not Found", 404);
 
@@ -238,12 +245,15 @@ uptimeRoutes.patch("/checks/:id", async (c) => {
     return c.text("Bad Request", 400);
   }
 
+  const project = await resolveRequestedProject(c.env.DB, c.req.query("project") ?? null);
+  if (!project) return c.text("Not Found", 404);
+
   const existing = await c.env.DB
     .prepare(
       `SELECT name, target, interval_seconds, failure_threshold, recovery_threshold, webhook_url
        FROM checks WHERE id = ?1 AND project_id = ?2`,
     )
-    .bind(id, PROJECT_ID)
+    .bind(id, project.id)
     .first<
       {
         name: string;
@@ -328,9 +338,12 @@ uptimeRoutes.patch("/checks/:id", async (c) => {
 // open->resolved status flip, is required.
 uptimeRoutes.delete("/checks/:id", async (c) => {
   const id = c.req.param("id");
+  const project = await resolveRequestedProject(c.env.DB, c.req.query("project") ?? null);
+  if (!project) return c.text("Not Found", 404);
+
   const existing = await c.env.DB
     .prepare(`SELECT id FROM checks WHERE id = ?1 AND project_id = ?2`)
-    .bind(id, PROJECT_ID)
+    .bind(id, project.id)
     .first();
   if (!existing) return c.text("Not Found", 404);
 
@@ -367,13 +380,16 @@ interface IncidentListRow {
 }
 
 uptimeRoutes.get("/incidents", async (c) => {
+  const project = await resolveRequestedProject(c.env.DB, c.req.query("project") ?? null);
+  if (!project) return c.json({ incidents: [] });
+
   const { results } = await c.env.DB
     .prepare(
       `SELECT i.id, i.check_id, c.name as check_name, i.opened_at, i.resolved_at
        FROM incidents i JOIN checks c ON c.id = i.check_id
        WHERE c.project_id = ?1 ORDER BY i.opened_at DESC`,
     )
-    .bind(PROJECT_ID)
+    .bind(project.id)
     .all<IncidentListRow>();
 
   return c.json({

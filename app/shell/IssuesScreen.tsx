@@ -18,16 +18,18 @@ const LEVEL_COLOR: Record<string, string> = {
 };
 
 export interface IssuesScreenProps {
+  projectId: string | null;
   onSelectIssue: (id: string) => void;
 }
 
-export function IssuesScreen({ onSelectIssue }: IssuesScreenProps) {
+export function IssuesScreen({ projectId, onSelectIssue }: IssuesScreenProps) {
   const [loading, setLoading] = useState(true);
   const [issues, setIssues] = useState<Issue[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/internal/issues", { credentials: "same-origin" })
+    const params = projectId ? `?project=${projectId}` : "";
+    fetch(`/api/internal/issues${params}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<{ issues: Issue[] }> : null))
       .then((data) => {
         if (!cancelled) setIssues(data?.issues ?? []);
@@ -41,7 +43,7 @@ export function IssuesScreen({ onSelectIssue }: IssuesScreenProps) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [projectId]);
 
   return (
     <div>

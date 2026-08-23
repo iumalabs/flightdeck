@@ -61,19 +61,23 @@ interface IssueDetail {
 
 export interface IssueDetailScreenProps {
   issueId: string;
+  projectId: string | null;
   onBack: () => void;
   onViewTrace: (traceId: string) => void;
 }
 
 type ResolveStatus = { kind: "idle" } | { kind: "resolving" } | { kind: "error" };
 
-export function IssueDetailScreen({ issueId, onBack, onViewTrace }: IssueDetailScreenProps) {
+export function IssueDetailScreen(
+  { issueId, projectId, onBack, onViewTrace }: IssueDetailScreenProps,
+) {
   const [loading, setLoading] = useState(true);
   const [issue, setIssue] = useState<IssueDetail | null>(null);
   const [resolveStatus, setResolveStatus] = useState<ResolveStatus>({ kind: "idle" });
 
   const refetch = () => {
-    fetch(`/api/internal/issues/${issueId}`, { credentials: "same-origin" })
+    const params = projectId ? `?project=${projectId}` : "";
+    fetch(`/api/internal/issues/${issueId}${params}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<IssueDetail> : null))
       .then((data) => setIssue(data))
       .catch(() => {});
@@ -98,7 +102,8 @@ export function IssueDetailScreen({ issueId, onBack, onViewTrace }: IssueDetailS
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetch(`/api/internal/issues/${issueId}`, { credentials: "same-origin" })
+    const params = projectId ? `?project=${projectId}` : "";
+    fetch(`/api/internal/issues/${issueId}${params}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<IssueDetail> : null))
       .then((data) => {
         if (!cancelled) setIssue(data);
@@ -112,7 +117,7 @@ export function IssueDetailScreen({ issueId, onBack, onViewTrace }: IssueDetailS
     return () => {
       cancelled = true;
     };
-  }, [issueId]);
+  }, [issueId, projectId]);
 
   if (loading) return null;
 

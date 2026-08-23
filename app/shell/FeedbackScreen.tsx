@@ -27,14 +27,17 @@ const SOURCE_LABEL: Record<string, string> = {
   crash_report_dialog: "Crash dialog",
 };
 
-function FeedbackDetailView({ id, onBack }: { id: string; onBack: () => void }) {
+function FeedbackDetailView(
+  { id, projectId, onBack }: { id: string; projectId: string | null; onBack: () => void },
+) {
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<FeedbackDetail | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetch(`/api/internal/feedback/${id}`, { credentials: "same-origin" })
+    const params = projectId ? `?project=${projectId}` : "";
+    fetch(`/api/internal/feedback/${id}${params}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<FeedbackDetail> : null))
       .then((data) => {
         if (!cancelled) setFeedback(data);
@@ -48,7 +51,7 @@ function FeedbackDetailView({ id, onBack }: { id: string; onBack: () => void }) 
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, projectId]);
 
   if (loading) return null;
 
@@ -96,14 +99,19 @@ function FeedbackDetailView({ id, onBack }: { id: string; onBack: () => void }) 
   );
 }
 
-export function FeedbackScreen() {
+export interface FeedbackScreenProps {
+  projectId: string | null;
+}
+
+export function FeedbackScreen({ projectId }: FeedbackScreenProps) {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<FeedbackListItem[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/internal/feedback", { credentials: "same-origin" })
+    const params = projectId ? `?project=${projectId}` : "";
+    fetch(`/api/internal/feedback${params}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<{ feedback: FeedbackListItem[] }> : null))
       .then((data) => {
         if (!cancelled) setItems(data?.feedback ?? []);
@@ -117,10 +125,16 @@ export function FeedbackScreen() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [projectId]);
 
   if (selectedId) {
-    return <FeedbackDetailView id={selectedId} onBack={() => setSelectedId(null)} />;
+    return (
+      <FeedbackDetailView
+        id={selectedId}
+        projectId={projectId}
+        onBack={() => setSelectedId(null)}
+      />
+    );
   }
 
   return (

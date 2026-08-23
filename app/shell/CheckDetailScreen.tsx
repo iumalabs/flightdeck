@@ -40,6 +40,7 @@ interface TriggerResult {
 
 export interface CheckDetailScreenProps {
   checkId: string;
+  projectId: string | null;
   onBack: () => void;
 }
 
@@ -47,7 +48,7 @@ function formatPercent(value: number | null): string {
   return value === null ? "—" : `${value.toFixed(1)}%`;
 }
 
-export function CheckDetailScreen({ checkId, onBack }: CheckDetailScreenProps) {
+export function CheckDetailScreen({ checkId, projectId, onBack }: CheckDetailScreenProps) {
   const [loading, setLoading] = useState(true);
   const [check, setCheck] = useState<CheckDetail | null>(null);
   const [webhookUrl, setWebhookUrl] = useState("");
@@ -56,7 +57,8 @@ export function CheckDetailScreen({ checkId, onBack }: CheckDetailScreenProps) {
 
   const load = () => {
     setLoading(true);
-    fetch(`/api/internal/checks/${checkId}`, { credentials: "same-origin" })
+    const params = projectId ? `?project=${projectId}` : "";
+    fetch(`/api/internal/checks/${checkId}${params}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<CheckDetail> : null))
       .then((data) => {
         setCheck(data);
@@ -66,7 +68,7 @@ export function CheckDetailScreen({ checkId, onBack }: CheckDetailScreenProps) {
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, [checkId]);
+  useEffect(load, [checkId, projectId]);
 
   const triggerNow = async () => {
     setTriggering(true);
@@ -86,7 +88,8 @@ export function CheckDetailScreen({ checkId, onBack }: CheckDetailScreenProps) {
   };
 
   const saveWebhook = async () => {
-    await fetch(`/api/internal/checks/${checkId}`, {
+    const params = projectId ? `?project=${projectId}` : "";
+    await fetch(`/api/internal/checks/${checkId}${params}`, {
       method: "PATCH",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },

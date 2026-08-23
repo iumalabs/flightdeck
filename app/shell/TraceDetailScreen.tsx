@@ -29,6 +29,7 @@ interface TransactionDetail {
 
 export interface TraceDetailScreenProps {
   transactionId: string;
+  projectId: string | null;
   onBack: () => void;
   onSelectIssue: (id: string) => void;
 }
@@ -40,7 +41,7 @@ const LEVEL_COLOR: Record<string, string> = {
 };
 
 export function TraceDetailScreen(
-  { transactionId, onBack, onSelectIssue }: TraceDetailScreenProps,
+  { transactionId, projectId, onBack, onSelectIssue }: TraceDetailScreenProps,
 ) {
   const [loading, setLoading] = useState(true);
   const [transaction, setTransaction] = useState<TransactionDetail | null>(null);
@@ -48,7 +49,8 @@ export function TraceDetailScreen(
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetch(`/api/internal/traces/${transactionId}`, { credentials: "same-origin" })
+    const params = projectId ? `?project=${projectId}` : "";
+    fetch(`/api/internal/traces/${transactionId}${params}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<TransactionDetail> : null))
       .then((data) => {
         if (!cancelled) setTransaction(data);
@@ -62,7 +64,7 @@ export function TraceDetailScreen(
     return () => {
       cancelled = true;
     };
-  }, [transactionId]);
+  }, [transactionId, projectId]);
 
   if (loading) return null;
 

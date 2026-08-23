@@ -39,12 +39,13 @@ function formatPercent(value: number | null): string {
 
 export interface ReleaseDetailScreenProps {
   releaseId: string;
+  projectId: string | null;
   onBack: () => void;
   onSelectIssue: (id: string) => void;
 }
 
 export function ReleaseDetailScreen(
-  { releaseId, onBack, onSelectIssue }: ReleaseDetailScreenProps,
+  { releaseId, projectId, onBack, onSelectIssue }: ReleaseDetailScreenProps,
 ) {
   const [loading, setLoading] = useState(true);
   const [release, setRelease] = useState<ReleaseDetail | null>(null);
@@ -52,7 +53,8 @@ export function ReleaseDetailScreen(
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetch(`/api/internal/releases/${releaseId}`, { credentials: "same-origin" })
+    const params = projectId ? `?project=${projectId}` : "";
+    fetch(`/api/internal/releases/${releaseId}${params}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<ReleaseDetail> : null))
       .then((data) => {
         if (!cancelled) setRelease(data);
@@ -66,7 +68,7 @@ export function ReleaseDetailScreen(
     return () => {
       cancelled = true;
     };
-  }, [releaseId]);
+  }, [releaseId, projectId]);
 
   if (loading) return null;
 
