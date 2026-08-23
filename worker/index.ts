@@ -77,20 +77,26 @@ app.route("/", loginRoute);
 
 // Every other control-plane route is gated by sessionAuth (mounted inside identityRoutes) instead
 // of Access directly, since Access doesn't inject its header outside /login.
-app.route("/api/internal", identityRoutes);
-app.route("/api/internal/issues", issuesRoutes);
-app.route("/api/internal/projects", projectsRoutes);
-app.route("/api/internal/projects", githubRoutes);
-app.route("/api/internal/projects", logExportRoutes);
-app.route("/api/internal/traces", tracesRoutes);
-app.route("/api/internal/logs", logsRoutes);
-app.route("/api/internal/releases", releasesInternalRoutes);
-app.route("/api/internal/projects", apiTokensRoutes);
-app.route("/api/internal", uptimeRoutes);
-app.route("/api/internal/feedback", feedbackRoutes);
+//
+// issues/36 — versioned so FlightDeck's own control-plane API (consumed only by its own SPA) can
+// evolve later without breaking every existing fetch() call on every change. Deliberately does NOT
+// extend to the two protocol-mandated surfaces below: the ingest envelope path is dictated by the
+// Sentry protocol itself (constitution Principle IV), and /api/0/ is sentry-cli's own real,
+// hardcoded path — neither is FlightDeck's to renumber.
+app.route("/api/internal/v1", identityRoutes);
+app.route("/api/internal/v1/issues", issuesRoutes);
+app.route("/api/internal/v1/projects", projectsRoutes);
+app.route("/api/internal/v1/projects", githubRoutes);
+app.route("/api/internal/v1/projects", logExportRoutes);
+app.route("/api/internal/v1/traces", tracesRoutes);
+app.route("/api/internal/v1/logs", logsRoutes);
+app.route("/api/internal/v1/releases", releasesInternalRoutes);
+app.route("/api/internal/v1/projects", apiTokensRoutes);
+app.route("/api/internal/v1", uptimeRoutes);
+app.route("/api/internal/v1/feedback", feedbackRoutes);
 
 // Public, DSN-key-authenticated ingest (constitution Principle III) — deliberately NOT behind
-// sessionAuth or Access. Registered as a sibling to /api/internal, not nested inside it; Hono
+// sessionAuth or Access. Registered as a sibling to /api/internal/v1, not nested inside it; Hono
 // resolves the literal "internal" path segment ahead of the dynamic :projectId segment at the same
 // position, and the ingest handler itself defensively rejects project_id "internal" regardless
 // (research.md §3, specs/002-error-monitoring). Mounted at "/api" (not "/api/:projectId") so the

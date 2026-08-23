@@ -22,7 +22,7 @@ export function TracesScreen({ projectId, onSelectTransaction }: TracesScreenPro
   useEffect(() => {
     let cancelled = false;
     const params = projectId ? `?project=${projectId}` : "";
-    fetch(`/api/internal/traces${params}`, { credentials: "same-origin" })
+    fetch(`/api/internal/v1/traces${params}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<{ operations: Operation[] }> : null))
       .then((data) => {
         if (!cancelled) setOperations(data?.operations ?? []);

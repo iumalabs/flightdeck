@@ -29,7 +29,7 @@ export function IssuesScreen({ projectId, onSelectIssue }: IssuesScreenProps) {
   useEffect(() => {
     let cancelled = false;
     const params = projectId ? `?project=${projectId}` : "";
-    fetch(`/api/internal/issues${params}`, { credentials: "same-origin" })
+    fetch(`/api/internal/v1/issues${params}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<{ issues: Issue[] }> : null))
       .then((data) => {
         if (!cancelled) setIssues(data?.issues ?? []);

@@ -27,7 +27,7 @@ export function ReleasesScreen({ projectId, onSelectRelease }: ReleasesScreenPro
   useEffect(() => {
     let cancelled = false;
     const params = projectId ? `?project=${projectId}` : "";
-    fetch(`/api/internal/releases${params}`, { credentials: "same-origin" })
+    fetch(`/api/internal/v1/releases${params}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<{ releases: Release[] }> : null))
       .then((data) => {
         if (!cancelled) setReleases(data?.releases ?? []);

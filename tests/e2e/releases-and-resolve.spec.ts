@@ -41,7 +41,7 @@ test("releases list -> detail shows health figures; issue resolve/regression flo
   const page = await context.newPage();
 
   // Seed via the API-token surface (mirrors a real sentry-cli flow).
-  const tokenRes = await request.post("/api/internal/projects/demo/api-tokens", {
+  const tokenRes = await request.post("/api/internal/v1/projects/demo/api-tokens", {
     headers: { Cookie: `fd_session=${token}` },
   });
   const { token: apiToken } = await tokenRes.json() as { id: string; token: string };

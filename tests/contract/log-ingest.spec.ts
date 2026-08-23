@@ -31,7 +31,7 @@ async function pollForLine(
   attempts = 12,
 ): Promise<boolean> {
   for (let i = 0; i < attempts; i++) {
-    const res = await request.get(`/api/internal/logs/search?q=${encodeURIComponent(q)}`, {
+    const res = await request.get(`/api/internal/v1/logs/search?q=${encodeURIComponent(q)}`, {
       headers: { Cookie: cookie },
     });
     if (res.ok()) {
@@ -76,7 +76,7 @@ test("a log envelope item is enqueued and its content becomes searchable", async
 
 test("a hyphenated search query does not 500 (FTS5 quoting regression)", async ({ request }) => {
   const cookie = await sessionCookieHeader();
-  const res = await request.get(`/api/internal/logs/search?q=zzz-nonexistent-zzz`, {
+  const res = await request.get(`/api/internal/v1/logs/search?q=zzz-nonexistent-zzz`, {
     headers: { Cookie: cookie },
   });
   expect(res.status()).toBe(200);
@@ -120,7 +120,7 @@ test("submitting a batch of 3 log lines records all 3, not just the first", asyn
   expect(found).toBe(true);
   // Give the write a moment to have landed fully, then confirm all 3 lines are present.
   const res = await request.get(
-    `/api/internal/logs/search?q=${encodeURIComponent(`batch-${marker}`)}`,
+    `/api/internal/v1/logs/search?q=${encodeURIComponent(`batch-${marker}`)}`,
     {
       headers: { Cookie: cookie },
     },

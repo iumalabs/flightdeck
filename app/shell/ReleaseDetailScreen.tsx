@@ -54,7 +54,7 @@ export function ReleaseDetailScreen(
     let cancelled = false;
     setLoading(true);
     const params = projectId ? `?project=${projectId}` : "";
-    fetch(`/api/internal/releases/${releaseId}${params}`, { credentials: "same-origin" })
+    fetch(`/api/internal/v1/releases/${releaseId}${params}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<ReleaseDetail> : null))
       .then((data) => {
         if (!cancelled) setRelease(data);

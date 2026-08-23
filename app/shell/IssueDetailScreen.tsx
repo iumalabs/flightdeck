@@ -77,7 +77,7 @@ export function IssueDetailScreen(
 
   const refetch = () => {
     const params = projectId ? `?project=${projectId}` : "";
-    fetch(`/api/internal/issues/${issueId}${params}`, { credentials: "same-origin" })
+    fetch(`/api/internal/v1/issues/${issueId}${params}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<IssueDetail> : null))
       .then((data) => setIssue(data))
       .catch(() => {});
@@ -85,7 +85,7 @@ export function IssueDetailScreen(
 
   const resolve = (mode: "exact" | "next-release") => {
     setResolveStatus({ kind: "resolving" });
-    fetch(`/api/internal/issues/${issueId}/resolve`, {
+    fetch(`/api/internal/v1/issues/${issueId}/resolve`, {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
@@ -103,7 +103,7 @@ export function IssueDetailScreen(
     let cancelled = false;
     setLoading(true);
     const params = projectId ? `?project=${projectId}` : "";
-    fetch(`/api/internal/issues/${issueId}${params}`, { credentials: "same-origin" })
+    fetch(`/api/internal/v1/issues/${issueId}${params}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<IssueDetail> : null))
       .then((data) => {
         if (!cancelled) setIssue(data);

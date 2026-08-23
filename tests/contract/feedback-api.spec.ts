@@ -66,7 +66,7 @@ test("a feedback envelope item with a valid DSN is recorded and appears in the f
   );
   expect(ingest.status()).toBe(200);
 
-  const list = await request.get("/api/internal/feedback", {
+  const list = await request.get("/api/internal/v1/feedback", {
     headers: { Cookie: await sessionCookie() },
   });
   const { feedback } = await list.json() as {
@@ -88,7 +88,7 @@ test("a feedback envelope item with an unknown DSN key is rejected, nothing reco
   );
   expect(response.status()).toBe(403);
 
-  const list = await request.get("/api/internal/feedback", {
+  const list = await request.get("/api/internal/v1/feedback", {
     headers: { Cookie: await sessionCookie() },
   });
   const { feedback } = await list.json() as { feedback: { message: string }[] };
@@ -117,7 +117,7 @@ test("a repeated feedback submission (same item event_id) is not recorded twice"
   await request.post(url, { data: body });
   await request.post(url, { data: body });
 
-  const list = await request.get("/api/internal/feedback", {
+  const list = await request.get("/api/internal/v1/feedback", {
     headers: { Cookie: await sessionCookie() },
   });
   const { feedback } = await list.json() as { feedback: { message: string }[] };
@@ -193,7 +193,7 @@ test("dialog POST records feedback linked to the referenced event's issue; a rep
   });
   expect(second.status()).toBe(200);
 
-  const list = await request.get("/api/internal/feedback", {
+  const list = await request.get("/api/internal/v1/feedback", {
     headers: { Cookie: await sessionCookie() },
   });
   const { feedback } = await list.json() as {

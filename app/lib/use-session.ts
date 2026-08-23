@@ -21,7 +21,7 @@ export function useSession(): UseSessionResult {
   useEffect(() => {
     let cancelled = false;
 
-    fetch("/api/internal/me", { credentials: "same-origin" })
+    fetch("/api/internal/v1/me", { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<Session> : null))
       .then((data) => {
         if (!cancelled) setSession(data);

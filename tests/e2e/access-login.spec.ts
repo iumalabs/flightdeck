@@ -35,8 +35,8 @@ test("a real browser navigation to /login reaches the Worker, not the SPA fallba
   await expect(page.getByRole("heading", { name: /Every instrument\./ })).toHaveCount(0);
 });
 
-test("GET /api/internal/me without a session is rejected, fail closed", async ({ request }) => {
-  const response = await request.get("/api/internal/me");
+test("GET /api/internal/v1/me without a session is rejected, fail closed", async ({ request }) => {
+  const response = await request.get("/api/internal/v1/me");
   expect(response.status()).toBe(403);
 });
 

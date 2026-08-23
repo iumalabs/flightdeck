@@ -31,7 +31,7 @@ function writeStored(id: string): void {
 
 // specs/008-multi-project-support research.md §4 — sessionStorage, not localStorage, matching
 // spec FR-007's "survives navigation within a session, no requirement to survive browser
-// restart." `projects` is `null` while `GET /api/internal/projects` is still loading; once
+// restart." `projects` is `null` while `GET /api/internal/v1/projects` is still loading; once
 // loaded, a stored id that no longer resolves (deleted, or from a stale session) falls back to
 // the first project, mirroring the server's own resolveRequestedProject() fallback.
 export function useSelectedProject(projects: Project[] | null): UseSelectedProjectResult {

@@ -24,7 +24,7 @@ function SourceMapUpload({ project }: { project: Project | null }) {
     form.set("minifiedPathPattern", pathPattern);
     form.set("file", file);
 
-    const res = await fetch(`/api/internal/projects/${project.id}/source-maps`, {
+    const res = await fetch(`/api/internal/v1/projects/${project.id}/source-maps`, {
       method: "POST",
       credentials: "same-origin",
       body: form,
@@ -94,7 +94,7 @@ type CreateProjectStatus = { kind: "idle" } | { kind: "created"; dsn: string } |
   message: string;
 };
 
-// contracts/projects-internal-api.md's POST /api/internal/projects (specs/008-multi-project-
+// contracts/projects-internal-api.md's POST /api/internal/v1/projects (specs/008-multi-project-
 // support) — the natural home alongside this screen's other per-project admin sections. Shows the
 // returned `dsn` inline on success (spec User Story 3), no separate navigation.
 function CreateProjectForm({ onCreated }: { onCreated: (project: Project) => void }) {
@@ -105,7 +105,7 @@ function CreateProjectForm({ onCreated }: { onCreated: (project: Project) => voi
     e.preventDefault();
     if (!name.trim()) return;
 
-    const res = await fetch("/api/internal/projects", {
+    const res = await fetch("/api/internal/v1/projects", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
@@ -181,7 +181,7 @@ function GitHubConnect({ project }: { project: Project | null }) {
     e.preventDefault();
     if (!project) return;
 
-    const res = await fetch(`/api/internal/projects/${project.id}/github/connect`, {
+    const res = await fetch(`/api/internal/v1/projects/${project.id}/github/connect`, {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
@@ -192,7 +192,7 @@ function GitHubConnect({ project }: { project: Project | null }) {
 
   const disconnect = async () => {
     if (!project) return;
-    const res = await fetch(`/api/internal/projects/${project.id}/github`, {
+    const res = await fetch(`/api/internal/v1/projects/${project.id}/github`, {
       method: "DELETE",
       credentials: "same-origin",
     });
@@ -277,7 +277,7 @@ function LogExport({ project }: { project: Project | null }) {
 
   const provision = async () => {
     if (!project) return;
-    const res = await fetch(`/api/internal/projects/${project.id}/log-export/credential`, {
+    const res = await fetch(`/api/internal/v1/projects/${project.id}/log-export/credential`, {
       method: "POST",
       credentials: "same-origin",
     });
@@ -290,7 +290,7 @@ function LogExport({ project }: { project: Project | null }) {
 
   const revoke = async () => {
     if (!project) return;
-    const res = await fetch(`/api/internal/projects/${project.id}/log-export/credential`, {
+    const res = await fetch(`/api/internal/v1/projects/${project.id}/log-export/credential`, {
       method: "DELETE",
       credentials: "same-origin",
     });
@@ -361,7 +361,7 @@ function ApiTokenSection({ project }: { project: Project | null }) {
 
   const generate = async () => {
     if (!project) return;
-    const res = await fetch(`/api/internal/projects/${project.id}/api-tokens`, {
+    const res = await fetch(`/api/internal/v1/projects/${project.id}/api-tokens`, {
       method: "POST",
       credentials: "same-origin",
     });
@@ -376,7 +376,7 @@ function ApiTokenSection({ project }: { project: Project | null }) {
 
   const revoke = async () => {
     if (!project || !tokenId) return;
-    const res = await fetch(`/api/internal/projects/${project.id}/api-tokens/${tokenId}`, {
+    const res = await fetch(`/api/internal/v1/projects/${project.id}/api-tokens/${tokenId}`, {
       method: "DELETE",
       credentials: "same-origin",
     });
