@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.5.0](https://github.com/iumalabs/flightdeck/compare/v0.4.0...v0.5.0) (2026-08-23)
+
+
+### Features
+
+* **feedback:** add dashboard routes, Feedback list/detail, and issue cross-linking ([ec31314](https://github.com/iumalabs/flightdeck/commit/ec313148cdba85b3723e06f96f88942845b08d59))
+* **feedback:** add feedback schema, envelope widget path, and crash-report dialog ([d1c84f1](https://github.com/iumalabs/flightdeck/commit/d1c84f1aeb2a69f1101dd61b939388d5cdb94e76))
+* **logs:** add Logs screen (live tail + search) and export UI ([0012ba1](https://github.com/iumalabs/flightdeck/commit/0012ba1685e5c735e3fa9e9ba8babd3daee67855))
+* **logs:** add Queue/DO/R2 bindings and log_batches schema ([b72b76c](https://github.com/iumalabs/flightdeck/commit/b72b76c09e2e528b0a0b392bb61320cdfb6f8e0d))
+* **logs:** add search, live-tail upgrade, and S3 export endpoints ([3cfea7a](https://github.com/iumalabs/flightdeck/commit/3cfea7a8f23f3e96f9cf30642d0149668279bffd))
+* **logs:** ingest structured logs via Queue and stream them live ([5eb1970](https://github.com/iumalabs/flightdeck/commit/5eb19706dfe659e1c2103cd1b86de3438f6cd454))
+* **releases:** add API token auth and releases schema ([85aed2a](https://github.com/iumalabs/flightdeck/commit/85aed2a4b20bad34801afde581166df5743f2e27))
+* **releases:** add Releases screens and issue-resolve UI ([61c8ba7](https://github.com/iumalabs/flightdeck/commit/61c8ba7cdc5d74810369b2acb7ce81a0563eac64))
+* **releases:** add sentry-cli-compatible and dashboard release APIs ([980e9ba](https://github.com/iumalabs/flightdeck/commit/980e9ba2866e590bf01554a2ba397253fc71a2e0))
+* **releases:** ingest session data and detect regressions ([81f1118](https://github.com/iumalabs/flightdeck/commit/81f11189a1652c106de2b5bc914bdc20896a6481))
+* **uptime:** add check CRUD, manual trigger, and incidents API ([eb6f8c4](https://github.com/iumalabs/flightdeck/commit/eb6f8c4834f81028ff191d1f2bad0ac40b53e65f))
+* **uptime:** add checks schema, cron scheduling, and shared runCheck evaluation ([6629ba9](https://github.com/iumalabs/flightdeck/commit/6629ba9261c230c8eab2d85cdf4cb3991dd0e59e))
+* **uptime:** add Uptime, CheckDetail, and Alerts screens ([c7db159](https://github.com/iumalabs/flightdeck/commit/c7db1594b2b1023691b3aa3e84b5a0b530a0a185))
+
 ## [0.4.0](https://github.com/iumalabs/flightdeck/compare/v0.3.0...v0.4.0) (2026-08-22)
 
 
