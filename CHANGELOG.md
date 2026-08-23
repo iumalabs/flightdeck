@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.1](https://github.com/iumalabs/flightdeck/compare/v0.9.0...v0.9.1) (2026-08-23)
+
+
+### Bug Fixes
+
+* **ingest:** accept trailing-slash envelope path ([97a080f](https://github.com/iumalabs/flightdeck/commit/97a080f48c81c47c9739c01e98965226963d8234))
+* **ingest:** accept trailing-slash envelope path ([f008de5](https://github.com/iumalabs/flightdeck/commit/f008de528c893aa54e2c5eeadce3d5496ce678b3))
+
 ## [0.9.0](https://github.com/iumalabs/flightdeck/compare/v0.8.0...v0.9.0) (2026-08-23)
 
 
