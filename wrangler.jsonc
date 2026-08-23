@@ -81,7 +81,12 @@
         "CF_ACCOUNT_ID": "8b655d0dde6d223b9ce11116a014973a",
         // The GitHub App's identifier is not a secret (research.md §10, specs/002-error-monitoring)
         // — only its private key is.
-        "GITHUB_APP_ID": "4675571"
+        "GITHUB_APP_ID": "4675571",
+        // Surfaced (with APP_VERSION) at GET /api/version — lets anyone confirm which environment's
+        // bindings a given deployment is actually running with, from the outside, no Cloudflare
+        // dashboard/API access needed. Added after a real incident where the live script was
+        // silently serving preview's bindings under the production domain (issues/32).
+        "DEPLOY_ENV": "production"
       },
       "secrets": {
         // Declared here for validation/type-generation only (constitution Principle IX) — the
@@ -179,7 +184,8 @@
         "TEAM_DOMAIN": "https://yugai.cloudflareaccess.com",
         "POLICY_AUD": "f79f510d9061fcd9fbf467b45ebc5bf03948636828a1639024ff127a5bcbf97d",
         "CF_ACCOUNT_ID": "8b655d0dde6d223b9ce11116a014973a",
-        "GITHUB_APP_ID": "4675571"
+        "GITHUB_APP_ID": "4675571",
+        "DEPLOY_ENV": "preview"
       },
       "secrets": {
         "required": ["SESSION_SECRET", "GITHUB_APP_PRIVATE_KEY", "CLOUDFLARE_R2_ADMIN_TOKEN"]
