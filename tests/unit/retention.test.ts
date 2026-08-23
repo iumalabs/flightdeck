@@ -1,5 +1,7 @@
 import { assertEquals } from "@std/assert";
 import {
+  CHECK_RUN_RETENTION_DAYS,
+  pruneOldCheckRuns,
   pruneOldEvents,
   pruneOldTransactions,
   RETENTION_DAYS,
@@ -69,4 +71,25 @@ Deno.test("pruneOldTransactions returns the number of rows deleted", async () =>
   const db = new FakeD1(4) as unknown as D1Database;
   const deleted = await pruneOldTransactions(db);
   assertEquals(deleted, 4);
+});
+
+// specs/006-uptime-monitoring research.md §5: check_runs gets its own bounded window, `checks`/
+// `incidents` are NOT pruned (data-model.md) — this function touches check_runs only.
+Deno.test("pruneOldCheckRuns deletes from the check_runs table only, never checks or incidents", async () => {
+  const db = new FakeD1(0);
+  await pruneOldCheckRuns(db as unknown as D1Database);
+  assertEquals(db.lastSql?.includes("DELETE FROM check_runs"), true);
+  assertEquals(db.lastSql?.toLowerCase().includes("incidents"), false);
+});
+
+Deno.test("pruneOldCheckRuns binds its own 30-day retention window", async () => {
+  const db = new FakeD1(0);
+  await pruneOldCheckRuns(db as unknown as D1Database);
+  assertEquals(db.lastBinding, `-${CHECK_RUN_RETENTION_DAYS} days`);
+});
+
+Deno.test("pruneOldCheckRuns returns the number of rows deleted", async () => {
+  const db = new FakeD1(9) as unknown as D1Database;
+  const deleted = await pruneOldCheckRuns(db);
+  assertEquals(deleted, 9);
 });

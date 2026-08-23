@@ -18,8 +18,8 @@ curl -X POST http://127.0.0.1:8787/api/internal/checks \
 Wait for the local `wrangler dev` process's cron simulation to fire (or trigger manually per User
 Story 3 below, which is the more practical way to validate this locally without waiting for real
 time to pass). Confirm `GET /api/internal/checks/{id}` shows `status: "up"` and a recorded
-`check_runs` entry. Repeat with an unreachable target (`https://127.0.0.1:1`, an unbound local
-port) and confirm `status: "down"`.
+`check_runs` entry. Repeat with an unreachable target (`https://127.0.0.1:1`, an unbound local port)
+and confirm `status: "down"`.
 
 ## Validate User Story 2 — incident-aware alerting
 
@@ -36,9 +36,9 @@ curl -X POST http://127.0.0.1:8787/api/internal/checks/{id}/trigger \
   -H "Cookie: fd_session=<local test session>"
 ```
 
-Confirm the response reflects the real, immediate result of running the check right now, and that
-it correctly updates `consecutive_failures`/`consecutive_successes`/`status` exactly as a scheduled
-run reaching the same state would (contracts/uptime-internal-api.md's `incidentOpened`/
+Confirm the response reflects the real, immediate result of running the check right now, and that it
+correctly updates `consecutive_failures`/`consecutive_successes`/`status` exactly as a scheduled run
+reaching the same state would (contracts/uptime-internal-api.md's `incidentOpened`/
 `incidentResolved` fields make this directly observable).
 
 ## Validate User Story 4 — webhook delivery

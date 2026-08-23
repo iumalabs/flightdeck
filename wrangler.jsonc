@@ -148,8 +148,10 @@
         // Daily retention prune (constitution Principle IX — specs/002-error-monitoring
         // research.md §8, extended by specs/003-distributed-tracing research.md §8 to also prune
         // `transactions`). Exact hour is not significant; picked to run during low-traffic UTC
-        // hours.
-        "crons": ["0 3 * * *"]
+        // hours. The second entry is Module 6's uptime-check scheduler (specs/006-uptime-monitoring
+        // research.md §3) — every minute, the finest granularity cron syntax supports; `scheduled()`
+        // dispatches on `controller.cron` to tell the two apart.
+        "crons": ["0 3 * * *", "* * * * *"]
       }
     },
 
@@ -214,7 +216,10 @@
         ]
       },
       "triggers": {
-        "crons": []
+        // Module 6's uptime-check scheduler only (specs/006-uptime-monitoring research.md §3) —
+        // preview never ran the daily retention cron either; local `wrangler dev` testing normally
+        // uses its own manual scheduled-trigger simulation instead of relying on this array firing.
+        "crons": ["* * * * *"]
       }
     }
   }

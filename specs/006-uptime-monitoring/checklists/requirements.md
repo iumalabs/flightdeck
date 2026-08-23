@@ -1,8 +1,7 @@
 # Specification Quality Checklist: Uptime Monitoring
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
-**Created**: 2026-08-22
-**Feature**: [spec.md](../spec.md)
+**Created**: 2026-08-22 **Feature**: [spec.md](../spec.md)
 
 ## Content Quality
 
@@ -38,8 +37,8 @@
   Check must name it as an explicit, justified deviation, not silently absorb it.
 - Protocol-level detail (this module's lack of Sentry-protocol grounding, the shared
   scheduled/interactive evaluation-function shape required by constitution Principle V, the
-  TCP-check implementation approach) lives in the conversation history / plan.md's Technical
-  Context and research.md, not in spec.md.
+  TCP-check implementation approach) lives in the conversation history / plan.md's Technical Context
+  and research.md, not in spec.md.
 - All items pass on first validation pass; no [NEEDS CLARIFICATION] markers were needed since the
-  scope decisions (single-region reframing, webhook-only alerting, check-type coverage) were
-  already resolved via research and an explicit scoping question before this spec was written.
+  scope decisions (single-region reframing, webhook-only alerting, check-type coverage) were already
+  resolved via research and an explicit scoping question before this spec was written.

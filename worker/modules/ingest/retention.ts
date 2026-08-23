@@ -36,6 +36,20 @@ interface PrunableBatch {
   r2_object_key: string;
 }
 
+// specs/006-uptime-monitoring research.md §5: check_runs is genuinely high-frequency, append-only
+// data (up to ~28,800 rows/day/project at the 60s-floor/20-checks cap), so it gets the same bounded-
+// window treatment as Modules 3-4's data, even though it isn't customer-submitted telemetry.
+// `checks`/`incidents` are NOT pruned here — low-volume summary/configuration data (data-model.md).
+export const CHECK_RUN_RETENTION_DAYS = 30;
+
+export async function pruneOldCheckRuns(db: D1Database): Promise<number> {
+  const result = await db
+    .prepare(`DELETE FROM check_runs WHERE run_at < datetime('now', ?1)`)
+    .bind(`-${CHECK_RUN_RETENTION_DAYS} days`)
+    .run();
+  return result.meta.changes ?? 0;
+}
+
 export async function pruneOldLogBatches(db: D1Database, bucket: R2Bucket): Promise<number> {
   const { results } = await db
     .prepare(`SELECT id, r2_object_key FROM log_batches WHERE received_at < datetime('now', ?1)`)
