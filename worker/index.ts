@@ -29,6 +29,7 @@ import type { QueuedLogBatch } from "./modules/ingest/log-consumer.ts";
 import type { SessionIdentity } from "./auth/session.ts";
 import { RateLimiter } from "./durable-objects/rate-limiter.ts";
 import { LiveTail } from "./durable-objects/live-tail.ts";
+import { APP_VERSION } from "./version.ts";
 
 interface Env {
   ASSETS: Fetcher;
@@ -42,6 +43,7 @@ interface Env {
   TEAM_DOMAIN: string;
   POLICY_AUD: string;
   CF_ACCOUNT_ID: string;
+  DEPLOY_ENV: string;
   SESSION_SECRET: string;
   GITHUB_APP_ID: string;
   GITHUB_APP_PRIVATE_KEY: string;
@@ -61,6 +63,13 @@ app.onError((err, c) => {
   console.error(`Unhandled error on ${c.req.method} ${c.req.path}:`, err);
   return c.text("Internal Server Error", 500);
 });
+
+// issues/32 — public and unauthenticated on purpose: the whole point is confirming from the
+// OUTSIDE, with nothing more than curl, which environment's bindings a live deployment is
+// actually running with — no Cloudflare dashboard/API access needed. Added after a real incident
+// where the production custom domain was silently serving preview's bindings (wrong D1 database)
+// with no visible symptom short of ingest itself failing.
+app.get("/api/version", (c) => c.json({ version: APP_VERSION, environment: c.env.DEPLOY_ENV }));
 
 // /login is the only route Cloudflare Access actually protects (research.md §1) — it verifies
 // the Access JWT and mints FlightDeck's own session cookie (constitution Principle II).

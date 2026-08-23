@@ -2,7 +2,8 @@
   "packages": {
     ".": {
       "release-type": "simple",
-      "version-file": "VERSION"
+      "version-file": "VERSION",
+      "extra-files": ["worker/version.ts"]
     }
   }
 }
