@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.0](https://github.com/iumalabs/flightdeck/compare/v0.5.0...v0.6.0) (2026-08-23)
+
+
+### Features
+
+* retroactively mark multi-project support as released (fixes [#26](https://github.com/iumalabs/flightdeck/issues/26) commit-convention miss) ([4d88fb7](https://github.com/iumalabs/flightdeck/commit/4d88fb7aa0064b678f987e942eec32e5c5a789c5))
+
+
+### Bug Fixes
+
+* retroactively mark multi-project support as released ([d7bda50](https://github.com/iumalabs/flightdeck/commit/d7bda50b5cf71eded81df13c50cba0fe1ee3f506))
+
 ## [0.5.0](https://github.com/iumalabs/flightdeck/compare/v0.4.0...v0.5.0) (2026-08-23)
 
 
