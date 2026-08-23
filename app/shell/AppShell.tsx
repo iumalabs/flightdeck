@@ -70,6 +70,182 @@ const FOOTER_ITEMS: NavItem[] = [
   { screen: "setup", label: "Install SDK" },
 ];
 
+// issues/38 — a native <select> only themes its closed box; the open popup falls back to
+// browser/OS styling (never restylable via CSS on <option>), clashing hard with the dark theme.
+// The design source (FlightDeckApp.dc.html) implements this exact switcher as a custom
+// click-to-open panel for the same reason — matching that pattern here, not just patching colors.
+function ProjectSwitcher(
+  { projects, selectedProjectId, onSelect, onCreateNew }: {
+    projects: Project[];
+    selectedProjectId: string | null;
+    onSelect: (id: string) => void;
+    onCreateNew: () => void;
+  },
+) {
+  const [open, setOpen] = useState(false);
+  const current = projects.find((p) => p.id === selectedProjectId) ?? projects[0];
+
+  return (
+    <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
+      <div
+        onClick={() => setOpen((o) => !o)}
+        role="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label="Switch project"
+        style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}
+      >
+        <span
+          style={{
+            width: 18,
+            height: 18,
+            borderRadius: 5,
+            background: "var(--accent)",
+            color: "var(--accent-fg)",
+            fontWeight: 700,
+            fontSize: 9.5,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontFamily: "var(--font-display)",
+            flex: "none",
+          }}
+        >
+          {current.name.slice(0, 1).toUpperCase()}
+        </span>
+        <span
+          style={{
+            flex: 1,
+            minWidth: 0,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {current.name}
+        </span>
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="var(--fg3)"
+          strokeWidth="2"
+          style={{ flex: "none", transform: open ? "rotate(180deg)" : "none" }}
+          aria-hidden="true"
+        >
+          <path d="M8 10l4 4 4-4" />
+        </svg>
+      </div>
+
+      {open && (
+        <>
+          <div
+            onClick={() => setOpen(false)}
+            style={{ position: "fixed", inset: 0, zIndex: 40 }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              top: "calc(100% + 6px)",
+              left: -10,
+              right: -10,
+              zIndex: 41,
+              background: "var(--panel)",
+              border: "1px solid var(--line)",
+              borderRadius: 8,
+              boxShadow: "0 16px 38px rgba(0,0,0,.42)",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                padding: "8px 10px",
+                fontFamily: "var(--font-mono)",
+                fontSize: 9.5,
+                letterSpacing: ".14em",
+                textTransform: "uppercase",
+                color: "var(--fg4)",
+                borderBottom: "1px solid var(--line2)",
+              }}
+            >
+              {projects.length} projects
+            </div>
+            {projects.map((p) => (
+              <div
+                key={p.id}
+                onClick={() => {
+                  onSelect(p.id);
+                  setOpen(false);
+                }}
+                role="option"
+                aria-selected={p.id === selectedProjectId}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "8px 10px",
+                  cursor: "pointer",
+                }}
+              >
+                <span
+                  style={{
+                    width: 18,
+                    height: 18,
+                    borderRadius: 5,
+                    background: "var(--chip)",
+                    color: "var(--fg2)",
+                    fontWeight: 700,
+                    fontSize: 9.5,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontFamily: "var(--font-display)",
+                    flex: "none",
+                  }}
+                >
+                  {p.name.slice(0, 1).toUpperCase()}
+                </span>
+                <span
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    fontSize: 12.5,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    color: p.id === selectedProjectId ? "var(--fg)" : "var(--fg2)",
+                  }}
+                >
+                  {p.name}
+                </span>
+                {p.id === selectedProjectId && (
+                  <span style={{ color: "var(--accent)", fontSize: 12, flex: "none" }}>✓</span>
+                )}
+              </div>
+            ))}
+            <div
+              onClick={() => {
+                onCreateNew();
+                setOpen(false);
+              }}
+              style={{
+                padding: "9px 10px",
+                borderTop: "1px solid var(--line2)",
+                fontSize: 12,
+                color: "var(--accent)",
+                cursor: "pointer",
+              }}
+            >
+              + New project
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function renderScreen(
   screen: string,
   session: Session,
@@ -286,47 +462,38 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
             borderRadius: 6,
             background: "var(--chip)",
             fontSize: 12.5,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
           }}
         >
-          <span
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: "50%",
-              background: "var(--accent)",
-              flex: "none",
-            }}
-          />
           {
             /* spec FR-009 — a single-project workspace renders plain text, no extra step imposed;
               the switcher only appears once there's something to switch to. */
           }
           {projects && projects.length > 1
             ? (
-              <select
-                value={selectedProjectId ?? ""}
-                onChange={(e) => selectProject(e.target.value)}
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  background: "transparent",
-                  color: "var(--fg)",
-                  border: "none",
-                  fontSize: 12.5,
-                  fontFamily: "inherit",
-                  cursor: "pointer",
-                }}
-              >
-                {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+              <ProjectSwitcher
+                projects={projects}
+                selectedProjectId={selectedProjectId}
+                onSelect={selectProject}
+                onCreateNew={() => setScreen("settings")}
+              />
             )
             : (
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {currentProject ? currentProject.name : "Loading…"}
-              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: "var(--accent)",
+                    flex: "none",
+                  }}
+                />
+                <span
+                  style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                >
+                  {currentProject ? currentProject.name : "Loading…"}
+                </span>
+              </div>
             )}
         </div>
 

@@ -29,10 +29,12 @@ test("creating a project via Settings surfaces its DSN, and switching to it show
   // (this environment already has other, earlier-created non-demo projects from contract-test
   // runs against the same local D1, so this is always true here; the single-project plain-text
   // case is covered at the component level, not by forcing a single-project precondition against
-  // shared state this suite doesn't own).
-  const switcher = page.locator("select");
+  // shared state this suite doesn't own). issues/38 — a custom click-to-open dropdown, not a
+  // native <select> (which couldn't be themed for the dark popup).
+  const switcher = page.getByRole("button", { name: "Switch project" });
   await expect(switcher).toBeVisible();
-  await switcher.selectOption({ label: projectName });
+  await switcher.click();
+  await page.getByRole("option", { name: projectName }).click();
 
   const EMPTY_STATE_HEADINGS: Record<string, string> = {
     Issues: "No issues yet",

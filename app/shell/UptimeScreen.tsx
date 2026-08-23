@@ -107,8 +107,12 @@ export function UptimeScreen({ projectId, onSelectCheck }: UptimeScreenProps) {
           onChange={(e) => setType(e.target.value as "http" | "tcp")}
           style={inputStyle}
         >
-          <option value="http">HTTP</option>
-          <option value="tcp">TCP</option>
+          {
+            /* issues/38 — <option> ignores the <select>'s own color/background, falling back to
+              native (light) popup styling unless styled explicitly here too. */
+          }
+          <option value="http" style={optionStyle}>HTTP</option>
+          <option value="tcp" style={optionStyle}>TCP</option>
         </select>
         <input
           placeholder={type === "http" ? "https://example.com" : "host:port"}
@@ -211,6 +215,8 @@ const inputStyle: React.CSSProperties = {
   borderRadius: 4,
   color: "var(--fg)",
 };
+
+const optionStyle: React.CSSProperties = { background: "var(--code-bg)", color: "var(--fg)" };
 
 const buttonStyle: React.CSSProperties = {
   fontSize: 13,
