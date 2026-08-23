@@ -1,13 +1,21 @@
-const SNIPPET = `import * as Sentry from '@sentry/react';
+export interface InstallSdkScreenProps {
+  project: { name: string; dsn: string } | null;
+}
+
+// issues/24 — this used to hardcode an illustrative, non-functional DSN even though a real one
+// already existed for the demo project; the DSN's public key is meant to be embedded in
+// client-side SDK code, so there's no reason to hide it here the way a real secret (API token, S3
+// credential) would be.
+export function InstallSdkScreen({ project }: InstallSdkScreenProps) {
+  const snippet = `import * as Sentry from '@sentry/react';
 
 Sentry.init({
-  dsn: 'https://a91f3ce4c1@flightdeck.iuma.dev/12',
+  dsn: '${project ? project.dsn : "<create a project in Settings to get your DSN>"}',
   environment: 'production',
   release: process.env.GIT_SHA,
   tracesSampleRate: 0.2,
 });`;
 
-export function InstallSdkScreen() {
   return (
     <div>
       <h1
@@ -21,8 +29,14 @@ export function InstallSdkScreen() {
         Install SDK
       </h1>
       <p style={{ fontSize: 14, color: "var(--fg2)", margin: "0 0 20px", maxWidth: 560 }}>
-        Point an existing Sentry SDK at your DSN — nothing else in your code changes. DSN issuance
-        for real projects isn't wired up yet, so the value below is illustrative.
+        {project
+          ? (
+            <>
+              Point an existing Sentry SDK at your <strong>{project.name}</strong>{" "}
+              DSN — nothing else in your code changes.
+            </>
+          )
+          : "Create a project in Settings to get a real DSN."}
       </p>
       <div
         style={{
@@ -42,7 +56,7 @@ export function InstallSdkScreen() {
             color: "var(--fg2)",
           }}
         >
-          {SNIPPET}
+          {snippet}
         </pre>
       </div>
     </div>

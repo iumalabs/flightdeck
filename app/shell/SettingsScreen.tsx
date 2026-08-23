@@ -4,6 +4,7 @@ import type { Session } from "../lib/use-session.ts";
 interface Project {
   id: string;
   name: string;
+  dsn: string;
 }
 
 type UploadStatus = { kind: "idle" } | { kind: "success" } | { kind: "error"; message: string };
@@ -112,10 +113,10 @@ function CreateProjectForm({ onCreated }: { onCreated: (project: Project) => voi
     });
 
     if (res.ok) {
-      const project = await res.json() as Project & { dsn: string };
+      const project = await res.json() as Project;
       setStatus({ kind: "created", dsn: project.dsn });
       setName("");
-      onCreated({ id: project.id, name: project.name });
+      onCreated(project);
     } else {
       setStatus({ kind: "error", message: "Could not create project." });
     }

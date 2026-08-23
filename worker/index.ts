@@ -50,6 +50,18 @@ interface Env {
 
 const app = new Hono<{ Bindings: Env; Variables: { identity: SessionIdentity } }>();
 
+// issues/23 — without this, an unhandled exception anywhere in a route handler fell through to
+// Hono's default error response with zero diagnostic detail (the exact "generic 500, no way to
+// tell failure causes apart" symptom that issue described) and, worse, nothing logged it anywhere
+// — a real gap on a platform whose entire purpose is surfacing errors. `console.error` here is
+// what a `wrangler tail`/Workers Logs session actually needs to see to pin down which write path
+// is throwing and why; the response body stays a generic message (never the raw exception) so an
+// internal detail is never leaked to the client.
+app.onError((err, c) => {
+  console.error(`Unhandled error on ${c.req.method} ${c.req.path}:`, err);
+  return c.text("Internal Server Error", 500);
+});
+
 // /login is the only route Cloudflare Access actually protects (research.md §1) — it verifies
 // the Access JWT and mints FlightDeck's own session cookie (constitution Principle II).
 app.route("/", loginRoute);
