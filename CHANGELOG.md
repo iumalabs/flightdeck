@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.0](https://github.com/iumalabs/flightdeck/compare/v0.7.1...v0.8.0) (2026-08-23)
+
+
+### Features
+
+* add GET /api/version to confirm which environment is live ([57dcada](https://github.com/iumalabs/flightdeck/commit/57dcada06dfd9b4757a2b2e2236571e36ab81cbd))
+* add GET /api/version to confirm which environment is live ([4e3f695](https://github.com/iumalabs/flightdeck/commit/4e3f695cf3c5f142cfd35e87c6c191d6d21d921c))
+
 ## [0.7.1](https://github.com/iumalabs/flightdeck/compare/v0.7.0...v0.7.1) (2026-08-23)
 
 
