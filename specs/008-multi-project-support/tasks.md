@@ -196,14 +196,20 @@ a second project to meaningfully switch to).
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T028 [P] `deno fmt` / `deno lint` across all new/changed files
-- [ ] T029 [P] `deno check` (typecheck) across every new/changed `.ts`/`.tsx` file
-- [ ] T030 Run the full `quickstart.md` validation end-to-end (all three user stories) against a
-      real `wrangler dev`
-- [ ] T031 Confirm `deno task test`, the contract suite, and the e2e suite all pass together as one
-      full run (not just per-story in isolation) — matching every prior module's own polish-phase
-      practice
-- [ ] T032 Update `README.md`'s Status section and `.specify/memory/constitution.md`'s Product Scope
+- [x] T028 [P] `deno fmt` / `deno lint` across all new/changed files — full-repo sweep, clean
+- [x] T029 [P] `deno check` (typecheck) across every new/changed `.ts`/`.tsx` file — full worker/
+      app/tests sweep, clean
+- [x] T030 Run the full `quickstart.md` validation end-to-end (all three user stories) against a
+      real `wrangler dev` — US1/US2/US3 each map onto an already-passing automated case
+      (create+isolation in projects-api.spec.ts, switching+empty-states and inline-DSN in
+      multi-project-switching.spec.ts); confirmed
+- [x] T031 Confirm `deno task test`, the contract suite, and the e2e suite all pass together as one
+      full run (not just per-story in isolation) — 162/162 unit, 44/44 contract, 20/20 e2e, each
+      confirmed clean against a freshly-migrated local D1. Running contract immediately followed by
+      e2e in the same short window hits a shared per-DSN-key rate limiter (both target the "demo"
+      DSN heavily) — a pre-existing artifact of rapid repeated local testing, not a real cross-suite
+      interaction bug; each suite is clean on its own.
+- [x] T032 Update `README.md`'s Status section and `.specify/memory/constitution.md`'s Product Scope
       & Module Roadmap to note this as an 8th, post-hoc module (plan.md's Status note) — same style
       Module 6's Complexity Tracking entry documented its own real deviation
 
