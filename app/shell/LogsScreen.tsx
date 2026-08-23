@@ -178,8 +178,18 @@ function Search(
             color: "var(--fg)",
           }}
         >
+          {
+            /* issues/38 — <option> ignores the <select>'s own color/background, falling back to
+              native (light) popup styling unless styled explicitly here too. */
+          }
           {["", "trace", "debug", "info", "warn", "error", "fatal"].map((lvl) => (
-            <option key={lvl} value={lvl}>{lvl || "All levels"}</option>
+            <option
+              key={lvl}
+              value={lvl}
+              style={{ background: "var(--code-bg)", color: "var(--fg)" }}
+            >
+              {lvl || "All levels"}
+            </option>
           ))}
         </select>
         <button
