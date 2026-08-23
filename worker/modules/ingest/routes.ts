@@ -2,11 +2,13 @@ import { Hono } from "hono";
 import { extractSentryKey, resolveProjectByDsnKey } from "./dsn-auth.ts";
 import {
   isEventItem,
+  isFeedbackItem,
   isLogItem,
   isSessionItem,
   isTransactionItem,
   parseEnvelope,
   parseEventPayload,
+  parseFeedbackPayload,
   parseLogPayload,
   parseSessionPayload,
   parseTransactionPayload,
@@ -21,6 +23,7 @@ import {
 } from "./release-health.ts";
 import { findNextReleaseAfter, resolveOrCreateRelease } from "./release-lookup.ts";
 import { isRegression } from "./regression.ts";
+import { insertWidgetFeedback } from "../feedback/ingest.ts";
 import type { EventPayload } from "./types.ts";
 import type { QueuedTransaction } from "./trace-consumer.ts";
 import type { QueuedLogBatch, RawLogRecord } from "./log-consumer.ts";
@@ -54,6 +57,23 @@ interface TransactionPayload {
   transaction?: string;
   contexts?: { trace?: { trace_id?: string; op?: string } };
   spans?: unknown[];
+}
+
+// "feedback" item shape (specs/007-user-feedback contracts/feedback-ingest-api.md) — event-based,
+// the item's own top-level event_id is used for widget-path dedup (research.md §4), distinct from
+// contexts.feedback.associated_event_id (a DIFFERENT, already-ingested error event this feedback
+// merely references).
+interface FeedbackItemPayload {
+  event_id?: string;
+  contexts?: {
+    feedback?: {
+      message?: string;
+      name?: string;
+      contact_email?: string;
+      url?: string;
+      associated_event_id?: string;
+    };
+  };
 }
 
 // Max ingest payload size (spec FR-013) — generous enough for a real stack trace + breadcrumbs +
@@ -94,7 +114,12 @@ ingestRoutes.post("/:projectId/envelope", async (c) => {
   // envelope mixing categories checks each relevant limiter independently; either one denying is
   // enough to reject the whole request (simpler and safer than partially processing an envelope).
   const hasLogItem = envelope.items.some(isLogItem);
-  const hasOtherItem = envelope.items.some((item) => isEventItem(item) || isTransactionItem(item));
+  // "feedback" shares this default shard, not a new category (specs/007-user-feedback research.md
+  // §3 — no rate-limit category dimension was confirmed for it, unlike Module 4's confirmed
+  // log_item, so it stays consistent with what the code already does rather than inventing one).
+  const hasOtherItem = envelope.items.some((item) =>
+    isEventItem(item) || isTransactionItem(item) || isFeedbackItem(item)
+  );
 
   if (hasOtherItem) {
     const limiter = c.env.RATE_LIMITER.get(c.env.RATE_LIMITER.idFromName(sentryKey));
@@ -235,6 +260,27 @@ ingestRoutes.post("/:projectId/envelope", async (c) => {
         spans: transaction.spans ?? [],
       };
       await c.env.TRACE_INGEST.send(queued);
+      continue;
+    }
+
+    if (isFeedbackItem(item)) {
+      // Direct D1 write, no Queue (specs/007-user-feedback research.md §5) — one write per real
+      // user action, the same volume shape Module 5's session ingest made this call for.
+      const payload = parseFeedbackPayload(item) as FeedbackItemPayload | null;
+      const feedback = payload?.contexts?.feedback;
+      if (!feedback || typeof feedback.message !== "string" || !feedback.message) {
+        continue; // missing message is dropped, not fatal (contracts/feedback-ingest-api.md)
+      }
+      await insertWidgetFeedback(c.env.DB, project.id, {
+        message: feedback.message,
+        name: typeof feedback.name === "string" ? feedback.name : null,
+        contactEmail: typeof feedback.contact_email === "string" ? feedback.contact_email : null,
+        url: typeof feedback.url === "string" ? feedback.url : null,
+        associatedEventId: typeof feedback.associated_event_id === "string"
+          ? feedback.associated_event_id
+          : null,
+        sdkEventId: typeof payload?.event_id === "string" ? payload.event_id : null,
+      });
       continue;
     }
 

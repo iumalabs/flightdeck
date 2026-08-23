@@ -21,37 +21,44 @@ README covers day-to-day setup and operation only.
 ## Status
 
 Module 1 (**Landing site, Access login, and app-shell skeleton**), Module 2 (**Error monitoring**),
-Module 3 (**Distributed tracing**), Module 4 (**Structured logs**), Module 5 (**Releases**), and
-Module 6 (**Uptime monitoring**) are implemented — see
+Module 3 (**Distributed tracing**), Module 4 (**Structured logs**), Module 5 (**Releases**),
+Module 6 (**Uptime monitoring**), and Module 7 (**User feedback**) are implemented — see
 [`specs/001-landing-access-login/`](specs/001-landing-access-login/),
 [`specs/002-error-monitoring/`](specs/002-error-monitoring/),
 [`specs/003-distributed-tracing/`](specs/003-distributed-tracing/),
 [`specs/004-structured-logs/`](specs/004-structured-logs/),
-[`specs/005-releases/`](specs/005-releases/), and
-[`specs/006-uptime-monitoring/`](specs/006-uptime-monitoring/) for their specs, plans, and tasks.
-Module 2 adds the platform's first public, DSN-authenticated ingest surface (Sentry envelope
-protocol), issue grouping with source-map-aware fingerprinting, source map upload/resolution, and
-GitHub App-based suspect commits. Module 3 extends that same envelope endpoint with a
-`"transaction"` item type, written asynchronously through a Cloudflare Queue (`TRACE_INGEST`) to a
-new `transactions` table, with a visual span waterfall and trace-to-error cross-linking in both
-directions. Module 4 extends it again with a `"log"` item type — a shared `LOGS` R2 bucket holds
-NDJSON log batches (D1 only indexes at batch granularity, via FTS5), a `LiveTail` Durable Object
-streams new lines over WebSocket in real time, and revocable S3-compatible export access can be
-provisioned per project (its own, dynamically-created R2 bucket, since R2 tokens can't be
-prefix-scoped). Module 5 adds a sentry-cli-compatible release-management surface (a new
-project-scoped API-token auth mechanism — see [Authentication](#authentication) below), release
-health (adoption/crash-free sessions and users, ingested as a `"session"`/`"sessions"` envelope item
-type), and regression detection (a resolved issue automatically reopens when the same bug recurs in
-a later release). Module 6 adds FlightDeck-original (not Sentry-protocol-grounded — see
-specs/006-uptime-monitoring/research.md §9) HTTP/TCP uptime checks, run on a 1-minute cron and on
-demand through one shared `runCheck()` evaluation function (constitution Principle V's first real
-scheduled-handler consumer), with incident-aware alerting (N-consecutive-failures open one incident,
-M-consecutive-recoveries auto-resolve it) and an optional per-check webhook — ships
-**single-region** for this MVP, a documented deviation from the constitution's original
-"multi-region" roadmap wording since Cloudflare Cron Triggers have no controllable execution region
-(specs/006-uptime-monitoring/research.md §1) — see the constitution for the full trust-surface
-split. Not yet deployed — see [Deployment](#deployment) for the one-time Cloudflare-dashboard steps
-that have to happen before `release` builds go live.
+[`specs/005-releases/`](specs/005-releases/),
+[`specs/006-uptime-monitoring/`](specs/006-uptime-monitoring/), and
+[`specs/007-user-feedback/`](specs/007-user-feedback/) for their specs, plans, and tasks. Module 2
+adds the platform's first public, DSN-authenticated ingest surface (Sentry envelope protocol), issue
+grouping with source-map-aware fingerprinting, source map upload/resolution, and GitHub App-based
+suspect commits. Module 3 extends that same envelope endpoint with a `"transaction"` item type,
+written asynchronously through a Cloudflare Queue (`TRACE_INGEST`) to a new `transactions` table,
+with a visual span waterfall and trace-to-error cross-linking in both directions. Module 4 extends
+it again with a `"log"` item type — a shared `LOGS` R2 bucket holds NDJSON log batches (D1 only
+indexes at batch granularity, via FTS5), a `LiveTail` Durable Object streams new lines over
+WebSocket in real time, and revocable S3-compatible export access can be provisioned per project
+(its own, dynamically-created R2 bucket, since R2 tokens can't be prefix-scoped). Module 5 adds a
+sentry-cli-compatible release-management surface (a new project-scoped API-token auth mechanism —
+see [Authentication](#authentication) below), release health (adoption/crash-free sessions and
+users, ingested as a `"session"`/`"sessions"` envelope item type), and regression detection (a
+resolved issue automatically reopens when the same bug recurs in a later release). Module 6 adds
+FlightDeck-original (not Sentry-protocol-grounded — see specs/006-uptime-monitoring/research.md §9)
+HTTP/TCP uptime checks, run on a 1-minute cron and on demand through one shared `runCheck()`
+evaluation function (constitution Principle V's first real scheduled-handler consumer), with
+incident-aware alerting (N-consecutive-failures open one incident, M-consecutive-recoveries
+auto-resolve it) and an optional per-check webhook — ships **single-region** for this MVP, a
+documented deviation from the constitution's original "multi-region" roadmap wording since
+Cloudflare Cron Triggers have no controllable execution region (specs/006-uptime-monitoring/research.md
+§1). Module 7 extends the envelope endpoint a final time with a `"feedback"` item type (a
+widget-based submission path, authenticated identically to every other item type) and adds a
+genuinely new kind of public ingest route — `GET|POST /api/embed/error-page[/]` — serving a
+self-contained `text/javascript` payload rather than JSON, matching a real, unmodified
+`@sentry/browser` SDK's `showReportDialog()` crash-report-dialog contract exactly (verified live
+against the actual SDK bundle, not a hand-crafted approximation); both paths converge on one
+`feedback` table, cross-linked to the `issues` an `associated_event_id` resolves against — see the
+constitution for the full trust-surface split. Not yet deployed — see [Deployment](#deployment) for
+the one-time Cloudflare-dashboard steps that have to happen before `release` builds go live.
 
 ## Authentication
 
