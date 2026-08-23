@@ -1,3 +1,4 @@
+/// <reference path="../vite-env.d.ts" />
 import { useCallback, useEffect, useState } from "react";
 import type { Session } from "../lib/use-session.ts";
 import { useSelectedProject } from "../lib/use-selected-project.ts";
@@ -25,6 +26,7 @@ export interface AppShellProps {
 interface Project {
   id: string;
   name: string;
+  dsn: string;
 }
 
 interface NavItem {
@@ -90,7 +92,7 @@ function renderScreen(
 ) {
   switch (screen) {
     case "overview":
-      return <OverviewScreen session={session} />;
+      return <OverviewScreen session={session} projectId={projectId} />;
     case "issues":
       return <IssuesScreen projectId={projectId} onSelectIssue={onSelectIssue} />;
     case "issue-detail":
@@ -157,9 +159,9 @@ function renderScreen(
         />
       );
     case "setup":
-      return <InstallSdkScreen />;
+      return <InstallSdkScreen project={projects?.find((p) => p.id === projectId) ?? null} />;
     default:
-      return <OverviewScreen session={session} />;
+      return <OverviewScreen session={session} projectId={projectId} />;
   }
 }
 
@@ -265,6 +267,15 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
           </svg>
           <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 15 }}>
             FlightDeck
+          </span>
+          {
+            /* issues/25 — not in the design mockup's sidebar header; kept small/muted so it
+              doesn't compete with the wordmark. */
+          }
+          <span
+            style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: "var(--fg4)" }}
+          >
+            v{__APP_VERSION__}
           </span>
         </div>
 
