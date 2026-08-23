@@ -191,3 +191,4 @@ Workers Builds production-branch configuration above.
 ## License
 
 [AGPL-3.0](LICENSE).
+<!-- QA stress-test marker for #32 preview/prod isolation verification, 2026-08-23T10:35:18Z -->
