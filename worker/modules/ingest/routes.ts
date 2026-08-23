@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import { extractSentryKey, resolveProjectByDsnKey } from "./dsn-auth.ts";
 import {
   isEventItem,
@@ -82,7 +82,17 @@ const MAX_ENVELOPE_BYTES = 1_000_000; // 1 MB
 
 export const ingestRoutes = new Hono<{ Bindings: Env }>();
 
-ingestRoutes.post("/:projectId/envelope", async (c) => {
+type EnvelopeRoutePath = "/:projectId/envelope" | "/:projectId/envelope/";
+
+// Registered both with and without the trailing slash — confirmed live (flightdeck-qa, a real
+// browser + @sentry/core@10.70.0) that the real SDK's transport posts to the trailing-slash form
+// (`/api/{projectId}/envelope/`), which this route never matched, 404ing every real-SDK request
+// regardless of DSN validity. Module 7's crash-report dialog route already discovered and fixed
+// this exact gap for its own endpoint (`/api/embed/error-page` vs `/error-page/`) — this was the
+// one ingest route that never got the same treatment. Hono's `.post()` overloads don't accept an
+// array of paths (confirmed via `deno check`), so the handler is declared once and registered
+// twice below instead.
+async function handleEnvelope(c: Context<{ Bindings: Env }, EnvelopeRoutePath>) {
   const projectId = c.req.param("projectId");
   // "internal" is reserved (research.md §3) — never resolves as a project, checked before any DSN
   // lookup regardless of Hono's own static-before-dynamic route precedence.
@@ -403,4 +413,7 @@ ingestRoutes.post("/:projectId/envelope", async (c) => {
   }
 
   return c.text("", 200);
-});
+}
+
+ingestRoutes.post("/:projectId/envelope", handleEnvelope);
+ingestRoutes.post("/:projectId/envelope/", handleEnvelope);

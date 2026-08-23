@@ -86,6 +86,17 @@ test("a Python-shaped event (header-based auth) is accepted", async ({ request }
   expect(response.status()).toBe(200);
 });
 
+test("a trailing-slash envelope path (the real @sentry/core SDK's actual wire shape) is accepted", async ({ request }) => {
+  const dsnKey = await getDsnKey();
+  const body = buildEnvelope(crypto.randomUUID(), jsShapedPayload());
+
+  const response = await request.post(
+    `/api/${DEMO_PROJECT_ID}/envelope/?sentry_key=${dsnKey}&sentry_version=7`,
+    { data: body },
+  );
+  expect(response.status()).toBe(200);
+});
+
 test("an unknown DSN key is rejected, fail closed", async ({ request }) => {
   const body = buildEnvelope(crypto.randomUUID(), jsShapedPayload());
   const response = await request.post(
