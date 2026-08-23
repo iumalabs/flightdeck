@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.7.0](https://github.com/iumalabs/flightdeck/compare/v0.6.0...v0.7.0) (2026-08-23)
+
+
+### Features
+
+* add favicon and sidebar app version label ([78151d5](https://github.com/iumalabs/flightdeck/commit/78151d5fca07c52822b26b4df2f0dddddc6faddc))
+* **dashboard:** surface each project's real DSN on Install SDK ([07d0ac5](https://github.com/iumalabs/flightdeck/commit/07d0ac5d39b7aa52dee427e969f799c6634cb6c7))
+* **dashboard:** wire Overview to real per-pillar counts ([8e4650d](https://github.com/iumalabs/flightdeck/commit/8e4650d1d491aab4a1c1ece2cbb3ff1e46b0f4cf))
+
+
+### Bug Fixes
+
+* close [#23](https://github.com/iumalabs/flightdeck/issues/23)/[#24](https://github.com/iumalabs/flightdeck/issues/24)/[#25](https://github.com/iumalabs/flightdeck/issues/25), add [#29](https://github.com/iumalabs/flightdeck/issues/29) fix (Overview real data) ([ec1e6f6](https://github.com/iumalabs/flightdeck/commit/ec1e6f6e56a36f4c2dc1b83b9abfc1bb360d9f2e))
+* **worker:** log unhandled route errors instead of silently 500ing ([39d6a2a](https://github.com/iumalabs/flightdeck/commit/39d6a2a0aece9f202f3040c1d4a21470737fb6f7))
+
 ## [0.6.0](https://github.com/iumalabs/flightdeck/compare/v0.5.0...v0.6.0) (2026-08-23)
 
 
