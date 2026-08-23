@@ -4,6 +4,7 @@ import type { SessionIdentity } from "../../auth/session.ts";
 import type { Breadcrumb, EventPayload, StackFrame } from "../ingest/types.ts";
 import { deriveCulpritFrame } from "../ingest/fingerprint.ts";
 import { lookupSuspectCommit } from "../github/suspect-commit.ts";
+import { resolveRequestedProject } from "../projects/resolve.ts";
 
 interface Env {
   DB: D1Database;
@@ -30,21 +31,24 @@ interface IssueRow {
   resolved_release_id: string | null;
 }
 
-// contracts/internal-api.md (specs/002-error-monitoring) — scoped to whatever project(s) the
-// caller's session can see. Module 1/2 only ever seed the single "demo" project, so this isn't
-// filtered by an explicit project selector yet; that's a later module's concern.
+// contracts/internal-api.md (specs/002-error-monitoring), scoped by ?project= (specs/008-multi-
+// project-support research.md §2 — this route previously had NO project filter at all).
 // specs/005-releases: defaults to the active-issues view (status = 'unresolved', spec.md
 // Acceptance Scenario 1) — ?status=all shows everything, including resolved ones.
 issuesRoutes.get("/", async (c) => {
+  const project = await resolveRequestedProject(c.env.DB, c.req.query("project") ?? null);
+  if (!project) return c.json({ issues: [] });
+
   const showAll = c.req.query("status") === "all";
   const { results } = await c.env.DB
     .prepare(
       showAll
         ? `SELECT id, title, culprit, level, event_count, first_seen, last_seen, status, resolved_release_id
-           FROM issues ORDER BY last_seen DESC`
+           FROM issues WHERE project_id = ?1 ORDER BY last_seen DESC`
         : `SELECT id, title, culprit, level, event_count, first_seen, last_seen, status, resolved_release_id
-           FROM issues WHERE status = 'unresolved' ORDER BY last_seen DESC`,
+           FROM issues WHERE project_id = ?1 AND status = 'unresolved' ORDER BY last_seen DESC`,
     )
+    .bind(project.id)
     .all<IssueRow>();
 
   return c.json({
@@ -95,12 +99,15 @@ export function shapeLatestEvent(payload: EventPayload): LatestEvent {
 // GitHub repo is connected.
 issuesRoutes.get("/:id", async (c) => {
   const id = c.req.param("id");
+  const project = await resolveRequestedProject(c.env.DB, c.req.query("project") ?? null);
+  if (!project) return c.text("Not Found", 404);
+
   const issue = await c.env.DB
     .prepare(
       `SELECT id, project_id, title, culprit, level, event_count, first_seen, last_seen, status, resolved_release_id
-       FROM issues WHERE id = ?1`,
+       FROM issues WHERE id = ?1 AND project_id = ?2`,
     )
-    .bind(id)
+    .bind(id, project.id)
     .first<IssueRow>();
 
   if (!issue) {

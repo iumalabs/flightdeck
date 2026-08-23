@@ -4,6 +4,7 @@ import type { SessionIdentity } from "../../auth/session.ts";
 import { fetchPercentile, operationsListSql } from "../ingest/percentiles.ts";
 import type { RawSpan } from "../ingest/waterfall-layout.ts";
 import { extractMatchingLines } from "../logs/extract.ts";
+import { resolveRequestedProject } from "../projects/resolve.ts";
 
 interface Env {
   DB: D1Database;
@@ -27,21 +28,21 @@ interface OperationRow {
 // on-demand p50/p95 (research.md §7) over the trailing 24h window; an operation with zero
 // transactions in that window is simply absent, not shown with zeroed figures.
 tracesRoutes.get("/", async (c) => {
-  // Module 1/2's single-seeded-project caveat, unchanged (contracts/traces-internal-api.md's
-  // Non-goals) — explicitly scoped by project_id (unlike Module 2's issues list, which has no
-  // filter at all) since data-model.md's indexes are keyed on (project_id, name, started_at); a
-  // real project selector is a later module's concern.
-  const projectId = "demo";
+  // scoped by project_id (specs/008-multi-project-support) since data-model.md's indexes are
+  // keyed on (project_id, name, started_at).
+  const project = await resolveRequestedProject(c.env.DB, c.req.query("project") ?? null);
+  if (!project) return c.json({ operations: [] });
+
   const { results } = await c.env.DB
     .prepare(operationsListSql())
-    .bind(projectId)
+    .bind(project.id)
     .all<OperationRow>();
 
   const operations = await Promise.all(
     (results ?? []).map(async (row) => {
       const [p50Ms, p95Ms] = await Promise.all([
-        fetchPercentile(c.env.DB, projectId, row.name, 0.50),
-        fetchPercentile(c.env.DB, projectId, row.name, 0.95),
+        fetchPercentile(c.env.DB, project.id, row.name, 0.50),
+        fetchPercentile(c.env.DB, project.id, row.name, 0.95),
       ]);
       return {
         name: row.name,
@@ -65,9 +66,12 @@ tracesRoutes.get("/", async (c) => {
 // same precedence ingest/routes.ts's "internal" project_id guard already relies on).
 tracesRoutes.get("/by-trace-id/:traceId", async (c) => {
   const traceId = c.req.param("traceId");
+  const project = await resolveRequestedProject(c.env.DB, c.req.query("project") ?? null);
+  if (!project) return c.json({ transactionId: null });
+
   const row = await c.env.DB
-    .prepare(`SELECT id FROM transactions WHERE trace_id = ?1 LIMIT 1`)
-    .bind(traceId)
+    .prepare(`SELECT id FROM transactions WHERE trace_id = ?1 AND project_id = ?2 LIMIT 1`)
+    .bind(traceId, project.id)
     .first<{ id: string }>();
   return c.json({ transactionId: row?.id ?? null });
 });
@@ -96,12 +100,15 @@ interface LinkedErrorRow {
 // error state").
 tracesRoutes.get("/:id", async (c) => {
   const id = c.req.param("id");
+  const project = await resolveRequestedProject(c.env.DB, c.req.query("project") ?? null);
+  if (!project) return c.text("Not Found", 404);
+
   const transaction = await c.env.DB
     .prepare(
       `SELECT id, project_id, trace_id, name, op, duration_ms, start_timestamp, started_at, spans_json
-       FROM transactions WHERE id = ?1`,
+       FROM transactions WHERE id = ?1 AND project_id = ?2`,
     )
-    .bind(id)
+    .bind(id, project.id)
     .first<TransactionRow>();
 
   if (!transaction) {

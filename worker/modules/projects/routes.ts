@@ -13,6 +13,55 @@ export const projectsRoutes = new Hono<
 
 projectsRoutes.use("*", sessionAuth);
 
+interface CreateProjectBody {
+  name?: string;
+}
+
+interface CreatedProjectRow {
+  id: string;
+  name: string;
+  dsn_public_key: string;
+}
+
+// contracts/projects-internal-api.md's POST /api/internal/projects (specs/008-multi-project-support)
+// — dsn_public_key generated via the exact SQL expression migration 0002 already uses to backfill
+// "demo"'s own key (research.md §3), not a JS-computed value passed in.
+projectsRoutes.post("/", async (c) => {
+  const body = await c.req.json().catch(() => null) as CreateProjectBody | null;
+  if (!body || typeof body.name !== "string" || !body.name.trim()) {
+    return c.text("Bad Request", 400);
+  }
+
+  const id = crypto.randomUUID();
+  const row = await c.env.DB
+    .prepare(
+      `INSERT INTO projects (id, name, dsn_public_key)
+       VALUES (?1, ?2, lower(hex(randomblob(16))))
+       RETURNING id, name, dsn_public_key`,
+    )
+    .bind(id, body.name.trim())
+    .first<CreatedProjectRow>();
+  if (!row) return c.text("Internal Server Error", 500); // shouldn't happen — defensive
+
+  const identity = c.get("identity");
+  await c.env.DB
+    .prepare(`INSERT INTO audit_log (id, actor_sub, action, after_json) VALUES (?1, ?2, ?3, ?4)`)
+    .bind(
+      crypto.randomUUID(),
+      identity.sub,
+      "project.create",
+      JSON.stringify({ projectId: row.id, name: row.name }),
+    )
+    .run();
+
+  // research.md §3 — host derived from the request itself, correct in local/preview/production
+  // alike, never hardcoded to the production custom domain.
+  const host = new URL(c.req.url).host;
+  const dsn = `https://${row.dsn_public_key}@${host}/${row.id}`;
+
+  return c.json({ id: row.id, name: row.name, dsn }, 201);
+});
+
 // Generous enough for a real source map (can run to low single-digit MB), bounded per
 // contracts/internal-api.md's documented 413 response.
 const MAX_SOURCE_MAP_BYTES = 5_000_000;

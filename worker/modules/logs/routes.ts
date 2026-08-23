@@ -9,6 +9,7 @@ import {
   snapshotProjectLogs,
 } from "./r2-provision.ts";
 import type { LiveTail } from "../../durable-objects/live-tail.ts";
+import { resolveRequestedProject } from "../projects/resolve.ts";
 
 interface Env {
   DB: D1Database;
@@ -88,14 +89,16 @@ logsRoutes.use("*", sessionAuth);
 // contracts/logs-internal-api.md's GET /api/internal/logs/search — bounded, offset-cursor
 // pagination over lines extracted from candidate batches at read time (research.md §5).
 logsRoutes.get("/search", async (c) => {
-  const projectId = "demo"; // Module 1-3's established single-seeded-project caveat
+  const project = await resolveRequestedProject(c.env.DB, c.req.query("project") ?? null);
+  if (!project) return c.json({ lines: [], nextCursor: null });
+
   const q = c.req.query("q");
   const level = c.req.query("level");
   const from = c.req.query("from");
   const to = c.req.query("to");
   const offset = Math.max(0, parseInt(c.req.query("cursor") ?? "0", 10) || 0);
 
-  const candidates = await fetchCandidateBatches(c.env.DB, projectId, q, level, from, to);
+  const candidates = await fetchCandidateBatches(c.env.DB, project.id, q, level, from, to);
   const allLines = (
     await Promise.all(
       candidates.map((batch) =>
@@ -122,9 +125,11 @@ logsRoutes.get("/search", async (c) => {
 
 // contracts/logs-internal-api.md's GET /api/internal/logs/live-tail — the HTTP upgrade request
 // itself is sessionAuth-gated (above); the DO does not re-authenticate each message.
-logsRoutes.get("/live-tail", (c) => {
-  const projectId = "demo";
-  const id = c.env.LIVE_TAIL.idFromName(projectId);
+logsRoutes.get("/live-tail", async (c) => {
+  const project = await resolveRequestedProject(c.env.DB, c.req.query("project") ?? null);
+  if (!project) return c.text("Not Found", 404);
+
+  const id = c.env.LIVE_TAIL.idFromName(project.id);
   const stub = c.env.LIVE_TAIL.get(id);
   return stub.fetch(c.req.raw);
 });

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { sessionAuth } from "../../auth/session.ts";
 import type { SessionIdentity } from "../../auth/session.ts";
+import { resolveRequestedProject } from "../projects/resolve.ts";
 
 interface Env {
   DB: D1Database;
@@ -11,9 +12,6 @@ export const feedbackRoutes = new Hono<
 >();
 
 feedbackRoutes.use("*", sessionAuth);
-
-// Module 1-6's established single-seeded-project caveat (worker/modules/uptime/routes.ts).
-const PROJECT_ID = "demo";
 
 interface FeedbackListRow {
   id: string;
@@ -26,12 +24,15 @@ interface FeedbackListRow {
 }
 
 feedbackRoutes.get("/", async (c) => {
+  const project = await resolveRequestedProject(c.env.DB, c.req.query("project") ?? null);
+  if (!project) return c.json({ feedback: [] });
+
   const { results } = await c.env.DB
     .prepare(
       `SELECT id, message, name, contact_email, source, issue_id, received_at
        FROM feedback WHERE project_id = ?1 ORDER BY received_at DESC`,
     )
-    .bind(PROJECT_ID)
+    .bind(project.id)
     .all<FeedbackListRow>();
 
   return c.json({
@@ -61,6 +62,9 @@ interface FeedbackDetailRow {
 
 feedbackRoutes.get("/:id", async (c) => {
   const id = c.req.param("id");
+  const project = await resolveRequestedProject(c.env.DB, c.req.query("project") ?? null);
+  if (!project) return c.text("Not Found", 404);
+
   const row = await c.env.DB
     .prepare(
       `SELECT f.id, f.message, f.name, f.contact_email, f.url, f.source, f.received_at,
@@ -68,7 +72,7 @@ feedbackRoutes.get("/:id", async (c) => {
        FROM feedback f LEFT JOIN issues i ON i.id = f.issue_id
        WHERE f.id = ?1 AND f.project_id = ?2`,
     )
-    .bind(id, PROJECT_ID)
+    .bind(id, project.id)
     .first<FeedbackDetailRow>();
   if (!row) return c.text("Not Found", 404);
 
