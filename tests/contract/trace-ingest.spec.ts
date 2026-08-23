@@ -5,7 +5,7 @@ import { getDsnKey } from "./support/dsn-key.ts";
 // specs/003-distributed-tracing) — hand-crafted "transaction" envelope items matching
 // contracts/trace-ingest-api.md's grammar. Unlike Module 2's synchronous error-ingest tests, a
 // `200` here only confirms enqueue, not queryability (research.md §9) — this suite polls
-// GET /api/internal/traces/by-trace-id/{traceId} with bounded retries rather than asserting
+// GET /api/internal/v1/traces/by-trace-id/{traceId} with bounded retries rather than asserting
 // immediately. T010's live spike confirmed local Queues emulation reliably delivers
 // producer->consumer end to end (research.md §4), so polling against real local delivery is the
 // primary design here, not a fallback.
@@ -47,7 +47,7 @@ async function pollForTransaction(
   attempts = 12,
 ): Promise<string | null> {
   for (let i = 0; i < attempts; i++) {
-    const res = await request.get(`/api/internal/traces/by-trace-id/${traceId}`, {
+    const res = await request.get(`/api/internal/v1/traces/by-trace-id/${traceId}`, {
       headers: { Cookie: await sessionCookieHeader() },
     });
     if (res.ok()) {
@@ -126,7 +126,7 @@ test("submitting the same transaction twice does not duplicate it", async ({ req
   expect(second.status()).toBe(200); // still accepted, just a no-op on the duplicate sdk_event_id
 
   await new Promise((resolve) => setTimeout(resolve, 1000)); // let a redundant enqueue drain, if any
-  const detail = await request.get(`/api/internal/traces/${transactionId}`, {
+  const detail = await request.get(`/api/internal/v1/traces/${transactionId}`, {
     headers: { Cookie: await sessionCookieHeader() },
   });
   expect(detail.ok()).toBe(true);

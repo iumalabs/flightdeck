@@ -58,7 +58,7 @@ export function CheckDetailScreen({ checkId, projectId, onBack }: CheckDetailScr
   const load = () => {
     setLoading(true);
     const params = projectId ? `?project=${projectId}` : "";
-    fetch(`/api/internal/checks/${checkId}${params}`, { credentials: "same-origin" })
+    fetch(`/api/internal/v1/checks/${checkId}${params}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<CheckDetail> : null))
       .then((data) => {
         setCheck(data);
@@ -74,7 +74,7 @@ export function CheckDetailScreen({ checkId, projectId, onBack }: CheckDetailScr
     setTriggering(true);
     setLastTrigger(null);
     try {
-      const res = await fetch(`/api/internal/checks/${checkId}/trigger`, {
+      const res = await fetch(`/api/internal/v1/checks/${checkId}/trigger`, {
         method: "POST",
         credentials: "same-origin",
       });
@@ -89,7 +89,7 @@ export function CheckDetailScreen({ checkId, projectId, onBack }: CheckDetailScr
 
   const saveWebhook = async () => {
     const params = projectId ? `?project=${projectId}` : "";
-    await fetch(`/api/internal/checks/${checkId}${params}`, {
+    await fetch(`/api/internal/v1/checks/${checkId}${params}`, {
       method: "PATCH",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },

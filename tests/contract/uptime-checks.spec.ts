@@ -36,7 +36,7 @@ async function createCheck(
   request: import("@playwright/test").APIRequestContext,
   overrides: Record<string, unknown> = {},
 ): Promise<string> {
-  const res = await request.post("/api/internal/checks", {
+  const res = await request.post("/api/internal/v1/checks", {
     headers: { Cookie: await sessionCookieHeader() },
     data: {
       name: `contract-check-${crypto.randomUUID()}`,
@@ -55,7 +55,7 @@ async function triggerCheck(
   request: import("@playwright/test").APIRequestContext,
   checkId: string,
 ): Promise<TriggerResult> {
-  const res = await request.post(`/api/internal/checks/${checkId}/trigger`, {
+  const res = await request.post(`/api/internal/v1/checks/${checkId}/trigger`, {
     headers: { Cookie: await sessionCookieHeader() },
   });
   expect(res.status()).toBe(200);
@@ -68,7 +68,7 @@ test("a manually-triggered HTTP check against a reachable target reports up", as
   expect(result.succeeded).toBe(true);
   expect(result.status).toBe("up");
 
-  const detail = await request.get(`/api/internal/checks/${checkId}`, {
+  const detail = await request.get(`/api/internal/v1/checks/${checkId}`, {
     headers: { Cookie: await sessionCookieHeader() },
   });
   const body = await detail.json() as { recentRuns: { succeeded: boolean }[] };
@@ -96,7 +96,7 @@ test("reaching the failure threshold opens exactly one incident; recovery resolv
   const third = await triggerCheck(request, checkId);
   expect(third.incidentOpened).toBe(false); // still failing — no duplicate incident
 
-  const incidentsRes = await request.get("/api/internal/incidents", {
+  const incidentsRes = await request.get("/api/internal/v1/incidents", {
     headers: { Cookie: await sessionCookieHeader() },
   });
   const { incidents } = await incidentsRes.json() as {
@@ -107,7 +107,7 @@ test("reaching the failure threshold opens exactly one incident; recovery resolv
 
   // Point the same check at a reachable target and recover it (contracts/uptime-internal-api.md's
   // PATCH endpoint) — quickstart.md's "Validate User Story 2" flow.
-  const patchRes = await request.patch(`/api/internal/checks/${checkId}`, {
+  const patchRes = await request.patch(`/api/internal/v1/checks/${checkId}`, {
     headers: { Cookie: await sessionCookieHeader() },
     data: { target: "https://example.com" },
   });
@@ -126,12 +126,12 @@ test("deleting a check with an open incident auto-resolves it, not left dangling
   const result = await triggerCheck(request, checkId);
   expect(result.incidentOpened).toBe(true);
 
-  const del = await request.delete(`/api/internal/checks/${checkId}`, {
+  const del = await request.delete(`/api/internal/v1/checks/${checkId}`, {
     headers: { Cookie: await sessionCookieHeader() },
   });
   expect(del.status()).toBe(200);
 
-  const incidentsRes = await request.get("/api/internal/incidents", {
+  const incidentsRes = await request.get("/api/internal/v1/incidents", {
     headers: { Cookie: await sessionCookieHeader() },
   });
   const { incidents } = await incidentsRes.json() as {
@@ -142,7 +142,7 @@ test("deleting a check with an open incident auto-resolves it, not left dangling
 });
 
 test("creating a check below the 60s minimum interval is rejected", async ({ request }) => {
-  const res = await request.post("/api/internal/checks", {
+  const res = await request.post("/api/internal/v1/checks", {
     headers: { Cookie: await sessionCookieHeader() },
     data: {
       name: "too-fast",
@@ -174,7 +174,7 @@ test("an incident open fires exactly one webhook request, resolve fires exactly 
 
     await triggerCheck(request, checkId); // opens the incident -> 1 webhook call
 
-    await request.patch(`/api/internal/checks/${checkId}`, {
+    await request.patch(`/api/internal/v1/checks/${checkId}`, {
       headers: { Cookie: await sessionCookieHeader() },
       data: { target: "https://example.com" },
     });

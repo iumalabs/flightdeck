@@ -50,7 +50,7 @@ export function TraceDetailScreen(
     let cancelled = false;
     setLoading(true);
     const params = projectId ? `?project=${projectId}` : "";
-    fetch(`/api/internal/traces/${transactionId}${params}`, { credentials: "same-origin" })
+    fetch(`/api/internal/v1/traces/${transactionId}${params}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<TransactionDetail> : null))
       .then((data) => {
         if (!cancelled) setTransaction(data);

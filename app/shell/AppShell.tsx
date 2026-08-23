@@ -210,7 +210,7 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
   // (specs/003-distributed-tracing).
   const onViewTrace = (traceId: string) => {
     const params = selectedProjectId ? `?project=${selectedProjectId}` : "";
-    fetch(`/api/internal/traces/by-trace-id/${traceId}${params}`, { credentials: "same-origin" })
+    fetch(`/api/internal/v1/traces/by-trace-id/${traceId}${params}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<{ transactionId: string | null }> : null))
       .then((data) => {
         if (data?.transactionId) onSelectTransaction(data.transactionId);
@@ -219,7 +219,7 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
   };
 
   const refetchProjects = useCallback(() => {
-    return fetch("/api/internal/projects", { credentials: "same-origin" })
+    return fetch("/api/internal/v1/projects", { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<{ projects: Project[] }> : null))
       .then((data) => {
         setProjects(data?.projects ?? []);

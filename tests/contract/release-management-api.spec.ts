@@ -24,7 +24,7 @@ async function generateApiToken(
   request: import("@playwright/test").APIRequestContext,
 ): Promise<{ token: string; tokenId: string }> {
   const cookie = await sessionCookieHeader();
-  const res = await request.post("/api/internal/projects/demo/api-tokens", {
+  const res = await request.post("/api/internal/v1/projects/demo/api-tokens", {
     headers: { Cookie: cookie },
   });
   const body = await res.json() as { id: string; token: string };
@@ -114,7 +114,7 @@ test("a revoked token is rejected on subsequent use", async ({ request }) => {
   const { token, tokenId } = await generateApiToken(request);
   const cookie = await sessionCookieHeader();
 
-  const revoke = await request.delete(`/api/internal/projects/demo/api-tokens/${tokenId}`, {
+  const revoke = await request.delete(`/api/internal/v1/projects/demo/api-tokens/${tokenId}`, {
     headers: { Cookie: cookie },
   });
   expect(revoke.status()).toBe(200);
@@ -161,7 +161,9 @@ test("session ingest correctly aggregates into adoption/crash-free figures for a
     const releases = await list.json() as { version: string }[];
     if (releases.some((r) => r.version === version)) {
       // Resolve the internal id via the dashboard list (contract-level, not a direct id lookup).
-      const internal = await request.get("/api/internal/releases", { headers: { Cookie: cookie } });
+      const internal = await request.get("/api/internal/v1/releases", {
+        headers: { Cookie: cookie },
+      });
       const internalReleases = await internal.json() as {
         releases: { id: string; version: string }[];
       };
@@ -173,7 +175,7 @@ test("session ingest correctly aggregates into adoption/crash-free figures for a
 
   let crashFreeSessionRate: number | null = null;
   for (let i = 0; i < 8 && crashFreeSessionRate === null; i++) {
-    const detail = await request.get(`/api/internal/releases/${releaseId}`, {
+    const detail = await request.get(`/api/internal/v1/releases/${releaseId}`, {
       headers: { Cookie: cookie },
     });
     const body = await detail.json() as { environments: { crashFreeSessionRate: number | null }[] };

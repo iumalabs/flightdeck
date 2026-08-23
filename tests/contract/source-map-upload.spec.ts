@@ -8,7 +8,7 @@ test.beforeAll(async () => {
   await ensureContractTestActor();
 });
 
-// contracts/internal-api.md's POST /api/internal/projects/{id}/source-maps, against a real
+// contracts/internal-api.md's POST /api/internal/v1/projects/{id}/source-maps, against a real
 // wrangler dev (research.md §7) — this is also T027's spike proof for @jridgewell/trace-mapping:
 // the upload here plus tests/unit/sourcemap-resolve.test.ts's resolution logic only differ by
 // which JS runtime the library executes in (Deno test vs. this suite's actual Workers/workerd
@@ -33,7 +33,7 @@ async function sessionCookie(): Promise<string> {
 
 test("uploading a source map for a not-yet-seen release implicitly creates the release", async ({ request }) => {
   const release = `contract-test-${crypto.randomUUID()}`;
-  const response = await request.post(`/api/internal/projects/${DEMO_PROJECT_ID}/source-maps`, {
+  const response = await request.post(`/api/internal/v1/projects/${DEMO_PROJECT_ID}/source-maps`, {
     headers: { Cookie: await sessionCookie() },
     multipart: {
       release,
@@ -66,7 +66,7 @@ test("an uploaded map is actually used to resolve a subsequently ingested event'
     mappings: "AAAAA",
   });
 
-  const upload = await request.post(`/api/internal/projects/${DEMO_PROJECT_ID}/source-maps`, {
+  const upload = await request.post(`/api/internal/v1/projects/${DEMO_PROJECT_ID}/source-maps`, {
     headers: { Cookie: await sessionCookie() },
     multipart: {
       release,
@@ -107,14 +107,14 @@ test("an uploaded map is actually used to resolve a subsequently ingested event'
   );
   expect(ingest.status()).toBe(200);
 
-  const issues = await request.get(`/api/internal/issues`, {
+  const issues = await request.get(`/api/internal/v1/issues`, {
     headers: { Cookie: await sessionCookie() },
   });
   const { issues: issueList } = await issues.json();
   const issue = issueList.find((i: { title: string }) => i.title.includes(uniqueMessage));
   expect(issue).toBeTruthy();
 
-  const detail = await request.get(`/api/internal/issues/${issue.id}`, {
+  const detail = await request.get(`/api/internal/v1/issues/${issue.id}`, {
     headers: { Cookie: await sessionCookie() },
   });
   const detailBody = await detail.json();

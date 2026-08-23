@@ -47,11 +47,11 @@ export function OverviewScreen({ session, projectId }: OverviewScreenProps) {
     const params = projectId ? `?project=${projectId}` : "";
 
     Promise.all([
-      fetchCount(`/api/internal/issues${params}`),
-      fetchCount(`/api/internal/traces${params}`),
-      fetchCount(`/api/internal/releases${params}`),
-      fetchCount(`/api/internal/checks${params}`),
-      fetchCount(`/api/internal/feedback${params}`),
+      fetchCount(`/api/internal/v1/issues${params}`),
+      fetchCount(`/api/internal/v1/traces${params}`),
+      fetchCount(`/api/internal/v1/releases${params}`),
+      fetchCount(`/api/internal/v1/checks${params}`),
+      fetchCount(`/api/internal/v1/feedback${params}`),
     ])
       .then(([issues, operations, releases, checks, feedback]) => {
         if (cancelled) return;

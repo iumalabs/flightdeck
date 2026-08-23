@@ -21,7 +21,7 @@ export function AlertsScreen({ projectId, onSelectCheck }: AlertsScreenProps) {
   useEffect(() => {
     let cancelled = false;
     const params = projectId ? `?project=${projectId}` : "";
-    fetch(`/api/internal/incidents${params}`, { credentials: "same-origin" })
+    fetch(`/api/internal/v1/incidents${params}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<{ incidents: Incident[] }> : null))
       .then((data) => {
         if (!cancelled) setIncidents(data?.incidents ?? []);

@@ -37,7 +37,7 @@ function FeedbackDetailView(
     let cancelled = false;
     setLoading(true);
     const params = projectId ? `?project=${projectId}` : "";
-    fetch(`/api/internal/feedback/${id}${params}`, { credentials: "same-origin" })
+    fetch(`/api/internal/v1/feedback/${id}${params}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<FeedbackDetail> : null))
       .then((data) => {
         if (!cancelled) setFeedback(data);
@@ -111,7 +111,7 @@ export function FeedbackScreen({ projectId }: FeedbackScreenProps) {
   useEffect(() => {
     let cancelled = false;
     const params = projectId ? `?project=${projectId}` : "";
-    fetch(`/api/internal/feedback${params}`, { credentials: "same-origin" })
+    fetch(`/api/internal/v1/feedback${params}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<{ feedback: FeedbackListItem[] }> : null))
       .then((data) => {
         if (!cancelled) setItems(data?.feedback ?? []);

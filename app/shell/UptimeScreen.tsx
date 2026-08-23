@@ -36,7 +36,7 @@ export function UptimeScreen({ projectId, onSelectCheck }: UptimeScreenProps) {
   const load = () => {
     setLoading(true);
     const params = projectId ? `?project=${projectId}` : "";
-    fetch(`/api/internal/checks${params}`, { credentials: "same-origin" })
+    fetch(`/api/internal/v1/checks${params}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<{ checks: Check[] }> : null))
       .then((data) => setChecks(data?.checks ?? []))
       .catch(() => setChecks([]))
@@ -49,7 +49,7 @@ export function UptimeScreen({ projectId, onSelectCheck }: UptimeScreenProps) {
     e.preventDefault();
     setError(null);
     const params = projectId ? `?project=${projectId}` : "";
-    const res = await fetch(`/api/internal/checks${params}`, {
+    const res = await fetch(`/api/internal/v1/checks${params}`, {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },

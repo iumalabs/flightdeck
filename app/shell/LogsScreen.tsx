@@ -72,7 +72,7 @@ function LiveTail(
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     const params = projectId ? `?project=${projectId}` : "";
     const socket = new WebSocket(
-      `${proto}//${location.host}/api/internal/logs/live-tail${params}`,
+      `${proto}//${location.host}/api/internal/v1/logs/live-tail${params}`,
     );
     socketRef.current = socket;
     socket.onmessage = (event) => {
@@ -141,7 +141,7 @@ function Search(
     if (q) params.set("q", q);
     if (level) params.set("level", level);
     if (projectId) params.set("project", projectId);
-    fetch(`/api/internal/logs/search?${params.toString()}`, { credentials: "same-origin" })
+    fetch(`/api/internal/v1/logs/search?${params.toString()}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<{ lines: LogLine[] }> : null))
       .then((data) => setLines(data?.lines ?? []))
       .catch(() => setLines([]))
