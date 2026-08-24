@@ -300,3 +300,41 @@ cross-linked in both directions.
   it affects only how T011's contract test is designed, not whether the production ingest path
   works, since Cloudflare Queues function in real deployed Workers regardless of local `wrangler
   dev` emulation fidelity.
+
+---
+
+## Phase 7: Convergence
+
+**Purpose**: `/speckit-converge` pass against the current codebase (2026-08-24) — all 38 original
+tasks are checked off and the core ingest → queue → waterfall → cross-link pipeline is real and
+working, but independent re-verification against spec.md/plan.md found three gaps the original task
+list never closed.
+
+- [ ] T039 Add a contract- or integration-level test that ingests multiple transactions sharing one
+      operation name with a known duration distribution and asserts `GET /api/internal/v1/traces`'s
+      `p50Ms`/`p95Ms` match the expected values, per SC-004 and spec.md User Story 2's own
+      Independent Test (missing) — `tests/unit/percentiles.test.ts` only unit-tests the pure
+      `computeOffset()` arithmetic (`worker/modules/ingest/percentiles.ts`); no test anywhere
+      exercises `percentileSql()`/`operationsListSql()`/`fetchPercentile()` against real seeded D1
+      data (confirmed via repo-wide search: no test file references `p50Ms`, `p95Ms`,
+      `operationsListSql`, or `fetchPercentile`), so SC-004's "verified by automated test" is
+      currently satisfied only by a one-time manual spike recorded in research.md §4, not by
+      standing test coverage.
+- [ ] T040 Guard `worker/modules/ingest/routes.ts`'s transaction-item dispatch (around line 272,
+      `await c.env.TRACE_INGEST.send(queued)`) against a serialized transaction payload that exceeds
+      Cloudflare Queues' documented 128 KB max message size, rejecting it cleanly (e.g. `413`)
+      instead of letting an oversized `.send()` throw uncaught into Hono's `app.onError` handler
+      (`worker/index.ts`) and return a generic `500`, per FR-010 and spec.md's "an ingest payload is
+      excessively large... it is rejected rather than accepted" edge case (partial) — the shared
+      `MAX_ENVELOPE_BYTES` check (1 MB) only bounds the whole envelope, not one transaction item, and
+      research.md §4 itself flags this exact gap as unresolved ("the plan should verify a realistic
+      large transaction fits under 128 KB, not just under MAX_ENVELOPE_BYTES") with no evidence in
+      code or tests that the verification, or a guard, was ever added.
+- [ ] T041 Add an interactive sort/filter affordance to `app/shell/TracesScreen.tsx`'s Traces list
+      (e.g. clickable column headers to toggle sort field/direction, or a duration filter control),
+      per spec.md User Story 2 Acceptance Scenario 3, "When a developer sorts or filters by
+      duration..." (partial) — the current implementation (lines 41, 60-78) only applies a fixed,
+      non-interactive default sort by `p95Ms` descending with no way to change it and no filtering
+      capability at all; the outcome (slowest operations visible without manual comparison) is
+      arguably met by the default sort, but no "sorts or filters" action exists for a developer to
+      take, as the acceptance scenario's wording describes.

@@ -336,3 +336,24 @@ resolution helper). Independent of User Stories 2 and 3.
   with Module 3's T010 — they're two independent queue bindings, and Module 3's outcome does not
   automatically transfer, even though the underlying platform question (does `wrangler dev` reliably
   emulate Queues locally) is the same one being asked twice.
+
+---
+
+## Phase 8: Convergence
+
+- [ ] T044 Add submission-level de-duplication to log ingest (e.g. the envelope's `event_id`,
+      already parsed and used for widget-path dedup elsewhere in `worker/modules/ingest/routes.ts`,
+      threaded through `QueuedLogBatch` into `worker/modules/ingest/log-consumer.ts`'s
+      `handleLogIngestBatch`) so that a client retry of the same envelope submission, or a
+      Cloudflare Queue at-least-once redelivery of the same message, does not write a second
+      `log_batches`/`log_batches_fts` row or broadcast a second `LiveTail` message for lines already
+      recorded — `handleLogIngestBatch` (log-consumer.ts) currently generates a fresh
+      `crypto.randomUUID()` batch id and writes unconditionally on every invocation, and the ingest
+      dispatch in `routes.ts` calls `LOG_INGEST.send()`/`LiveTail.broadcast()` with no submission
+      identifier at all, even though `data-model.md`'s Log Batch validation rules explicitly
+      document "de-duplication of a retried envelope submission (spec FR-009) is handled by the
+      queue consumer recognizing an already-processed envelope's identifier before writing a new
+      batch" — no such check exists in code, and neither `tests/unit/log-dispatch.test.ts` nor
+      `tests/contract/log-ingest.spec.ts` exercises a retried/duplicate submission. Add test
+      coverage proving a retried submission does not duplicate live-tail or search results per
+      FR-009 (missing)
