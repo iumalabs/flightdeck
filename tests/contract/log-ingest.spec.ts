@@ -100,6 +100,36 @@ test("an unknown DSN key is rejected, fail closed, no log data recorded", async 
   expect(found).toBe(false);
 });
 
+test("submitting the same envelope (same envelope header event_id) twice does not duplicate search results", async ({ request }) => {
+  const dsnKey = await getDsnKey();
+  const marker = crypto.randomUUID().slice(0, 8);
+  const eventId = crypto.randomUUID();
+  const body = buildLogEnvelope(eventId, [
+    { timestamp: Date.now() / 1000, level: "info", body: `dedup-${marker}-retried-line` },
+  ]);
+  const url = `/api/${DEMO_PROJECT_ID}/envelope?sentry_key=${dsnKey}&sentry_version=7`;
+
+  const first = await request.post(url, { data: body });
+  expect(first.status()).toBe(200);
+
+  const cookie = await sessionCookieHeader();
+  const found = await pollForLine(request, cookie, `dedup-${marker}`);
+  expect(found).toBe(true);
+
+  // Retry the IDENTICAL envelope (same header event_id) — simulates a client retry or Cloudflare
+  // Queues' at-least-once redelivery of the same submission (T044).
+  const second = await request.post(url, { data: body });
+  expect(second.status()).toBe(200); // still accepted, just a no-op on the duplicate submission
+
+  await new Promise((resolve) => setTimeout(resolve, 1500)); // let a redundant enqueue drain, if any
+  const res = await request.get(
+    `/api/internal/v1/logs/search?q=${encodeURIComponent(`dedup-${marker}`)}`,
+    { headers: { Cookie: cookie } },
+  );
+  const resultBody = await res.json() as { lines: { body: string }[] };
+  expect(resultBody.lines.length).toBe(1); // not 2 — the retried submission was deduplicated
+});
+
 test("submitting a batch of 3 log lines records all 3, not just the first", async ({ request }) => {
   const dsnKey = await getDsnKey();
   const marker = crypto.randomUUID().slice(0, 8);

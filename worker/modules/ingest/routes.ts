@@ -178,9 +178,33 @@ async function handleEnvelope(c: Context<{ Bindings: Env }, EnvelopeRoutePath>) 
       );
       if (records.length === 0) continue; // an unparseable/empty log item is dropped, not fatal
 
+      // The envelope's OWN event_id, read from the envelope HEADER (Sentry protocol) — distinct
+      // from any per-record field, since a "log" item batches many independent records with no
+      // per-record event_id of their own (research.md §1). Threaded through so the queue consumer
+      // can recognize an already-processed submission before writing a new batch (T044,
+      // data-model.md's Log Batch validation rules). Null when the client's envelope header omits
+      // it (legal per protocol) — that submission simply isn't deduplicated.
+      const envelopeEventId = typeof envelope.header.event_id === "string"
+        ? envelope.header.event_id
+        : null;
+
+      // T044: a submission already fully processed by an earlier request (a client retry of the
+      // SAME envelope) must not broadcast its lines to live-tail viewers a second time, mirroring
+      // the "event" item dedup check below (SELECT-then-skip, before any further work). This is
+      // still independent of — never gated on — the queue consumer's OWN write (research.md §7's
+      // parallel-not-sequential requirement, preserved for every FIRST-time submission): only a
+      // submission this D1 read finds ALREADY recorded skips both the enqueue and the broadcast.
+      if (envelopeEventId) {
+        const existing = await c.env.DB
+          .prepare(`SELECT 1 FROM log_batches WHERE project_id = ?1 AND envelope_event_id = ?2`)
+          .bind(project.id, envelopeEventId)
+          .first();
+        if (existing) continue;
+      }
+
       const liveTailStub = c.env.LIVE_TAIL.get(c.env.LIVE_TAIL.idFromName(project.id));
       await Promise.all([
-        c.env.LOG_INGEST.send({ projectId: project.id, records }),
+        c.env.LOG_INGEST.send({ projectId: project.id, records, envelopeEventId }),
         liveTailStub.broadcast(records.map(normalizeRecord)),
       ]);
       continue;

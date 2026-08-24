@@ -20,6 +20,13 @@ export interface RawLogRecord {
 export interface QueuedLogBatch {
   projectId: string;
   records: RawLogRecord[];
+  // The submitting envelope's OWN `event_id`, read from the envelope HEADER (not any per-record
+  // field — a "log" item batches many independent records with no per-record event_id of their
+  // own, research.md §1) — identifies ONE envelope submission, scoped per-project (T044,
+  // data-model.md's Log Batch validation rules). Null when the client's envelope header omits it
+  // (legal per protocol) — those submissions simply aren't deduplicated, same as before this field
+  // existed.
+  envelopeEventId: string | null;
 }
 
 interface Env {
@@ -88,10 +95,30 @@ export async function handleLogIngestBatch(
 ): Promise<void> {
   for (const message of batch.messages) {
     try {
-      const { projectId, records } = message.body;
+      const { projectId, records, envelopeEventId } = message.body;
       if (records.length === 0) {
         message.ack();
         continue;
+      }
+
+      // Submission-level de-duplication (T044, data-model.md's Log Batch validation rules) — a
+      // client retry of the same envelope submission or Cloudflare Queues' at-least-once
+      // redelivery of this exact message must not write a second `log_batches`/`log_batches_fts`
+      // row. Checked BEFORE the R2 write / D1 batch, mirroring routes.ts's own "event" item dedup
+      // check (SELECT-then-skip, not ON CONFLICT DO NOTHING) — this batch's insert isn't a single
+      // statement like trace-consumer.ts's, so DO NOTHING would leave the FTS/junction inserts
+      // still running unconditionally against a batch_id that was never actually written.
+      if (envelopeEventId) {
+        const existing = await env.DB
+          .prepare(
+            `SELECT 1 FROM log_batches WHERE project_id = ?1 AND envelope_event_id = ?2`,
+          )
+          .bind(projectId, envelopeEventId)
+          .first();
+        if (existing) {
+          message.ack();
+          continue;
+        }
       }
 
       const timestamps = records.map((r) => r.timestamp);
@@ -110,9 +137,18 @@ export async function handleLogIngestBatch(
       const statements = [
         env.DB.prepare(
           `INSERT INTO log_batches
-             (id, project_id, r2_object_key, started_at, ended_at, record_count, levels_present, received_at)
-           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, datetime('now'))`,
-        ).bind(batchId, projectId, r2ObjectKey, startedAt, endedAt, records.length, levelsPresent),
+             (id, project_id, r2_object_key, started_at, ended_at, record_count, levels_present, envelope_event_id, received_at)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, datetime('now'))`,
+        ).bind(
+          batchId,
+          projectId,
+          r2ObjectKey,
+          startedAt,
+          endedAt,
+          records.length,
+          levelsPresent,
+          envelopeEventId,
+        ),
         env.DB.prepare(
           `INSERT INTO log_batches_fts (search_text, batch_id) VALUES (?1, ?2)`,
         ).bind(searchText, batchId),
