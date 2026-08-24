@@ -301,11 +301,11 @@ incident open then resolved, confirm exactly one request each.
 
 ## Phase 8: Convergence
 
-- [ ] T037 CRITICAL: Add contract-test coverage (against a real `wrangler dev`, where
+- [x] T037 CRITICAL: Add contract-test coverage (against a real `wrangler dev`, where
       `cloudflare:sockets` actually resolves) proving a TCP check via `runTcpCheck()`/`runCheck()`
-      correctly reports `up` for a reachable `host:port` and `down` for an unreachable one — no
-      test (unit, contract, or e2e) currently exercises the TCP code path at all, despite T007/T008
-      both explicitly calling for it and both being marked `[x]` per US1/AC3 (Constitution VIII)
+      correctly reports `up` for a reachable `host:port` and `down` for an unreachable one — no test
+      (unit, contract, or e2e) currently exercises the TCP code path at all, despite T007/T008 both
+      explicitly calling for it and both being marked `[x]` per US1/AC3 (Constitution VIII)
       (missing)
 - [ ] T038 Wire `worker/modules/uptime/evaluate.ts`'s `runCheck()` to actually call
       `worker/modules/uptime/decide.ts`'s `applyOutcome()` for its consecutive-failure/recovery
@@ -315,6 +315,6 @@ incident open then resolved, confirm exactly one request each.
       that actually runs in production, not a parallel copy that could silently diverge from it per
       plan.md's Testing section (contradicts)
 - [ ] T039 Update `app/shell/AlertsScreen.tsx`'s empty-state copy (currently the leftover Module 1
-      placeholder "No alert rules yet" / "Alert rules will show up here once your workspace has
-      data to evaluate them against") to describe uptime incidents, this module's actual concept,
-      per FR-009/US2/AC4 (partial)
+      placeholder "No alert rules yet" / "Alert rules will show up here once your workspace has data
+      to evaluate them against") to describe uptime incidents, this module's actual concept, per
+      FR-009/US2/AC4 (partial)
