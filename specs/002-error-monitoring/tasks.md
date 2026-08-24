@@ -342,7 +342,7 @@ confirm the suspect commit shown matches the actual most recent commit touching 
 
 ## Phase 8: Convergence
 
-- [ ] T050 Distinguish "no stack trace/breadcrumbs were ever recorded" from "this issue's only
+- [x] T050 Distinguish "no stack trace/breadcrumbs were ever recorded" from "this issue's only
       occurrence(s) aged out under retention" in `GET /api/internal/issues/:id`
       (`worker/modules/issues/routes.ts`) and surface the latter case explicitly in
       `app/shell/IssueDetailScreen.tsx` (e.g. "Detailed event data is no longer retained for this

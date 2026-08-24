@@ -46,6 +46,11 @@ interface IssueDetail {
     tags: Record<string, string>;
     contexts: Record<string, unknown>;
   } | null;
+  // contracts/internal-api.md's addition (T050, specs/002-error-monitoring) — false only when
+  // `latestEvent` is null AND an event WAS ingested at some point (eventCount > 0), meaning
+  // retention pruned it, distinct from an event that simply never carried a stack trace/
+  // breadcrumbs.
+  eventDataRetained: boolean;
   suspectCommit: SuspectCommit | null;
   // contracts/traces-internal-api.md's addition (specs/003-distributed-tracing) — the latest
   // event's trace_id, null when it carried no active trace (spec FR-009, "absent, not an error
@@ -231,7 +236,9 @@ export function IssueDetailScreen(
       {frames.length === 0
         ? (
           <p style={{ color: "var(--fg2)", fontSize: 13 }}>
-            No stack trace recorded for this event.
+            {issue.eventDataRetained
+              ? "No stack trace recorded for this event."
+              : "Detailed event data is no longer retained for this issue."}
           </p>
         )
         : (
@@ -264,7 +271,13 @@ export function IssueDetailScreen(
 
       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Breadcrumbs</div>
       {(issue.latestEvent?.breadcrumbs ?? []).length === 0
-        ? <p style={{ color: "var(--fg2)", fontSize: 13 }}>No breadcrumbs recorded.</p>
+        ? (
+          <p style={{ color: "var(--fg2)", fontSize: 13 }}>
+            {issue.eventDataRetained
+              ? "No breadcrumbs recorded."
+              : "Detailed event data is no longer retained for this issue."}
+          </p>
+        )
         : (
           <div
             style={{
