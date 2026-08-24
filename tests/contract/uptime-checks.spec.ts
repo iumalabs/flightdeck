@@ -82,6 +82,52 @@ test("a manually-triggered HTTP check against an unreachable target reports down
   expect(result.status).toBe("down");
 });
 
+// T037 (specs/006-uptime-monitoring/tasks.md Phase 8) — the TCP path (`runTcpCheck()`, wired
+// through `runCheck()`) is exercised nowhere else: `cloudflare:sockets`' `connect()` only resolves
+// inside a real Workers runtime (research.md §2), never under plain `deno test`, so this has to be
+// a contract test against real `wrangler dev`, same as the HTTP pair above.
+//
+// Reachable target: a genuine local TCP listener on an ephemeral port (`Deno.listen({ port: 0 })`),
+// same "real local listener the contract test controls" pattern the webhook-delivery test below
+// already establishes with `Deno.serve({ port: 0 })` — wrangler dev's real `connect()` can reach a
+// plain loopback listener, same as its real `fetch()` already proven to reach one. Unreachable
+// target: `127.0.0.1:1` — port 1 (tcpmux) is reserved and unbound in any CI/sandbox environment,
+// mirroring the HTTP unreachable-target test's identical choice of port just above.
+test("a manually-triggered TCP check against a reachable target reports up", async ({ request }) => {
+  const listener = Deno.listen({ hostname: "127.0.0.1", port: 0 });
+  const acceptLoop = (async () => {
+    try {
+      for await (const conn of listener) {
+        conn.close();
+      }
+    } catch {
+      // listener.close() below ends the iterator by rejecting/throwing — expected teardown, not a
+      // real failure.
+    }
+  })();
+
+  try {
+    const port = (listener.addr as Deno.NetAddr).port;
+    const checkId = await createCheck(request, {
+      type: "tcp",
+      target: `127.0.0.1:${port}`,
+    });
+    const result = await triggerCheck(request, checkId);
+    expect(result.succeeded).toBe(true);
+    expect(result.status).toBe("up");
+  } finally {
+    listener.close();
+    await acceptLoop;
+  }
+});
+
+test("a manually-triggered TCP check against an unreachable target reports down", async ({ request }) => {
+  const checkId = await createCheck(request, { type: "tcp", target: "127.0.0.1:1" });
+  const result = await triggerCheck(request, checkId);
+  expect(result.succeeded).toBe(false);
+  expect(result.status).toBe("down");
+});
+
 test("reaching the failure threshold opens exactly one incident; recovery resolves it", async ({ request }) => {
   const checkId = await createCheck(request, {
     target: "http://127.0.0.1:1",
