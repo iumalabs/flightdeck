@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.10.0](https://github.com/iumalabs/flightdeck/compare/v0.9.2...v0.10.0) (2026-08-24)
+
+
+### Features
+
+* **releases:** add project-scoped release routes; window adoption to recent sessions ([9251a82](https://github.com/iumalabs/flightdeck/commit/9251a82528f60b8fac0a7ad32e8a5dbfff2acab0))
+
+
+### Bug Fixes
+
+* **feedback:** rate-limit and size-cap the crash-report dialog ([57c87bd](https://github.com/iumalabs/flightdeck/commit/57c87bdf00937bff08a1f86374c65dbc33dd12c3))
+* **feedback:** rate-limit and size-cap the crash-report dialog endpoint ([54e102b](https://github.com/iumalabs/flightdeck/commit/54e102b02158021f97b47d6c11a05f85ae69614e))
+* **ingest:** add submission-level de-duplication for log ingest (T044) ([7803a49](https://github.com/iumalabs/flightdeck/commit/7803a49f9f2ee6d9deae268e95e3278678552bba))
+* **ingest:** add submission-level de-duplication for log ingest (T044) ([e49e628](https://github.com/iumalabs/flightdeck/commit/e49e628de597fe9c1aa83257a7ae4d39f0ba4f11))
+* **ingest:** reject oversized transaction items before Queue send (T040) ([33fbbe4](https://github.com/iumalabs/flightdeck/commit/33fbbe4ae83ff9acb92fffb77e44e6ed54b03233))
+* **issues:** distinguish retention-pruned event data from never-recorded (T050) ([ea00d4a](https://github.com/iumalabs/flightdeck/commit/ea00d4a31e7c4756383c120fefe74c4619ab57f7))
+* **issues:** distinguish retention-pruned event data from never-recorded (T050) ([783ccbc](https://github.com/iumalabs/flightdeck/commit/783ccbcf362f9e232dbd8995fd866d5a682cfb65))
+
 ## [0.9.2](https://github.com/iumalabs/flightdeck/compare/v0.9.1...v0.9.2) (2026-08-24)
 
 
