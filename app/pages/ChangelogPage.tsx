@@ -15,9 +15,136 @@ interface ChangelogEntry {
   items: ChangelogItem[];
 }
 
-// A single, honest entry for this module — see spec.md's Assumptions: no fabricated version
-// history, unlike the design mockup's illustrative multi-release changelog.
+// Honest, product-facing entries only — see 001-landing-access-login/spec.md's Assumptions: no
+// fabricated version history, unlike the design mockup's illustrative multi-release changelog.
+// Each entry below is grounded in a real shipped module's spec.md; internal-only commits (CI
+// fixes, deploy isolation, API-path versioning, retroactive release-note corrections) are left
+// off since they carry no user-visible meaning.
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "0.9.1",
+    date: "23 Aug 2026",
+    channel: "patch",
+    channelColor: "#8A8A82",
+    items: [
+      {
+        tag: "fixed",
+        color: "#F1A93C",
+        border: "rgba(241,169,60,.4)",
+        text:
+          "Ingest now accepts the trailing-slash envelope path (/api/{project_id}/envelope/) real Sentry SDKs send.",
+      },
+    ],
+  },
+  {
+    version: "0.9.0",
+    date: "23 Aug 2026",
+    channel: "patch",
+    channelColor: "#8A8A82",
+    items: [
+      {
+        tag: "fixed",
+        color: "#F1A93C",
+        border: "rgba(241,169,60,.4)",
+        text:
+          "Dashboard selects use a themed dropdown instead of the native browser popup, fixing readability in dark mode.",
+      },
+    ],
+  },
+  {
+    version: "0.7.0",
+    date: "23 Aug 2026",
+    channel: "minor",
+    channelColor: "#8A8A82",
+    items: [
+      {
+        tag: "added",
+        color: LIME,
+        border: "rgba(184,241,53,.4)",
+        text:
+          "Overview shows real per-pillar counts, and Install SDK surfaces each project's real DSN.",
+      },
+    ],
+  },
+  {
+    version: "0.6.0",
+    date: "23 Aug 2026",
+    channel: "minor",
+    channelColor: "#8A8A82",
+    items: [
+      {
+        tag: "added",
+        color: LIME,
+        border: "rgba(184,241,53,.4)",
+        text:
+          "Multi-project support — create additional projects and scope the dashboard to each one.",
+      },
+    ],
+  },
+  {
+    version: "0.5.0",
+    date: "22 Aug 2026",
+    channel: "minor",
+    channelColor: "#8A8A82",
+    items: [
+      {
+        tag: "added",
+        color: LIME,
+        border: "rgba(184,241,53,.4)",
+        text: "Structured logs — live tail, search, and S3-compatible export.",
+      },
+      {
+        tag: "added",
+        color: LIME,
+        border: "rgba(184,241,53,.4)",
+        text:
+          "Releases — sentry-cli-compatible release/source-map upload, adoption and crash-free rates, regression detection.",
+      },
+      {
+        tag: "added",
+        color: LIME,
+        border: "rgba(184,241,53,.4)",
+        text: "Uptime monitoring — HTTP/TCP checks from four regions with incident-aware alerting.",
+      },
+      {
+        tag: "added",
+        color: LIME,
+        border: "rgba(184,241,53,.4)",
+        text:
+          "User feedback — drop-in widget and crash-report dialog, linked back to the originating event.",
+      },
+    ],
+  },
+  {
+    version: "0.4.0",
+    date: "22 Aug 2026",
+    channel: "minor",
+    channelColor: "#8A8A82",
+    items: [
+      {
+        tag: "added",
+        color: LIME,
+        border: "rgba(184,241,53,.4)",
+        text:
+          "Distributed tracing — span waterfalls, p50/p95 per transaction, and trace-to-error linkage.",
+      },
+    ],
+  },
+  {
+    version: "0.3.0",
+    date: "21 Aug 2026",
+    channel: "minor",
+    channelColor: "#8A8A82",
+    items: [
+      {
+        tag: "added",
+        color: LIME,
+        border: "rgba(184,241,53,.4)",
+        text:
+          "Error monitoring — Sentry-SDK-compatible ingest, issue grouping, source maps, and suspect commits.",
+      },
+    ],
+  },
   {
     version: "0.1.0",
     date: "21 Aug 2026",
