@@ -48,6 +48,7 @@ interface Env {
   GITHUB_APP_ID: string;
   GITHUB_APP_PRIVATE_KEY: string;
   CLOUDFLARE_R2_ADMIN_TOKEN: string;
+  API_TOKEN_PEPPER: string;
 }
 
 const app = new Hono<{ Bindings: Env; Variables: { identity: SessionIdentity } }>();

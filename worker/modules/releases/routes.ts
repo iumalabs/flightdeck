@@ -6,12 +6,13 @@ import type { SessionIdentity } from "../../auth/session.ts";
 import { generateRawToken, hashToken } from "../../auth/api-token.ts";
 import { resolveOrCreateRelease } from "../ingest/release-lookup.ts";
 import { computeCrashFreeRate } from "../ingest/release-health.ts";
-import { commitsToRows, isProjectAuthorized } from "./request-shape.ts";
+import { commitsToRows, isProjectAuthorized, isProjectSlugAuthorized } from "./request-shape.ts";
 import { resolveRequestedProject } from "../projects/resolve.ts";
 
 interface Env {
   DB: D1Database;
   SOURCE_MAPS: R2Bucket;
+  API_TOKEN_PEPPER: string;
 }
 
 // ============================================================================
@@ -229,47 +230,136 @@ interface ReleaseListRow {
   created_at: string;
 }
 
-// `sentry-cli releases list` (project-scoped variant — a token can only ever see its own project's
-// releases, research.md §4).
-releasesCliRoutes.get("/organizations/:orgSlug/releases/", async (c) => {
-  const apiToken = c.get("apiToken");
-  const { results } = await c.env.DB
+interface CliReleaseView {
+  version: string;
+  dateReleased: string | null;
+  dateCreated: string;
+}
+
+function toCliReleaseView(row: ReleaseListRow): CliReleaseView {
+  return { version: row.version, dateReleased: row.date_released, dateCreated: row.created_at };
+}
+
+// Shared query helpers backing both the org-scoped (`/organizations/{org_slug}/releases/...`) and
+// project-scoped (`/projects/{org_slug}/{project_slug}/releases/...`) path variants (T045,
+// research.md §1/§3) — every variant ultimately scopes by `apiToken.projectId`, since a token is
+// project-scoped regardless of which path shape a given sentry-cli subcommand happens to use.
+
+// `sentry-cli releases list`.
+async function listReleasesForProject(
+  db: D1Database,
+  projectId: string,
+): Promise<CliReleaseView[]> {
+  const { results } = await db
     .prepare(
       `SELECT id, version, date_released, created_at FROM releases WHERE project_id = ?1 ORDER BY created_at DESC`,
     )
-    .bind(apiToken.projectId)
+    .bind(projectId)
     .all<ReleaseListRow>();
-  return c.json(
-    (results ?? []).map((row) => ({
-      version: row.version,
-      dateReleased: row.date_released,
-      dateCreated: row.created_at,
-    })),
-  );
-});
+  return (results ?? []).map(toCliReleaseView);
+}
+
+// `sentry-cli releases list` (single-release retrieve, e.g. via `propose-version`/direct lookup).
+async function getReleaseForProject(
+  db: D1Database,
+  projectId: string,
+  version: string,
+): Promise<CliReleaseView | null> {
+  const row = await db
+    .prepare(
+      `SELECT id, version, date_released, created_at FROM releases WHERE project_id = ?1 AND version = ?2`,
+    )
+    .bind(projectId, version)
+    .first<ReleaseListRow>();
+  return row ? toCliReleaseView(row) : null;
+}
 
 // `sentry-cli releases delete <version>`.
-releasesCliRoutes.delete("/organizations/:orgSlug/releases/:version/", async (c) => {
-  const version = c.req.param("version");
-  const apiToken = c.get("apiToken");
-  const release = await c.env.DB
+async function deleteReleaseForProject(
+  db: D1Database,
+  projectId: string,
+  version: string,
+  actorSub: string,
+): Promise<void> {
+  const release = await db
     .prepare(`SELECT id FROM releases WHERE project_id = ?1 AND version = ?2`)
-    .bind(apiToken.projectId, version)
+    .bind(projectId, version)
     .first<{ id: string }>();
 
   if (release) {
-    await c.env.DB.prepare(`DELETE FROM releases WHERE id = ?1`).bind(release.id).run();
-    await c.env.DB
+    await db.prepare(`DELETE FROM releases WHERE id = ?1`).bind(release.id).run();
+    await db
       .prepare(`INSERT INTO audit_log (id, actor_sub, action, before_json) VALUES (?1, ?2, ?3, ?4)`)
       .bind(
         crypto.randomUUID(),
-        apiToken.createdBy,
+        actorSub,
         "release.delete",
-        JSON.stringify({ projectId: apiToken.projectId, version }),
+        JSON.stringify({ projectId, version }),
       )
       .run();
   }
+}
 
+// ---- org-scoped variants (`/organizations/{org_slug}/releases/...`) ----
+
+releasesCliRoutes.get("/organizations/:orgSlug/releases/", async (c) => {
+  const apiToken = c.get("apiToken");
+  const releases = await listReleasesForProject(c.env.DB, apiToken.projectId);
+  return c.json(releases);
+});
+
+// Org-scoped single-release retrieve (T045, research.md §1's confirmed list/retrieve/delete
+// coverage) — `GET /api/0/organizations/{org_slug}/releases/{version}/`.
+releasesCliRoutes.get("/organizations/:orgSlug/releases/:version/", async (c) => {
+  const apiToken = c.get("apiToken");
+  const version = c.req.param("version");
+  const release = await getReleaseForProject(c.env.DB, apiToken.projectId, version);
+  if (!release) return c.text("Not Found", 404);
+  return c.json(release);
+});
+
+releasesCliRoutes.delete("/organizations/:orgSlug/releases/:version/", async (c) => {
+  const apiToken = c.get("apiToken");
+  const version = c.req.param("version");
+  await deleteReleaseForProject(c.env.DB, apiToken.projectId, version, apiToken.createdBy);
+  return c.body(null, 204);
+});
+
+// ---- project-scoped variants (`/projects/{org_slug}/{project_slug}/releases/...`, T045) ----
+// Every release-file operation (list/retrieve/delete, unlike creation) has a confirmed
+// project-scoped path variant (research.md §3) — `{project_slug}` must match the token's own
+// project (`isProjectSlugAuthorized`, mirroring the upload-sourcemaps route below).
+
+releasesCliRoutes.get("/projects/:orgSlug/:projectSlug/releases/", async (c) => {
+  const apiToken = c.get("apiToken");
+  const projectSlug = c.req.param("projectSlug");
+  if (!isProjectSlugAuthorized(apiToken.projectId, projectSlug)) {
+    return c.text("Forbidden", 403);
+  }
+  const releases = await listReleasesForProject(c.env.DB, apiToken.projectId);
+  return c.json(releases);
+});
+
+releasesCliRoutes.get("/projects/:orgSlug/:projectSlug/releases/:version/", async (c) => {
+  const apiToken = c.get("apiToken");
+  const projectSlug = c.req.param("projectSlug");
+  if (!isProjectSlugAuthorized(apiToken.projectId, projectSlug)) {
+    return c.text("Forbidden", 403);
+  }
+  const version = c.req.param("version");
+  const release = await getReleaseForProject(c.env.DB, apiToken.projectId, version);
+  if (!release) return c.text("Not Found", 404);
+  return c.json(release);
+});
+
+releasesCliRoutes.delete("/projects/:orgSlug/:projectSlug/releases/:version/", async (c) => {
+  const apiToken = c.get("apiToken");
+  const projectSlug = c.req.param("projectSlug");
+  if (!isProjectSlugAuthorized(apiToken.projectId, projectSlug)) {
+    return c.text("Forbidden", 403);
+  }
+  const version = c.req.param("version");
+  await deleteReleaseForProject(c.env.DB, apiToken.projectId, version, apiToken.createdBy);
   return c.body(null, 204);
 });
 
@@ -282,6 +372,23 @@ export const releasesInternalRoutes = new Hono<
 >();
 
 releasesInternalRoutes.use("*", sessionAuth);
+
+// T046 (Phase 8 convergence): "adoption" is defined by spec.md User Story 2 Acceptance Scenario 1
+// as a release's "share of RECENT sessions", not a lifetime share — the original implementation
+// summed `sessions_total` over every `release_health` row ever written for the project, with no
+// time bound at all. No day count is stated anywhere in spec.md/research.md, so this picks one
+// explicitly rather than leaving it unbounded: 14 days. Rationale — `release_health` is aggregated
+// at daily granularity (data-model.md's `date` column), so a 1-day window would be too sparse for
+// low-traffic projects (and unusable for manual/local testing, where "today" may hold the only
+// data); this module intentionally introduces no NEW retention window of its own (plan.md's
+// Principle IX note — release-health data is small, pre-aggregated, not raw high-volume telemetry),
+// so 14 days is chosen as a sensible middle point between the two bounded windows already
+// established elsewhere in this codebase for genuinely comparable "how are things going lately"
+// figures — logs' 7-day window (specs/004-structured-logs) and traces/uptime's 30-day window
+// (specs/003-distributed-tracing, specs/006-uptime-monitoring) — long enough to be stable for a
+// normal release cadence, short enough that an old release's lingering trickle of sessions doesn't
+// permanently dilute a new release's adoption share.
+const ADOPTION_WINDOW_DAYS = 14;
 
 interface HealthRow {
   release_id: string;
@@ -328,17 +435,36 @@ async function computeReleaseFigures(
     .all<UsersRow>();
   const userMap = new Map((userRows ?? []).map((r) => [r.environment, r]));
 
-  const totalSessionsAllReleases = await db
+  // Adoption is windowed to the last ADOPTION_WINDOW_DAYS days (T046) — a SEPARATE, narrower query
+  // from healthRows above, which stays lifetime-scoped for the crash-free rate figures (unaffected
+  // by this change; spec.md doesn't describe those as "recent"-windowed).
+  const windowStart = `-${ADOPTION_WINDOW_DAYS - 1} days`;
+  const { results: recentHealthRows } = await db
+    .prepare(
+      `SELECT release_id, environment, SUM(sessions_total) as sessions_total, SUM(sessions_crashed) as sessions_crashed
+       FROM release_health WHERE release_id = ?1 AND date >= date('now', ?2) GROUP BY environment`,
+    )
+    .bind(releaseId, windowStart)
+    .all<HealthRow>();
+  const recentSessionsMap = new Map(
+    (recentHealthRows ?? []).map((r) => [r.environment, r.sessions_total]),
+  );
+
+  const totalRecentSessionsAllReleases = await db
     .prepare(
       `SELECT SUM(sessions_total) as total FROM release_health
-       WHERE project_id = (SELECT project_id FROM releases WHERE id = ?1)`,
+       WHERE project_id = (SELECT project_id FROM releases WHERE id = ?1) AND date >= date('now', ?2)`,
     )
-    .bind(releaseId)
+    .bind(releaseId, windowStart)
     .first<{ total: number | null }>();
 
   const releaseTotalSessions = (healthRows ?? []).reduce((sum, r) => sum + r.sessions_total, 0);
-  const overallAdoption = totalSessionsAllReleases?.total
-    ? (releaseTotalSessions / totalSessionsAllReleases.total) * 100
+  const releaseRecentSessions = (recentHealthRows ?? []).reduce(
+    (sum, r) => sum + r.sessions_total,
+    0,
+  );
+  const overallAdoption = totalRecentSessionsAllReleases?.total
+    ? (releaseRecentSessions / totalRecentSessionsAllReleases.total) * 100
     : null;
 
   const overallCrashed = (healthRows ?? []).reduce((sum, r) => sum + r.sessions_crashed, 0);
@@ -351,8 +477,9 @@ async function computeReleaseFigures(
     const users = userMap.get(row.environment);
     return {
       environment: row.environment,
-      adoptionPercent: totalSessionsAllReleases?.total
-        ? (row.sessions_total / totalSessionsAllReleases.total) * 100
+      adoptionPercent: totalRecentSessionsAllReleases?.total
+        ? ((recentSessionsMap.get(row.environment) ?? 0) / totalRecentSessionsAllReleases.total) *
+          100
         : 0,
       crashFreeSessionRate: computeCrashFreeRate(row.sessions_total, row.sessions_crashed),
       crashFreeUserRate: users
@@ -475,7 +602,7 @@ apiTokensRoutes.post("/:id/api-tokens", async (c) => {
   const projectId = c.req.param("id");
   const identity = c.get("identity");
   const rawToken = generateRawToken();
-  const tokenHash = await hashToken(rawToken);
+  const tokenHash = await hashToken(rawToken, c.env.API_TOKEN_PEPPER);
   const id = crypto.randomUUID();
 
   await c.env.DB

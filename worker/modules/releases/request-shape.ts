@@ -8,6 +8,14 @@ export function isProjectAuthorized(tokenProjectId: string, requestedProjects: s
   return requestedProjects.includes(tokenProjectId);
 }
 
+// The project-scoped path variants (`/api/0/projects/{org_slug}/{project_slug}/releases/...`,
+// T045) carry the project directly in the URL rather than a request body array — a token may only
+// operate on the one project it's scoped to (research.md §4), same rule as isProjectAuthorized
+// above, just against a single path segment instead of a list.
+export function isProjectSlugAuthorized(tokenProjectId: string, projectSlug: string): boolean {
+  return projectSlug === tokenProjectId;
+}
+
 export interface CommitInput {
   id?: string;
   message?: string;

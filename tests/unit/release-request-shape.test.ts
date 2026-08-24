@@ -1,5 +1,9 @@
 import { assertEquals } from "@std/assert";
-import { commitsToRows, isProjectAuthorized } from "../../worker/modules/releases/request-shape.ts";
+import {
+  commitsToRows,
+  isProjectAuthorized,
+  isProjectSlugAuthorized,
+} from "../../worker/modules/releases/request-shape.ts";
 
 Deno.test("isProjectAuthorized accepts when the token's project is among the requested projects", () => {
   assertEquals(isProjectAuthorized("demo", ["demo", "other-project"]), true);
@@ -11,6 +15,14 @@ Deno.test("isProjectAuthorized rejects when the token's project is not requested
 
 Deno.test("isProjectAuthorized rejects an empty projects array", () => {
   assertEquals(isProjectAuthorized("demo", []), false);
+});
+
+Deno.test("isProjectSlugAuthorized accepts when the URL project slug matches the token's project", () => {
+  assertEquals(isProjectSlugAuthorized("demo", "demo"), true);
+});
+
+Deno.test("isProjectSlugAuthorized rejects a project slug the token isn't scoped to", () => {
+  assertEquals(isProjectSlugAuthorized("demo", "other-project"), false);
 });
 
 Deno.test("commitsToRows maps sentry-cli's commit shape to release_commits rows", () => {

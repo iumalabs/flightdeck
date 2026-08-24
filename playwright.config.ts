@@ -1,5 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
-import { E2E_SESSION_SECRET } from "./tests/e2e/support/constants.ts";
+import { E2E_API_TOKEN_PEPPER, E2E_SESSION_SECRET } from "./tests/e2e/support/constants.ts";
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -22,9 +22,11 @@ export default defineConfig({
     // is declared as a required *secret* (constitution Principle IX) so it's deliberately absent
     // from wrangler.jsonc/committed config; CI has no `.dev.vars` file (gitignored), so it's passed
     // here instead — a fixed, e2e-only value, never a real credential — matching the constant
-    // tests/e2e/support/session.ts uses to mint pre-authenticated cookies.
+    // tests/e2e/support/session.ts uses to mint pre-authenticated cookies. API_TOKEN_PEPPER (T047,
+    // specs/005-releases) is passed the same way — releases-and-resolve.spec.ts exercises the
+    // API-token release-management flow, which requires the pepper to be bound.
     command:
-      `deno run -A npm:vite build && deno run -A npm:wrangler dev --port 8787 --env preview --var SESSION_SECRET:${E2E_SESSION_SECRET}`,
+      `deno run -A npm:vite build && deno run -A npm:wrangler dev --port 8787 --env preview --var SESSION_SECRET:${E2E_SESSION_SECRET} --var API_TOKEN_PEPPER:${E2E_API_TOKEN_PEPPER}`,
     port: 8787,
     reuseExistingServer: !Deno.env.get("CI"),
     timeout: 60_000,
