@@ -118,6 +118,29 @@ test("submitting the same event twice does not duplicate it", async ({ request }
   expect(second.status()).toBe(200); // still accepted, just a no-op — not an error
 });
 
+// T051 (specs/002-error-monitoring Phase 8 Convergence) — the whole-envelope-body size guard
+// (`MAX_ENVELOPE_BYTES`, 1 MB, `worker/modules/ingest/routes.ts`) has no test coverage anywhere
+// despite contracts/ingest-api.md naming it as part of the ingest contract (FR-013): the ONLY
+// existing 413 test (trace-ingest.spec.ts's "an oversized transaction item") exercises a DIFFERENT,
+// item-level guard (`MAX_QUEUE_MESSAGE_BYTES`, 127,000 bytes) whose whole envelope body stays well
+// under this one — it never touches this check at all.
+test("an envelope body over 1 MB is rejected with 413, not accepted or a generic 500", async ({ request }) => {
+  const dsnKey = await getDsnKey();
+  // Padded well past MAX_ENVELOPE_BYTES (1,000,000 bytes) via a single oversized string value —
+  // the envelope is rejected on raw body length before any JSON parsing happens, so the payload
+  // doesn't need to be a realistic/parseable event otherwise.
+  const body = buildEnvelope(crypto.randomUUID(), {
+    platform: "javascript",
+    padding: "x".repeat(1_100_000),
+  });
+
+  const response = await request.post(
+    `/api/${DEMO_PROJECT_ID}/envelope?sentry_key=${dsnKey}&sentry_version=7`,
+    { data: body },
+  );
+  expect(response.status()).toBe(413);
+});
+
 // The rate-limit-exhausting test lives in zz-rate-limit.spec.ts, not here — it consumes this same
 // DSN key's fixed 60s window, which would make any test that runs after it (in this file or
 // source-map-upload.spec.ts) flake on a spurious 429. Isolating it to a file that sorts last
