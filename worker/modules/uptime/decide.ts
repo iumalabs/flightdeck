@@ -1,7 +1,13 @@
 // Pure incident-aware decision logic (specs/006-uptime-monitoring research.md §8, data-model.md's
-// Check state transitions) — no I/O, no D1. `runCheck()` (evaluate.ts) is the only caller; kept
-// separate so the highest-risk logic (consecutive-failure/recovery counting, exactly-one-incident
-// open/resolve) is directly unit-testable without mocking fetch/cloudflare:sockets/D1.
+// Check state transitions) — no I/O, no D1. `runCheck()` (evaluate.ts) is the only caller (T038,
+// Phase 8 Convergence — this was previously false: evaluate.ts hand-duplicated the same semantics
+// as an inline SQL CASE expression for atomicity, and never actually called this function, letting
+// the two silently diverge without either failing a test); kept separate so the highest-risk logic
+// (consecutive-failure/recovery counting, exactly-one-incident open/resolve) is directly
+// unit-testable without mocking fetch/cloudflare:sockets/D1. `runCheck()` gets its own
+// race-safety under overlapping runs of the SAME check via optimistic concurrency (a WHERE-guarded
+// UPDATE, retried on conflict) rather than folding the increment/reset arithmetic into the SQL
+// itself.
 
 export interface CheckCounters {
   consecutiveFailures: number;
