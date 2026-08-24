@@ -341,7 +341,7 @@ resolution helper). Independent of User Stories 2 and 3.
 
 ## Phase 8: Convergence
 
-- [ ] T044 Add submission-level de-duplication to log ingest (e.g. the envelope's `event_id`,
+- [x] T044 Add submission-level de-duplication to log ingest (e.g. the envelope's `event_id`,
       already parsed and used for widget-path dedup elsewhere in `worker/modules/ingest/routes.ts`,
       threaded through `QueuedLogBatch` into `worker/modules/ingest/log-consumer.ts`'s
       `handleLogIngestBatch`) so that a client retry of the same envelope submission, or a

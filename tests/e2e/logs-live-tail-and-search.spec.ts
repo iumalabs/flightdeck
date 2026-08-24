@@ -62,6 +62,60 @@ test("live tail shows a log line within moments of it being emitted", async ({ b
   await context.close();
 });
 
+// T044 (specs/004-structured-logs convergence): a client retry of the same envelope submission —
+// or Cloudflare Queues' at-least-once redelivery of the same message — must not show its lines
+// twice in live tail, mirroring the durable-storage-side dedup covered by
+// tests/contract/log-ingest.spec.ts's "does not duplicate search results" test.
+test("a retried envelope submission (same header event_id) does not broadcast its log line to live tail twice", async ({ browser, request, baseURL }) => {
+  const dsnKey = await getDsnKey();
+  const token = await mintTestSession({
+    sub: "e2e-live-tail-dedup",
+    email: "live-tail-dedup@example.com",
+    role: "member",
+  });
+  const context = await browser.newContext();
+  await context.addCookies([{ name: "fd_session", value: token, url: baseURL!, sameSite: "Lax" }]);
+  const page = await context.newPage();
+  await page.goto("/");
+
+  const wsPromise = page.waitForEvent("websocket", (ws) => ws.url().includes("/live-tail"));
+  await page.getByText("Logs", { exact: true }).click();
+  await expect(page.getByText("Live tail")).toBeVisible();
+  const ws = await wsPromise;
+
+  const uniqueBody = `live-tail-dedup-${crypto.randomUUID().slice(0, 8)}`;
+  let matchingFrames = 0;
+  ws.on("framereceived", (frame) => {
+    const text = typeof frame.payload === "string" ? frame.payload : "";
+    if (text.includes(uniqueBody)) matchingFrames++;
+  });
+
+  const eventId = crypto.randomUUID();
+  const body = buildLogEnvelope(eventId, [
+    { timestamp: Date.now() / 1000, level: "info", body: uniqueBody },
+  ]);
+  const url = `/api/demo/envelope?sentry_key=${dsnKey}&sentry_version=7`;
+
+  const first = await request.post(url, { data: body });
+  expect(first.status()).toBe(200);
+  await expect(page.getByText(uniqueBody)).toBeVisible();
+
+  // Bounded wait for the queue consumer's own async D1 write (research.md §9/§10, same pattern
+  // the search e2e test below uses) — the retry's dedup check (routes.ts, T044) reads
+  // `log_batches` directly, so it needs that write to have actually landed to find it.
+  await new Promise((resolve) => setTimeout(resolve, 4000));
+
+  // Retry the IDENTICAL envelope (same header event_id) — simulates a client retry or Cloudflare
+  // Queues' at-least-once redelivery of the same submission.
+  const second = await request.post(url, { data: body });
+  expect(second.status()).toBe(200); // still accepted, just a no-op on the duplicate submission
+
+  await page.waitForTimeout(3000); // let a redundant broadcast arrive, if any
+  expect(matchingFrames).toBe(1); // not 2 — the retried submission's broadcast was suppressed
+
+  await context.close();
+});
+
 test("search finds ingested log lines by text and level, and cross-links to a trace", async ({ browser, request, baseURL }) => {
   const dsnKey = await getDsnKey();
   const traceId = crypto.randomUUID().replace(/-/g, "");
