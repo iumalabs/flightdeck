@@ -174,13 +174,81 @@ test("session ingest correctly aggregates into adoption/crash-free figures for a
   expect(releaseId).not.toBeNull();
 
   let crashFreeSessionRate: number | null = null;
+  let adoptionPercent: number | null = null;
   for (let i = 0; i < 8 && crashFreeSessionRate === null; i++) {
     const detail = await request.get(`/api/internal/v1/releases/${releaseId}`, {
       headers: { Cookie: cookie },
     });
-    const body = await detail.json() as { environments: { crashFreeSessionRate: number | null }[] };
+    const body = await detail.json() as {
+      environments: { crashFreeSessionRate: number | null; adoptionPercent: number }[];
+    };
     crashFreeSessionRate = body.environments[0]?.crashFreeSessionRate ?? null;
+    adoptionPercent = body.environments[0]?.adoptionPercent ?? null;
     if (crashFreeSessionRate === null) await new Promise((resolve) => setTimeout(resolve, 500));
   }
   expect(crashFreeSessionRate).toBeCloseTo(90, 0);
+  // Adoption is windowed to "recent" sessions (SC-002, T046 — specs/005-releases) — this release's
+  // just-ingested sessions are the only session data attributed to a release created in THIS test
+  // run within that window, so its share of recent sessions is a positive, bounded percentage, not
+  // null/zero. Not asserted as exactly 100: a locally-reused wrangler dev instance may carry other
+  // same-day releases' session data from earlier local runs into the same window.
+  expect(adoptionPercent).not.toBeNull();
+  expect(adoptionPercent as number).toBeGreaterThan(0);
+  expect(adoptionPercent as number).toBeLessThanOrEqual(100);
+});
+
+test("project-scoped release list/retrieve/delete variants work and stay project-scoped", async ({ request }) => {
+  const { token } = await generateApiToken(request);
+  const version = `contract-project-scoped-${crypto.randomUUID()}`;
+
+  const create = await request.post("/api/0/organizations/anyorg/releases/", {
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    data: { version, projects: ["demo"] },
+  });
+  expect(create.status()).toBe(201);
+
+  const list = await request.get("/api/0/projects/anyorg/demo/releases/", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  expect(list.status()).toBe(200);
+  const releases = await list.json() as { version: string }[];
+  expect(releases.some((r) => r.version === version)).toBe(true);
+
+  const wrongProjectList = await request.get("/api/0/projects/anyorg/not-my-project/releases/", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  expect(wrongProjectList.status()).toBe(403);
+
+  const retrieveOrg = await request.get(`/api/0/organizations/anyorg/releases/${version}/`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  expect(retrieveOrg.status()).toBe(200);
+  const orgBody = await retrieveOrg.json() as { version: string };
+  expect(orgBody.version).toBe(version);
+
+  const retrieveProject = await request.get(
+    `/api/0/projects/anyorg/demo/releases/${version}/`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  expect(retrieveProject.status()).toBe(200);
+  const projectBody = await retrieveProject.json() as { version: string };
+  expect(projectBody.version).toBe(version);
+
+  const retrieveMissing = await request.get(
+    `/api/0/organizations/anyorg/releases/does-not-exist-${crypto.randomUUID()}/`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  expect(retrieveMissing.status()).toBe(404);
+
+  const deleteProject = await request.delete(
+    `/api/0/projects/anyorg/demo/releases/${version}/`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  expect(deleteProject.status()).toBe(204);
+
+  const retrieveAfterDelete = await request.get(
+    `/api/0/organizations/anyorg/releases/${version}/`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  expect(retrieveAfterDelete.status()).toBe(404);
 });
