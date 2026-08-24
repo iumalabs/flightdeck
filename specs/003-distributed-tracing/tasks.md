@@ -310,7 +310,7 @@ tasks are checked off and the core ingest → queue → waterfall → cross-link
 working, but independent re-verification against spec.md/plan.md found three gaps the original task
 list never closed.
 
-- [ ] T039 Add a contract- or integration-level test that ingests multiple transactions sharing one
+- [x] T039 Add a contract- or integration-level test that ingests multiple transactions sharing one
       operation name with a known duration distribution and asserts `GET /api/internal/v1/traces`'s
       `p50Ms`/`p95Ms` match the expected values, per SC-004 and spec.md User Story 2's own
       Independent Test (missing) — `tests/unit/percentiles.test.ts` only unit-tests the pure
