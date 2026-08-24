@@ -320,3 +320,35 @@ surface works.
 - T043's quickstart validation is the one task in this module that deliberately uses a REAL
   `sentry-cli` binary rather than hand-crafted requests (research.md §8) — this is intentional, not
   an inconsistency with the rest of the test suite's approach.
+
+---
+
+## Phase 8: Convergence
+
+- [ ] T045 Implement the project-scoped path variants (`/api/0/projects/{org_slug}/{project_slug}/releases/...`)
+      for list, single-release retrieve, and delete, plus an org-scoped single-release retrieve
+      endpoint, in `worker/modules/releases/routes.ts` — currently only the org-scoped list/delete
+      variants exist, contradicting T037's own "both org- and project-scoped path variants"
+      description and research.md §1/§3's confirmed protocol coverage per FR-010 (missing)
+- [ ] T046 Change `computeReleaseFigures`'s adoption-percentage calculation in
+      `worker/modules/releases/routes.ts` (currently `SUM(sessions_total)` over ALL historical
+      `release_health` rows for the project, with no time window) to reflect "share of RECENT
+      sessions" as US2/Acceptance Scenario 1 explicitly names it, and add an automated test that
+      asserts `adoptionPercent`'s numeric correctness against a known ingested distribution — the
+      existing contract test in `tests/contract/release-management-api.spec.ts` verifies only
+      `crashFreeSessionRate`, never `adoptionPercent`, leaving half of SC-002's "adoption and
+      crash-free figures... verified by automated test" unverified per US1/AC2, SC-002 (partial)
+- [ ] T047 Add a real per-token salt to `worker/auth/api-token.ts`'s token-hashing scheme (currently
+      a plain, unsalted `SHA-256(rawToken)` with no salt generated, stored, or mixed in anywhere,
+      and no `salt` column on `api_tokens` in `worker/db/migrations/0005_releases.sql`), to match
+      the "salted hash" design explicitly documented in `specs/005-releases/data-model.md`'s API
+      Token field notes, plan.md's Primary Dependencies ("a salted-hash-and-compare scheme"), and
+      README.md's Authentication section ("Tokens are stored as a salted hash") per plan: storage
+      decision (contradicts)
+- [ ] T048 Add automated contract-level test coverage for the `set-commits` (`PUT
+      .../releases/{version}/` with a non-empty `commits` array), `deploys new`, and `releases
+      delete` endpoints in `worker/modules/releases/routes.ts` — `tests/contract/release-management-api.spec.ts`
+      currently has no test exercising any of these three live endpoints (only
+      `tests/unit/release-request-shape.test.ts`'s pure `commitsToRows` mapping function is
+      covered), leaving US4's Independent Test and constitution Principle VIII's test-first
+      requirement only manually validated via quickstart.md per US4, Constitution VIII (partial)

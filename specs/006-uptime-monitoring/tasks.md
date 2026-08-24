@@ -296,3 +296,25 @@ incident open then resolved, confirm exactly one request each.
   that.
 - Tests are written first within each story's phase and are expected to fail until that story's
   implementation tasks land (constitution Principle VIII).
+
+---
+
+## Phase 8: Convergence
+
+- [ ] T037 CRITICAL: Add contract-test coverage (against a real `wrangler dev`, where
+      `cloudflare:sockets` actually resolves) proving a TCP check via `runTcpCheck()`/`runCheck()`
+      correctly reports `up` for a reachable `host:port` and `down` for an unreachable one — no
+      test (unit, contract, or e2e) currently exercises the TCP code path at all, despite T007/T008
+      both explicitly calling for it and both being marked `[x]` per US1/AC3 (Constitution VIII)
+      (missing)
+- [ ] T038 Wire `worker/modules/uptime/evaluate.ts`'s `runCheck()` to actually call
+      `worker/modules/uptime/decide.ts`'s `applyOutcome()` for its consecutive-failure/recovery
+      threshold decision (currently duplicated inline as a separate hand-written SQL `CASE`
+      expression that `decide.ts`'s own file-header comment falsely claims is the caller), or
+      otherwise resolve the discrepancy so `tests/unit/uptime-decide.test.ts` exercises the logic
+      that actually runs in production, not a parallel copy that could silently diverge from it per
+      plan.md's Testing section (contradicts)
+- [ ] T039 Update `app/shell/AlertsScreen.tsx`'s empty-state copy (currently the leftover Module 1
+      placeholder "No alert rules yet" / "Alert rules will show up here once your workspace has
+      data to evaluate them against") to describe uptime incidents, this module's actual concept,
+      per FR-009/US2/AC4 (partial)
