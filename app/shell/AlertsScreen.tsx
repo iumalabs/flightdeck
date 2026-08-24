@@ -93,8 +93,8 @@ export function AlertsScreen({ projectId, onSelectCheck }: AlertsScreenProps) {
         )
         : (
           <EmptyState
-            title="No alert rules yet"
-            body="Alert rules will show up here once your workspace has data to evaluate them against."
+            title="No incidents yet"
+            body="Incidents will show up here when one of your uptime checks crosses its failure threshold — and clear automatically once it recovers."
           />
         )}
     </div>

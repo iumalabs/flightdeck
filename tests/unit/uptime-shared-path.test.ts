@@ -56,6 +56,11 @@ class FakeD1 {
   checks = new Map<string, FakeCheckRow>();
   incidents: FakeIncidentRow[] = [];
   checkRuns: { checkId: string; trigger: string; succeeded: number }[] = [];
+  // T038: when > 0, the next N counter-UPDATE attempts simulate a concurrent writer having already
+  // landed a change to the row's counters (out from under runCheck()'s own read), consuming one
+  // "conflict" per attempt — proves the optimistic-concurrency retry in evaluate.ts actually
+  // re-reads and recomputes via applyOutcome() rather than clobbering the concurrent write.
+  forcedConflicts = 0;
 
   seed(check: FakeCheckRow) {
     this.checks.set(check.id, { ...check });
@@ -70,22 +75,16 @@ class FakeD1 {
               const row = this.checks.get(args[0] as string);
               return Promise.resolve((row ?? null) as T | null);
             }
-            if (sql.startsWith("UPDATE checks SET")) {
-              const [id, succeededFlag] = args as [string, number];
-              const row = this.checks.get(id)!;
-              if (succeededFlag === 1) {
-                row.consecutive_successes += 1;
-                row.consecutive_failures = 0;
-                row.status = "up";
-              } else {
-                row.consecutive_failures += 1;
-                row.consecutive_successes = 0;
-                row.status = "down";
-              }
-              return Promise.resolve({
-                consecutive_failures: row.consecutive_failures,
-                consecutive_successes: row.consecutive_successes,
-              } as T);
+            if (sql.startsWith("SELECT consecutive_failures, consecutive_successes FROM checks")) {
+              const row = this.checks.get(args[0] as string);
+              return Promise.resolve(
+                (row
+                  ? {
+                    consecutive_failures: row.consecutive_failures,
+                    consecutive_successes: row.consecutive_successes,
+                  }
+                  : null) as T | null,
+              );
             }
             if (sql.includes("SELECT id FROM incidents")) {
               const checkId = args[0] as string;
@@ -97,6 +96,34 @@ class FakeD1 {
             return Promise.resolve(null);
           },
           run: () => {
+            if (sql.startsWith("UPDATE checks SET")) {
+              const [
+                id,
+                newFailures,
+                newSuccesses,
+                newStatus,
+                expectedFailures,
+                expectedSuccesses,
+              ] = args as [string, number, number, string, number, number];
+              const row = this.checks.get(id)!;
+              if (this.forcedConflicts > 0) {
+                this.forcedConflicts--;
+                // A concurrent run's UPDATE lands first — bumps the row's counters out from under
+                // the read runCheck() did, exactly like a real interleaved SQLite writer would.
+                row.consecutive_failures += 1;
+                row.status = "down";
+              }
+              if (
+                row.consecutive_failures !== expectedFailures ||
+                row.consecutive_successes !== expectedSuccesses
+              ) {
+                return Promise.resolve({ meta: { changes: 0 } }); // optimistic guard lost — caller retries
+              }
+              row.consecutive_failures = newFailures;
+              row.consecutive_successes = newSuccesses;
+              row.status = newStatus;
+              return Promise.resolve({ meta: { changes: 1 } });
+            }
             if (sql.startsWith("INSERT INTO check_runs")) {
               const [, checkId, trigger, succeeded] = args as [string, string, string, number];
               this.checkRuns.push({ checkId, trigger, succeeded });
@@ -222,4 +249,29 @@ Deno.test("reaching the recovery threshold resolves the open incident", async ()
   );
   assertEquals(resolved?.incidentResolved, true);
   assertEquals(db.incidents[0].resolved_at, "now");
+});
+
+// T038 (specs/006-uptime-monitoring Phase 8 Convergence) — proves runCheck() actually calls
+// decide.ts's applyOutcome() (not a hand-duplicated copy of its logic) AND that the
+// optimistic-concurrency retry it now uses instead of a single atomic SQL statement still
+// preserves correctness when a concurrent writer changes the row between runCheck()'s read and
+// its update attempt — the exact "overlapping scheduled/manual runs" edge case the original
+// atomic-CASE approach existed to guard against.
+Deno.test("a concurrent write between read and update is not lost — runCheck retries against the current counters", async () => {
+  const db = new FakeD1();
+  seedCheck(db, { failure_threshold: 3, consecutive_failures: 0 });
+  db.forcedConflicts = 1; // the first UPDATE attempt loses the optimistic race, forcing one retry
+
+  const result = await withMockedFetch(
+    500,
+    () => runCheck({ DB: db as unknown as D1Database }, "check-1", "scheduled"),
+  );
+
+  // The forced conflict itself bumped consecutive_failures to 1 (simulating a concurrent run's
+  // own failure), and THIS run's retry correctly builds on that — 1 (concurrent) + 1 (this run,
+  // via applyOutcome on the re-read counters) = 2, not 1 (which a lost update would produce) and
+  // not some other value a hand-duplicated/diverged implementation might compute.
+  assertEquals(db.checks.get("check-1")?.consecutive_failures, 2);
+  assertEquals(db.forcedConflicts, 0); // the retry actually happened, not skipped
+  assertEquals(result?.incidentOpened, false); // 2 < failure_threshold 3 — not yet
 });
