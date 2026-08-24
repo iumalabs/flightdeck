@@ -1,14 +1,23 @@
 import { resolveProjectByDsnKey } from "../ingest/dsn-auth.ts";
 import { upsertDialogFeedback } from "./ingest.ts";
+import type { RateLimiter } from "../../durable-objects/rate-limiter.ts";
 
 interface Env {
   DB: D1Database;
+  RATE_LIMITER: DurableObjectNamespace<RateLimiter>;
 }
 
 interface ParsedDsn {
   publicKey: string;
   projectId: string;
 }
+
+// Max crash-report dialog form payload (specs/007-user-feedback tasks.md T029, FR-010). This form
+// has exactly three plain-text fields (name/email/comments) — nowhere near the stack-trace-and-
+// breadcrumbs payloads the envelope path's MAX_ENVELOPE_BYTES (1 MB, worker/modules/ingest/
+// routes.ts) budgets for. 64 KB comfortably covers an unreasonably long free-text comment while
+// still bounding what one oversized submission can cost this endpoint.
+const MAX_DIALOG_FORM_BYTES = 64 * 1024; // 64 KB
 
 // The dialog's `dsn` query param carries the FULL DSN string
 // (`https://{public_key}@{host}/{projectId}`) — a different encoding from the envelope path's bare
@@ -82,6 +91,21 @@ export async function handleDialogGet(request: Request, env: Env): Promise<Respo
   const parsedDsn = dsn ? parseDsn(dsn) : null;
   if (!parsedDsn) return new Response("Not Found", { status: 404 });
 
+  // Rate limiting (constitution Principle III, tasks.md T028) — this was the one public
+  // ingest-adjacent surface exempt from it. Reuses the EXACT same DO/shard the ingest envelope
+  // path's default bucket uses (worker/modules/ingest/routes.ts `hasOtherItem` branch), keyed by
+  // the DSN's public key (== that path's `sentry_key`) so this endpoint counts against the same
+  // per-project budget rather than an unbounded one. Checked before the DB project lookup,
+  // mirroring the envelope path's ordering (DO check before spending a DB round-trip).
+  const limiter = env.RATE_LIMITER.get(env.RATE_LIMITER.idFromName(parsedDsn.publicKey));
+  const { allowed, retryAfterSeconds } = await limiter.checkAndIncrement();
+  if (!allowed) {
+    return new Response("Too Many Requests", {
+      status: 429,
+      headers: { "X-Sentry-Rate-Limits": `${retryAfterSeconds}::key` },
+    });
+  }
+
   const project = await resolveProjectByDsnKey(env.DB, parsedDsn.projectId, parsedDsn.publicKey);
   if (!project) return new Response("Not Found", { status: 404 });
 
@@ -101,6 +125,26 @@ export async function handleDialogPost(request: Request, env: Env): Promise<Resp
 
   const parsedDsn = dsn ? parseDsn(dsn) : null;
   if (!parsedDsn) return new Response("Not Found", { status: 404 });
+
+  // Payload-size guard (tasks.md T029, FR-010) — mirrors the envelope path's MAX_ENVELOPE_BYTES
+  // check (worker/modules/ingest/routes.ts ~line 111). Reads a CLONE of the request so the
+  // formData() parse below still sees an unconsumed body; checked before both the rate-limit DO
+  // call and formData() parsing so an oversized submission can't spend either.
+  const bodyBuffer = await request.clone().arrayBuffer();
+  if (bodyBuffer.byteLength > MAX_DIALOG_FORM_BYTES) {
+    return new Response("Payload Too Large", { status: 413 });
+  }
+
+  // Rate limiting (constitution Principle III, tasks.md T028) — same DO/shard as handleDialogGet
+  // above and the ingest envelope path's default bucket; see that comment for the full rationale.
+  const limiter = env.RATE_LIMITER.get(env.RATE_LIMITER.idFromName(parsedDsn.publicKey));
+  const { allowed, retryAfterSeconds } = await limiter.checkAndIncrement();
+  if (!allowed) {
+    return new Response("Too Many Requests", {
+      status: 429,
+      headers: { "X-Sentry-Rate-Limits": `${retryAfterSeconds}::key` },
+    });
+  }
 
   const project = await resolveProjectByDsnKey(env.DB, parsedDsn.projectId, parsedDsn.publicKey);
   if (!project) return new Response("Not Found", { status: 404 });
