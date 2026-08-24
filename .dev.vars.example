@@ -8,3 +8,6 @@ SESSION_SECRET=<random local-only value>
 # §10) — not required to validate User Stories 1-3.
 GITHUB_APP_ID=<GitHub App ID>
 GITHUB_APP_PRIVATE_KEY=<PEM-encoded RSA private key>
+# HMAC pepper used to hash sentry-cli-facing API tokens (specs/005-releases). Any random string is
+# fine for local dev — generate with `openssl rand -base64 32`.
+API_TOKEN_PEPPER=<random local-only value>

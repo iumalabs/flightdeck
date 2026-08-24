@@ -104,7 +104,12 @@
           // put CLOUDFLARE_R2_ADMIN_TOKEN` (no `--env` flag, same reasoning as the other secrets
           // here) — a real Cloudflare API Token with "Workers R2 Storage Write" + "Account API
           // Tokens Write" permissions, scoped to this account only.
-          "CLOUDFLARE_R2_ADMIN_TOKEN"
+          "CLOUDFLARE_R2_ADMIN_TOKEN",
+          // HMAC pepper for hashing sentry-cli-facing API tokens (specs/005-releases, T047 —
+          // Phase 8 convergence). Never stored in D1 — only the resulting hash is. Set via
+          // `wrangler versions secret put API_TOKEN_PEPPER` (no `--env` flag, same reasoning as
+          // the other secrets here).
+          "API_TOKEN_PEPPER"
         ]
       },
       "d1_databases": [
@@ -188,7 +193,12 @@
         "DEPLOY_ENV": "preview"
       },
       "secrets": {
-        "required": ["SESSION_SECRET", "GITHUB_APP_PRIVATE_KEY", "CLOUDFLARE_R2_ADMIN_TOKEN"]
+        "required": [
+          "SESSION_SECRET",
+          "GITHUB_APP_PRIVATE_KEY",
+          "CLOUDFLARE_R2_ADMIN_TOKEN",
+          "API_TOKEN_PEPPER"
+        ]
       },
       "d1_databases": [
         {
