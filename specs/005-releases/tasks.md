@@ -21,13 +21,17 @@ US2=P1, US3=P2, US4=P3). US2 depends on US1 (releases must exist before health d
 them, and the API-token infrastructure US1 builds gates all release-management writes). US3 depends
 on US1 (releases must exist and be ordered) but not on US2. US4 depends on US1 only.
 
-**✅ Status**: Implemented (all 44 tasks). Verified live against a real `wrangler dev`: the full
-sentry-cli-compatible flow (create/upload-sourcemaps/finalize/set-commits/deploys/list), API token
-generate/revoke/reject-on-invalid/reject-on-revoked, session-ingest release health with numerically
-confirmed adoption/crash-free figures, and BOTH directions of regression detection (reopens on a
-later release, stays resolved on the same/earlier one) — research.md §7. One real bug found and
-fixed via this live testing: the finalize/set-commits PUT response was echoing stale request-body
-state instead of the release's actual current DB state — research.md §1.
+**✅ Status**: Implemented (all 44 original tasks). Verified live against a real `wrangler dev`: the
+full sentry-cli-compatible flow (create/upload-sourcemaps/finalize/set-commits/deploys/list), API
+token generate/revoke/reject-on-invalid/reject-on-revoked, session-ingest release health with
+numerically confirmed adoption/crash-free figures, and BOTH directions of regression detection
+(reopens on a later release, stays resolved on the same/earlier one) — research.md §7. One real bug
+found and fixed via this live testing: the finalize/set-commits PUT response was echoing stale
+request-body state instead of the release's actual current DB state — research.md §1.
+A subsequent `/speckit-converge` pass found and this branch closed three further HIGH-severity gaps
+(Phase 8, T045-T047: missing protocol path variants, an unwindowed adoption figure, and an
+API-token-hashing design contradiction) — see Phase 8 below. One LOW-severity gap (T048) remains
+open, tracked but not required to close.
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -260,6 +264,72 @@ surface works.
 - [X] T044 Update `README.md`'s Status section to reference `specs/005-releases`; document the new
       API-token auth mechanism in the Authentication section, distinguishing it clearly from
       session auth and DSN-key ingest auth (research.md §4)
+
+---
+
+## Phase 8: Convergence
+
+A `/speckit-converge` pass against the live codebase found the following gaps between
+contracts/research.md's documented protocol coverage and `worker/modules/releases/routes.ts`'s
+actual implementation, plus one design contradiction in the API-token hashing scheme. HIGH-severity
+items (T045-T047) are required for this module to be truthfully "done"; T048 is a lower-severity
+follow-up, tracked but not required to close this convergence pass.
+
+- [X] T045 [HIGH] [US1] `worker/modules/releases/routes.ts` only implemented the org-scoped release
+      list/delete endpoints. Added the project-scoped path variants
+      (`/api/0/projects/{org_slug}/{project_slug}/releases/...` for list/retrieve/delete) and the
+      org-scoped single-release retrieve endpoint
+      (`GET /api/0/organizations/{org_slug}/releases/{version}/`), per contracts/
+      release-management-api.md and research.md §1/§3's confirmed full protocol coverage. Shared
+      query logic (`listReleasesForProject`/`getReleaseForProject`/`deleteReleaseForProject`) factors
+      out the org- vs. project-scoped duplication; a new `isProjectSlugAuthorized` helper in
+      `request-shape.ts` (unit-tested) mirrors the existing `isProjectAuthorized`'s authorization
+      rule for the single-slug path-parameter case. Contract-tested end to end
+      (`tests/contract/release-management-api.spec.ts`).
+- [X] T046 [HIGH] [US2] `computeReleaseFigures`'s `adoptionPercent` summed `sessions_total` over
+      ALL historical `release_health` rows, not a recent window — contradicting spec.md User Story 2
+      Acceptance Scenario 1's "share of RECENT sessions" definition. Windowed the adoption
+      computation (both the release's own recent sessions and the project-wide recent-sessions
+      denominator) to the last 14 days, via a separate, narrower `release_health` query (crash-free
+      rate figures are intentionally left lifetime-scoped — unaffected, not described as
+      "recent"-windowed by spec.md). 14 days chosen explicitly (no day count is stated in
+      spec.md/research.md): `release_health` is daily-granularity data (data-model.md), so 1 day
+      would be too sparse for low-traffic/local-testing use; this module introduces no new retention
+      window of its own (plan.md's Principle IX note), so 14 days sits between the two comparable
+      bounded windows already established elsewhere in this codebase — logs' 7-day window
+      (specs/004-structured-logs) and traces/uptime's 30-day window (specs/003-distributed-tracing,
+      specs/006-uptime-monitoring). Added a numeric `adoptionPercent` assertion to the existing
+      contract test (previously asserted only `crashFreeSessionRate`) — the other half of SC-002's
+      "verified by automated test" requirement.
+- [X] T047 [HIGH] API-token hashing contradicted data-model.md/plan.md/README.md's documented
+      "salted hash": `hashToken` was plain `SHA-256(rawToken)`, no secret involved. Implemented the
+      project owner's decided design — HMAC-with-a-secret-pepper, backward compatible with every
+      already-issued token, no forced reissuance. `hashToken(rawToken, pepper)` now computes
+      `HMAC-SHA256(key=API_TOKEN_PEPPER, message=rawToken)` via Web Crypto; the old plain-SHA256
+      function is kept (renamed `legacySha256Hex`, not deleted). `verifyApiToken` computes BOTH
+      candidate hashes from the presented raw token and matches `WHERE token_hash = ?1 OR
+      token_hash = ?2` — a pre-existing token's row (created under the old scheme) keeps
+      authenticating via the legacy branch forever; a newly-created token is stored under the new
+      HMAC scheme automatically, since token creation calls the same `hashToken`. No DB migration —
+      deliberately schema-free. New Worker secret `API_TOKEN_PEPPER` threaded through
+      `ApiTokenEnv`/`apiTokenAuth`/the release-creation route, added to both `env.production` and
+      `env.preview`'s `secrets.required` in `wrangler.jsonc`, documented in `.dev.vars.example` and
+      README's Environment table. `tests/unit/api-token.test.ts` updated for the new signatures, with
+      new coverage proving: a legacy (plain-SHA256) row still authenticates; a new token's hash is
+      NOT plain SHA-256 (the pepper is actually applied); an unknown token still fails closed against
+      a store holding both legacy and HMAC rows. **Manual follow-up required** (not done by this
+      task, not automatable): a repo owner must provision the real `API_TOKEN_PEPPER` secret in both
+      the production and preview Cloudflare environments via `wrangler versions secret put
+      API_TOKEN_PEPPER`, the same way `SESSION_SECRET`/`GITHUB_APP_PRIVATE_KEY`/
+      `CLOUDFLARE_R2_ADMIN_TOKEN` were provisioned.
+- [ ] T048 [LOW] `deploys new --release <v> -e <env>`'s documented request shape
+      (contracts/release-management-api.md) includes an optional `dateFinished` field the current
+      `POST .../deploys/` handler never reads or persists (`deploys.deployed_at` always defaults to
+      `datetime('now')` at insert time, never the client-supplied value). Lower severity than
+      T045-T047: sentry-cli itself doesn't send this field on `deploys new` in practice, and the
+      deploy record's existence/environment/release association — the part every test and the real
+      quickstart.md flow actually exercises — is unaffected. Left unimplemented; not required for
+      this convergence pass.
 
 ---
 
