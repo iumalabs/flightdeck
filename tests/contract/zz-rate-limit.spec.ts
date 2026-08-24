@@ -32,3 +32,31 @@ test("exceeding the rate limit responds 429 with the X-Sentry-Rate-Limits header
   const header = last?.headers()["x-sentry-rate-limits"];
   expect(header).toMatch(/^\d+::key$/);
 });
+
+// The crash-report dialog's GET/POST handlers (specs/007-user-feedback tasks.md T028) share the
+// EXACT SAME per-DSN-key RATE_LIMITER shard as the envelope path's default bucket above — keyed by
+// the DSN's public key, which is the same string as the envelope path's `sentry_key`. Placed right
+// after the exhausting test above (this file's "zz" sort position guarantees it runs last, and
+// `fullyParallel: false` + `workers: 1` in playwright.contract.config.ts guarantees this ordering
+// within the file too), so the demo key's window is already over budget here — a single request to
+// each dialog handler is enough to observe the 429, no need to repeat the whole exhaustion loop.
+test("dialog GET also 429s once the shared per-DSN-key budget is already exhausted", async ({ request, baseURL }) => {
+  const dsnKey = await getDsnKey();
+  const dsn = `https://${dsnKey}@${new URL(baseURL!).host}/${DEMO_PROJECT_ID}`;
+  const res = await request.get(
+    `/api/embed/error-page?dsn=${encodeURIComponent(dsn)}&eventId=${crypto.randomUUID()}`,
+  );
+  expect(res.status()).toBe(429);
+  expect(res.headers()["x-sentry-rate-limits"]).toMatch(/^\d+::key$/);
+});
+
+test("dialog POST also 429s once the shared per-DSN-key budget is already exhausted", async ({ request, baseURL }) => {
+  const dsnKey = await getDsnKey();
+  const dsn = `https://${dsnKey}@${new URL(baseURL!).host}/${DEMO_PROJECT_ID}`;
+  const res = await request.post(
+    `/api/embed/error-page?dsn=${encodeURIComponent(dsn)}&eventId=${crypto.randomUUID()}`,
+    { form: { name: "Jane", email: "jane@example.com", comments: "should be rate limited" } },
+  );
+  expect(res.status()).toBe(429);
+  expect(res.headers()["x-sentry-rate-limits"]).toMatch(/^\d+::key$/);
+});

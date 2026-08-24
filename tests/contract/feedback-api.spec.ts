@@ -214,3 +214,20 @@ test("dialog POST with no comments field returns 400", async ({ request, baseURL
   );
   expect(res.status()).toBe(400);
 });
+
+// tasks.md T029 (FR-010) — mirrors the envelope path's 413-on-oversized-body status code
+// (worker/modules/ingest/routes.ts's MAX_ENVELOPE_BYTES check), applied here to the dialog's own
+// MAX_DIALOG_FORM_BYTES (64 KB) cap. Rejected before formData() parsing (and before the rate-limit
+// DO call — see worker/modules/feedback/dialog.ts), so this doesn't consume any of the shared
+// per-DSN-key rate-limit budget zz-rate-limit.spec.ts depends on staying intact until its own
+// exhaustion test.
+test("dialog POST with an oversized body is rejected 413, not parsed", async ({ request, baseURL }) => {
+  const dsnKey = await getDsnKey();
+  const dsn = `https://${dsnKey}@${new URL(baseURL!).host}/${DEMO_PROJECT_ID}`;
+  const oversizedComments = "x".repeat(70_000); // > MAX_DIALOG_FORM_BYTES (64 KB)
+  const res = await request.post(
+    `/api/embed/error-page?dsn=${encodeURIComponent(dsn)}&eventId=${crypto.randomUUID()}`,
+    { form: { name: "Jane", email: "jane@example.com", comments: oversizedComments } },
+  );
+  expect(res.status()).toBe(413);
+});
