@@ -109,6 +109,40 @@ test("an unknown DSN key is rejected, fail closed, no transaction recorded", asy
   expect(transactionId).toBeNull();
 });
 
+// T040 (Phase 7 Convergence, specs/003-distributed-tracing/tasks.md) — a transaction item whose
+// serialized queue message exceeds Cloudflare Queues' 128,000-byte single-message limit (but stays
+// comfortably under the envelope-level MAX_ENVELOPE_BYTES of 1 MB) must be rejected cleanly with
+// 413, not thrown uncaught out of `.send()` into Hono's generic 500 app.onError handler.
+test("an oversized transaction item is rejected with 413, not a generic 500", async ({ request }) => {
+  const dsnKey = await getDsnKey();
+  const eventId = crypto.randomUUID();
+  const traceId = crypto.randomUUID().replace(/-/g, "");
+  const rootSpanId = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+  // A single padded span comfortably pushes the serialized QueuedTransaction over 127,000 bytes
+  // while the whole envelope body stays well under the 1 MB MAX_ENVELOPE_BYTES ceiling.
+  const oversizedSpans = [{
+    span_id: crypto.randomUUID().replace(/-/g, "").slice(0, 16),
+    op: "db.query",
+    description: "x".repeat(150_000),
+  }];
+  const body = buildTransactionEnvelope(
+    eventId,
+    traceId,
+    rootSpanId,
+    "GET /oversized-item",
+    oversizedSpans,
+  );
+
+  const ingest = await request.post(
+    `/api/${DEMO_PROJECT_ID}/envelope?sentry_key=${dsnKey}&sentry_version=7`,
+    { data: body },
+  );
+  expect(ingest.status()).toBe(413);
+
+  const transactionId = await pollForTransaction(request, traceId, 2);
+  expect(transactionId).toBeNull();
+});
+
 test("submitting the same transaction twice does not duplicate it", async ({ request }) => {
   const dsnKey = await getDsnKey();
   const eventId = crypto.randomUUID();

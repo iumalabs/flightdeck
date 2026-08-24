@@ -80,6 +80,15 @@ interface FeedbackItemPayload {
 // vars dump, small enough that one oversized submission can't degrade ingest for other projects.
 const MAX_ENVELOPE_BYTES = 1_000_000; // 1 MB
 
+// Cloudflare Queues' documented single-message size limit is 128,000 bytes ("1 KB is measured as
+// 1000 bytes" per https://developers.cloudflare.com/queues/platform/limits/), and CF adds up to
+// ~100 bytes of its own metadata on top of the message body. Without a guard here, a transaction
+// item under MAX_ENVELOPE_BYTES (1 MB) but over this limit throws uncaught out of `.send()` into
+// Hono's app.onError handler (worker/index.ts), producing a generic 500 instead of a clean
+// rejection (research.md §4, specs/003-distributed-tracing, Phase 7 Convergence T040). The margin
+// below 128,000 covers that metadata overhead plus JSON re-serialization variance.
+const MAX_QUEUE_MESSAGE_BYTES = 127_000;
+
 export const ingestRoutes = new Hono<{ Bindings: Env }>();
 
 type EnvelopeRoutePath = "/:projectId/envelope" | "/:projectId/envelope/";
@@ -269,6 +278,10 @@ async function handleEnvelope(c: Context<{ Bindings: Env }, EnvelopeRoutePath>) 
         timestamp: transaction.timestamp,
         spans: transaction.spans ?? [],
       };
+      const serializedBytes = new TextEncoder().encode(JSON.stringify(queued)).length;
+      if (serializedBytes > MAX_QUEUE_MESSAGE_BYTES) {
+        return c.text("Payload Too Large", 413);
+      }
       await c.env.TRACE_INGEST.send(queued);
       continue;
     }

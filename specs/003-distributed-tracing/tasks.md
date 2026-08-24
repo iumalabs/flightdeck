@@ -320,7 +320,7 @@ list never closed.
       `operationsListSql`, or `fetchPercentile`), so SC-004's "verified by automated test" is
       currently satisfied only by a one-time manual spike recorded in research.md §4, not by
       standing test coverage.
-- [ ] T040 Guard `worker/modules/ingest/routes.ts`'s transaction-item dispatch (around line 272,
+- [x] T040 Guard `worker/modules/ingest/routes.ts`'s transaction-item dispatch (around line 272,
       `await c.env.TRACE_INGEST.send(queued)`) against a serialized transaction payload that exceeds
       Cloudflare Queues' documented 128 KB max message size, rejecting it cleanly (e.g. `413`)
       instead of letting an oversized `.send()` throw uncaught into Hono's `app.onError` handler
