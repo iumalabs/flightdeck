@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.11.0](https://github.com/iumalabs/flightdeck/compare/v0.10.0...v0.11.0) (2026-08-24)
+
+
+### Features
+
+* **feedback:** prefill crash-report dialog name/email from GET query params (T030) ([e03ddd5](https://github.com/iumalabs/flightdeck/commit/e03ddd5a0d87f6c2c37579f796a5ac58e8869b49))
+* **feedback:** prefill crash-report dialog name/email from GET query params (T030) ([234be85](https://github.com/iumalabs/flightdeck/commit/234be8518c180fb0efb875be2574470f847fe2ec))
+
+
+### Bug Fixes
+
+* **uptime:** wire runCheck() to applyOutcome(); fix Alerts empty state (T038, T039) ([a913366](https://github.com/iumalabs/flightdeck/commit/a913366e20d21447bb8cf07b24fefe741b0a85f5))
+* **uptime:** wire runCheck() to decide.ts's applyOutcome(); fix Alerts empty state (T038, T039) ([9656e67](https://github.com/iumalabs/flightdeck/commit/9656e6791a9741deb1227f7ec3e7d7fa25259ec5))
+
 ## [0.10.0](https://github.com/iumalabs/flightdeck/compare/v0.9.2...v0.10.0) (2026-08-24)
 
 
