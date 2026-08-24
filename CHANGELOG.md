@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.2](https://github.com/iumalabs/flightdeck/compare/v0.9.1...v0.9.2) (2026-08-24)
+
+
+### Bug Fixes
+
+* **marketing:** sync Docs and Changelog with what actually shipped ([7169d9d](https://github.com/iumalabs/flightdeck/commit/7169d9d1a852975b6ac61682a913fa7ae2beb3bc))
+* **marketing:** sync Docs and Changelog with what actually shipped ([9877580](https://github.com/iumalabs/flightdeck/commit/98775801187445a574902f350a70d044dcd9976b))
+
 ## [0.9.1](https://github.com/iumalabs/flightdeck/compare/v0.9.0...v0.9.1) (2026-08-23)
 
 
