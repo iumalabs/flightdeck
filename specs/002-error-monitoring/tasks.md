@@ -349,7 +349,7 @@ confirm the suspect commit shown matches the actual most recent commit touching 
       issue" instead of the current, identical-either-way "No stack trace recorded for this
       event." / "No breadcrumbs recorded." text) per spec.md's Edge Case "An issue's only recorded
       occurrence ages past the retention window" / FR-015 (partial)
-- [ ] T051 Add a test asserting the ingest endpoint rejects an oversized envelope body with `413`
+- [x] T051 Add a test asserting the ingest endpoint rejects an oversized envelope body with `413`
       (`MAX_ENVELOPE_BYTES` in `worker/modules/ingest/routes.ts`) — no unit, contract, or e2e test
       currently exercises this path despite contracts/ingest-api.md explicitly naming it as part of
       the ingest contract, per FR-013 / contracts/ingest-api.md line 33 / Constitution Principle
