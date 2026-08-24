@@ -23,8 +23,13 @@ Deno.test("parseDsn returns null when the project id (path) is missing", () => {
   assertStrictEquals(parseDsn("https://abc123@127.0.0.1:8787/"), null);
 });
 
+const NO_PREFILL = { name: null, email: null };
+
 Deno.test("buildDialogScript embeds the exact submit URL (query string preserved)", () => {
-  const script = buildDialogScript("/api/embed/error-page?dsn=https://k@h/p&eventId=e1");
+  const script = buildDialogScript(
+    "/api/embed/error-page?dsn=https://k@h/p&eventId=e1",
+    NO_PREFILL,
+  );
   assertMatch(
     script,
     /fetch\("\/api\/embed\/error-page\?dsn=https:\/\/k@h\/p&eventId=e1"/,
@@ -32,8 +37,39 @@ Deno.test("buildDialogScript embeds the exact submit URL (query string preserved
 });
 
 Deno.test("buildDialogScript wires the confirmed real-SDK onClose postMessage contract", () => {
-  const script = buildDialogScript("/api/embed/error-page?dsn=x&eventId=y");
+  const script = buildDialogScript("/api/embed/error-page?dsn=x&eventId=y", NO_PREFILL);
   assertMatch(script, /postMessage\("__sentry_reportdialog_closed__"/);
+});
+
+// T030 (specs/007-user-feedback Phase 7 Convergence, contracts/feedback-ingest-api.md's
+// documented GET contract) — the dialog GET's optional name/email prefill values.
+
+Deno.test("buildDialogScript sets form.name.value/form.email.value from the given prefill", () => {
+  const script = buildDialogScript("/api/embed/error-page?dsn=x&eventId=y", {
+    name: "Jane Doe",
+    email: "jane@example.com",
+  });
+  assertMatch(script, /form\.name\.value = "Jane Doe";/);
+  assertMatch(script, /form\.email\.value = "jane@example\.com";/);
+});
+
+Deno.test("buildDialogScript defaults absent prefill values to an empty string, not the literal 'null'", () => {
+  const script = buildDialogScript("/api/embed/error-page?dsn=x&eventId=y", NO_PREFILL);
+  assertMatch(script, /form\.name\.value = "";/);
+  assertMatch(script, /form\.email\.value = "";/);
+});
+
+Deno.test("buildDialogScript safely escapes a prefill value containing quotes/HTML — no injection into the generated script", () => {
+  const malicious = '"; alert(1); var x="';
+  const script = buildDialogScript("/api/embed/error-page?dsn=x&eventId=y", {
+    name: malicious,
+    email: null,
+  });
+  // JSON.stringify's escaping means the hostile input appears only as an escaped string literal
+  // payload, never as executable syntax breaking out of the assignment.
+  assertMatch(script, /form\.name\.value = "\\"; alert\(1\); var x=\\"";/);
+  // The exact unescaped injection string must never appear as literal, executable-looking syntax.
+  assertEquals(script.includes('form.name.value = "";alert(1)'), false);
 });
 
 // Fakes for handleDialogGet/handleDialogPost's rate-limit (tasks.md T028) and payload-size

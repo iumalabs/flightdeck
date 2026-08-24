@@ -35,13 +35,27 @@ export function parseDsn(dsn: string): ParsedDsn | null {
   }
 }
 
+export interface DialogPrefill {
+  name: string | null;
+  email: string | null;
+}
+
 // research.md §1's Decision: a self-contained script achieving the same real-SDK-compatible
 // contract (script loads -> onLoad fires; postMessage("__sentry_reportdialog_closed__", ...) on
 // close -> onClose fires) as Sentry's own JSONP-comment-templated rendering, without replicating
 // that Sentry-monolith-specific mechanism. `submitUrl` is the exact request path + query string
 // this GET was reached at (`request.get_full_path()`'s real-Sentry equivalent) — the dialog's own
 // form POST goes back to this identical URL.
-export function buildDialogScript(submitUrl: string): string {
+//
+// T030 (specs/007-user-feedback Phase 7 Convergence) — `prefill` (the GET request's optional
+// `name`/`email` query params, contracts/feedback-ingest-api.md, sourced from the SDK's current
+// scope user) is set via a plain JS property assignment (`form.name.value = ...`) AFTER the form
+// markup is already in the DOM, not spliced into the `innerHTML` string below — `JSON.stringify`
+// safely escapes it for embedding as a JS string literal in the generated script (exactly like
+// `submitUrl` below), but the VALUE itself is untrusted user input that must never be parsed as
+// markup; a property assignment can't inject an element regardless of its content, where
+// `innerHTML` could.
+export function buildDialogScript(submitUrl: string, prefill: DialogPrefill): string {
   return `(function(){
   var overlay = document.createElement("div");
   overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2147483647;display:flex;align-items:center;justify-content:center;font-family:sans-serif;";
@@ -60,15 +74,18 @@ export function buildDialogScript(submitUrl: string): string {
   overlay.appendChild(box);
   document.body.appendChild(overlay);
 
+  var form = document.getElementById("fd-feedback-form");
+  form.name.value = ${JSON.stringify(prefill.name ?? "")};
+  form.email.value = ${JSON.stringify(prefill.email ?? "")};
+
   function close() {
     overlay.remove();
     window.postMessage("__sentry_reportdialog_closed__", window.location.origin);
   }
   document.getElementById("fd-feedback-cancel").addEventListener("click", close);
 
-  document.getElementById("fd-feedback-form").addEventListener("submit", function(e) {
+  form.addEventListener("submit", function(e) {
     e.preventDefault();
-    var form = e.target;
     var body = new URLSearchParams({
       name: form.name.value,
       email: form.email.value,
@@ -87,6 +104,10 @@ export async function handleDialogGet(request: Request, env: Env): Promise<Respo
   const url = new URL(request.url);
   const dsn = url.searchParams.get("dsn");
   const eventId = url.searchParams.get("eventId");
+  // T030 (specs/007-user-feedback Phase 7 Convergence, contracts/feedback-ingest-api.md's
+  // documented GET contract) — optional prefill values from the SDK's current scope user.
+  const prefillName = url.searchParams.get("name");
+  const prefillEmail = url.searchParams.get("email");
 
   const parsedDsn = dsn ? parseDsn(dsn) : null;
   if (!parsedDsn) return new Response("Not Found", { status: 404 });
@@ -112,10 +133,13 @@ export async function handleDialogGet(request: Request, env: Env): Promise<Respo
   if (!eventId) return new Response("Bad Request", { status: 400 });
 
   const submitUrl = url.pathname + url.search;
-  return new Response(buildDialogScript(submitUrl), {
-    status: 200,
-    headers: { "Content-Type": "text/javascript" },
-  });
+  return new Response(
+    buildDialogScript(submitUrl, { name: prefillName, email: prefillEmail }),
+    {
+      status: 200,
+      headers: { "Content-Type": "text/javascript" },
+    },
+  );
 }
 
 export async function handleDialogPost(request: Request, env: Env): Promise<Response> {

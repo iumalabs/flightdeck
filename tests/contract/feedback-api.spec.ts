@@ -145,6 +145,30 @@ test("dialog GET with a valid dsn+eventId returns a text/javascript script", asy
   expect(body).toContain("__sentry_reportdialog_closed__");
 });
 
+// T030 (specs/007-user-feedback Phase 7 Convergence, contracts/feedback-ingest-api.md's
+// documented GET contract) — optional name/email query params prefill the rendered form.
+test("dialog GET with name/email query params prefills the rendered form", async ({ request, baseURL }) => {
+  const dsnKey = await getDsnKey();
+  const errorEventId = crypto.randomUUID();
+  const uniqueTitle = `contract-dialog-prefill-${errorEventId.slice(0, 8)}`;
+  await request.post(`/api/${DEMO_PROJECT_ID}/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
+    data: buildErrorEnvelope(errorEventId, uniqueTitle),
+  });
+
+  const dsn = `https://${dsnKey}@${new URL(baseURL!).host}/${DEMO_PROJECT_ID}`;
+  const name = `Contract Tester ${errorEventId.slice(0, 8)}`;
+  const email = `contract-${errorEventId.slice(0, 8)}@example.com`;
+  const res = await request.get(
+    `/api/embed/error-page?dsn=${encodeURIComponent(dsn)}&eventId=${errorEventId}&name=${
+      encodeURIComponent(name)
+    }&email=${encodeURIComponent(email)}`,
+  );
+  expect(res.status()).toBe(200);
+  const body = await res.text();
+  expect(body).toContain(`form.name.value = ${JSON.stringify(name)};`);
+  expect(body).toContain(`form.email.value = ${JSON.stringify(email)};`);
+});
+
 test("dialog GET with a malformed/unresolvable dsn returns 404", async ({ request }) => {
   const res = await request.get(
     `/api/embed/error-page?dsn=${encodeURIComponent("https://not-a-real-key@host/demo")}&eventId=x`,

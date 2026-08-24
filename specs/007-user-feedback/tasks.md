@@ -255,7 +255,7 @@ an empty array and no feedback section renders.
       no size check at all), rejecting oversized `comments`/form bodies consistent with the envelope
       path's `MAX_ENVELOPE_BYTES` posture (`worker/modules/ingest/routes.ts` line ~111) per FR-010
       (missing)
-- [ ] T030 Read the dialog GET's optional `name`/`email` query parameters
+- [x] T030 Read the dialog GET's optional `name`/`email` query parameters
       (`worker/modules/feedback/dialog.ts` `handleDialogGet`, which currently reads only `dsn` and
       `eventId`) and thread them into `buildDialogScript`'s rendered form as prefill values, per
       contracts/feedback-ingest-api.md's documented GET contract and research.md §1's confirmed
