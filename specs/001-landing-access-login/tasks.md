@@ -206,7 +206,7 @@ Story 2").
       T015)
 - [X] T038 [US2] Run `tests/unit/access-jwt.test.ts`, `tests/unit/session.test.ts`, and
       `tests/unit/identity-users.test.ts`, confirm all pass (depends on T031a, T031b, T032-T034)
-- [ ] T039 [US2] Manually verify the real end-to-end Access redirect against the deployed preview
+- [X] T039 [US2] Manually verify the real end-to-end Access redirect against the deployed preview
       environment per quickstart.md (research.md §5 — not automatable in CI); record the outcome
       in this feature's PR description
 
