@@ -40,8 +40,8 @@ POST /api/{project_id}/minidump/
 
 X-Sentry-Auth: Sentry sentry_key={public_key}, sentry_version=7
 
-# health
-GET  /api/health   → 200 {"ingest":"ok","lag_ms":38}`,
+# confirm which environment is live
+GET  /api/version   → 200 {"version":"0.9.1","environment":"production"}`,
   },
   {
     id: "sourcemaps",
