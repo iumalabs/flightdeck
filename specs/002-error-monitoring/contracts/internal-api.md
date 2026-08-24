@@ -33,10 +33,19 @@ suspect commit.
     "stacktrace": { "frames": [ { "filename": "string", "function": "string", "lineno": 0, "colno": 0, "resolved": true } ] },
     "breadcrumbs": [ { "timestamp": "string", "category": "string|null", "message": "string|null", "level": "string" } ],
     "tags": {}, "contexts": {}
-  },
+  } | null,
+  "eventDataRetained": true,
   "suspectCommit": { "sha": "string", "message": "string", "author": "string", "url": "string" } | null
 }
 ```
+
+`eventDataRetained` (spec.md's Edge Case "An issue's only recorded occurrence ages past the
+retention window" / FR-015): `false` only when `latestEvent` is `null` AND the issue's own
+`eventCount` is nonzero — i.e. at least one event WAS ingested for this issue, but none is left in
+`events` (the retention job prunes `events` rows on its own window, never the `issues` aggregate row
+itself). The frontend uses this to show "Detailed event data is no longer retained for this issue"
+rather than "No stack trace recorded" / "No breadcrumbs recorded", which would otherwise read
+identically whether the data simply never existed or aged out.
 
 **Response `404`**: no issue with that id in the caller's project.
 

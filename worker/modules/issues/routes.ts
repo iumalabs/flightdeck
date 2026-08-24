@@ -168,6 +168,17 @@ issuesRoutes.get("/:id", async (c) => {
     firstSeen: issue.first_seen,
     lastSeen: issue.last_seen,
     latestEvent,
+    // T050 (specs/002-error-monitoring Phase 8 Convergence, spec.md's Edge Case "An issue's only
+    // recorded occurrence ages past the retention window" / FR-015) — distinguishes "no
+    // stack trace/breadcrumbs were ever recorded" (an events row exists, its payload just never
+    // carried that data) from "this issue's only occurrence(s) aged out under retention" (no
+    // events row exists at all for this issue, even though `event_count` — which retention never
+    // decrements, worker/modules/ingest/retention.ts's pruneOldEvents deletes from `events` only —
+    // proves at least one WAS ingested). Every issue's `event_count` starts at 1 at creation
+    // (routes.ts's "event" item dispatch inserts the issue and its first event together), so a
+    // missing `latestEventRow` here can only mean retention pruned it, never "no event ever
+    // existed."
+    eventDataRetained: latestEventRow !== null,
     suspectCommit,
     // contracts/traces-internal-api.md's addition (specs/003-distributed-tracing) — the latest
     // event's trace_id, null when it carried no contexts.trace (spec FR-009, "absent, not an
