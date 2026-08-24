@@ -251,10 +251,10 @@ an empty array and no feedback section renders.
       `/api/embed/error-page` is no longer the one public ingest surface exempt from per-project
       rate limiting per Constitution III (contradicts)
 - [x] T029 Enforce a maximum payload size on the crash-report dialog's POST handler
-      (`worker/modules/feedback/dialog.ts` `handleDialogPost`, which calls `request.formData()`
-      with no size check at all), rejecting oversized `comments`/form bodies consistent with the
-      envelope path's `MAX_ENVELOPE_BYTES` posture (`worker/modules/ingest/routes.ts` line ~111)
-      per FR-010 (missing)
+      (`worker/modules/feedback/dialog.ts` `handleDialogPost`, which calls `request.formData()` with
+      no size check at all), rejecting oversized `comments`/form bodies consistent with the envelope
+      path's `MAX_ENVELOPE_BYTES` posture (`worker/modules/ingest/routes.ts` line ~111) per FR-010
+      (missing)
 - [ ] T030 Read the dialog GET's optional `name`/`email` query parameters
       (`worker/modules/feedback/dialog.ts` `handleDialogGet`, which currently reads only `dsn` and
       `eventId`) and thread them into `buildDialogScript`'s rendered form as prefill values, per
