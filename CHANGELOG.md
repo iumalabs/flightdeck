@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.11.1](https://github.com/iumalabs/flightdeck/compare/v0.11.0...v0.11.1) (2026-08-25)
+
+
+### Bug Fixes
+
+* **app:** route by pathname prefix and sync app-shell screen with URL ([6714398](https://github.com/iumalabs/flightdeck/commit/6714398dd6791eac188930072985ee9aa79cd95b))
+* **logs:** revoke previous R2 export token before re-provisioning ([da8e87e](https://github.com/iumalabs/flightdeck/commit/da8e87eee516c7ac88c60be46d39ea71cbd21b22))
+* **logs:** revoke previous R2 export token before re-provisioning ([4c37882](https://github.com/iumalabs/flightdeck/commit/4c3788274a4a63ee24c4869db0094881e34c94e0))
+* **uptime:** stop self-referential HTTP checks from false-positive 522ing ([38b855d](https://github.com/iumalabs/flightdeck/commit/38b855d307de0b7fc65e022d64f90eb1100b31dd))
+* **uptime:** stop self-referential HTTP checks from false-positive 522ing ([cd9a913](https://github.com/iumalabs/flightdeck/commit/cd9a9136f4bb928acb82a2f8b7d015194ca42a62))
+
 ## [0.11.0](https://github.com/iumalabs/flightdeck/compare/v0.10.0...v0.11.0) (2026-08-24)
 
 
