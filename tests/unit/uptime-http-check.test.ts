@@ -1,5 +1,9 @@
 import { assertEquals } from "@std/assert";
-import { runHttpCheck } from "../../worker/modules/uptime/http-check.ts";
+import {
+  looksLikeCatchAll,
+  probeUrlDetailed,
+  runHttpCheck,
+} from "../../worker/modules/uptime/http-check.ts";
 
 // research.md §2 / tasks.md T007 — network I/O mocked, not a real network call.
 function withMockedFetch<T>(impl: typeof fetch, fn: () => Promise<T>): Promise<T> {
@@ -83,4 +87,90 @@ Deno.test("a slow 522 (plausibly a real origin timeout) keeps the bare status co
   );
   assertEquals(outcome.succeeded, false);
   assertEquals(outcome.detail, "522");
+});
+
+// issue #75 — probeUrlDetailed()/looksLikeCatchAll() let default-checks.ts tell a real "/health"
+// endpoint apart from an app that serves an identical catch-all 200 for any unmatched path (e.g.
+// an SPA fallback route).
+
+Deno.test("probeUrlDetailed captures status, content-type, and a bounded body sample on success", async () => {
+  const result = await withMockedFetch(
+    () =>
+      Promise.resolve(
+        new Response("hello world", {
+          status: 200,
+          headers: { "content-type": "text/plain", "content-length": "11" },
+        }),
+      ),
+    () => probeUrlDetailed("https://example.com/health"),
+  );
+  assertEquals(result.status, 200);
+  assertEquals(result.contentType, "text/plain");
+  assertEquals(result.contentLength, "11");
+  assertEquals(result.bodySample, "hello world");
+});
+
+Deno.test("probeUrlDetailed never throws — a connection failure yields an all-null result", async () => {
+  const result = await withMockedFetch(
+    () => Promise.reject(new TypeError("network error")),
+    () => probeUrlDetailed("https://unreachable.example"),
+  );
+  assertEquals(result.status, null);
+  assertEquals(result.contentType, null);
+  assertEquals(result.contentLength, null);
+  assertEquals(result.bodySample, null);
+});
+
+Deno.test("looksLikeCatchAll is true when candidate and baseline are indistinguishable (SPA fallback)", () => {
+  const candidate = {
+    status: 200,
+    contentType: "text/html",
+    contentLength: "42",
+    bodySample: "<html>spa shell</html>",
+  };
+  const baseline = { ...candidate };
+  assertEquals(looksLikeCatchAll(candidate, baseline), true);
+});
+
+Deno.test("looksLikeCatchAll is false when the baseline 404s and the candidate 200s (real distinct endpoint)", () => {
+  const candidate = {
+    status: 200,
+    contentType: "application/json",
+    contentLength: "15",
+    bodySample: '{"ok":true}',
+  };
+  const baseline = {
+    status: 404,
+    contentType: "text/html",
+    contentLength: "9",
+    bodySample: "not found",
+  };
+  assertEquals(looksLikeCatchAll(candidate, baseline), false);
+});
+
+Deno.test("looksLikeCatchAll is false when both 200 but content-type/body differ (real /health despite an SPA-fallback baseline)", () => {
+  const candidate = {
+    status: 200,
+    contentType: "application/json",
+    contentLength: "11",
+    bodySample: '{"ok":true}',
+  };
+  const baseline = {
+    status: 200,
+    contentType: "text/html",
+    contentLength: "300",
+    bodySample: "<html>spa shell</html>",
+  };
+  assertEquals(looksLikeCatchAll(candidate, baseline), false);
+});
+
+Deno.test("looksLikeCatchAll fails safe (treated as catch-all) when the baseline probe itself failed", () => {
+  const candidate = {
+    status: 200,
+    contentType: "application/json",
+    contentLength: "2",
+    bodySample: "{}",
+  };
+  const baseline = { status: null, contentType: null, contentLength: null, bodySample: null };
+  assertEquals(looksLikeCatchAll(candidate, baseline), true);
 });

@@ -1,5 +1,5 @@
 import { createCheck, type CreatedCheck } from "../uptime/create-check.ts";
-import { probeUrl } from "../uptime/http-check.ts";
+import { looksLikeCatchAll, type ProbeResult, probeUrlDetailed } from "../uptime/http-check.ts";
 
 // issue #72 — when a project is created with a `baseUrl`, seed a couple of default uptime checks
 // against it so a brand-new project isn't left with zero monitoring coverage until someone
@@ -10,8 +10,9 @@ const DEFAULT_INTERVAL_SECONDS = 60;
 
 // Suggested shape from issue #72 itself — `/health` first (most common convention), `/api/health`
 // as a fallback for apps that namespace their health route under `/api`. Only the first candidate
-// that actually answers a real 200 gets seeded (see probeUrl()) — an auto-created check with no
-// real target would just be noise to delete, not "definitely useful" (issue #72).
+// that actually answers a real, distinct 200 gets seeded (see probeUrlDetailed()/looksLikeCatchAll()
+// below) — an auto-created check with no real target would just be noise to delete, not
+// "definitely useful" (issue #72).
 const HEALTH_ENDPOINT_CANDIDATES = ["/health", "/api/health"];
 
 export interface SeededDefaultChecks {
@@ -45,12 +46,26 @@ export async function seedDefaultUptimeChecks(
   }
 
   // 2. Health-endpoint check — only seeded if a candidate path actually responds 200 right now,
-  // probed live and synchronously as part of this request. probeUrl()'s short timeout keeps this
-  // bounded so project creation can't hang on a slow or dead candidate; it never throws.
+  // probed live and synchronously as part of this request, AND that 200 is confirmed distinct from
+  // a baseline probe of a definitely-nonexistent path on the same origin (issue #75 — otherwise an
+  // app that serves a catch-all 200 for any unmatched path, e.g. an SPA fallback route, gets a fake
+  // "Health" check that's really just re-checking the homepage under a misleading name).
+  // probeUrlDetailed()'s short timeout keeps this bounded so project creation can't hang on a slow
+  // or dead candidate; it never throws. The baseline probe is lazy and cached across candidates —
+  // it only needs to run once some candidate has actually 200'd, and a failed/timed-out baseline
+  // fails safe (looksLikeCatchAll() treats a null baseline status as "not confirmed distinct", so
+  // the Health check simply doesn't get seeded rather than the request hanging or crashing).
   const base = baseUrl.replace(/\/+$/, "");
+  let baseline: ProbeResult | null = null;
   for (const path of HEALTH_ENDPOINT_CANDIDATES) {
     const candidate = `${base}${path}`;
-    if (!(await probeUrl(candidate))) continue;
+    const probe = await probeUrlDetailed(candidate);
+    if (probe.status !== 200) continue;
+
+    if (baseline === null) {
+      baseline = await probeUrlDetailed(`${base}/__flightdeck-nonexistent-${crypto.randomUUID()}`);
+    }
+    if (looksLikeCatchAll(probe, baseline)) continue;
 
     try {
       const created = await createCheck(db, projectId, {
