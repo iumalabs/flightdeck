@@ -655,7 +655,7 @@ export function AppShell({ session, signOut, navigate, pathname }: AppShellProps
         </div>
       </div>
 
-      <div style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: 32 }}>
+      <div style={{ flex: 1, minWidth: 0, overflowY: "auto", overflowX: "hidden", padding: 32 }}>
         {renderScreen(
           screen,
           session,

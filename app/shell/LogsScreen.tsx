@@ -150,7 +150,7 @@ function Search(
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
         <input
           placeholder="Search log content…"
           value={q}
@@ -158,6 +158,7 @@ function Search(
           onKeyDown={(e) => e.key === "Enter" && runSearch()}
           style={{
             flex: 1,
+            minWidth: 0,
             fontSize: 13,
             padding: "6px 10px",
             background: "var(--code-bg)",

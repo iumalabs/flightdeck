@@ -178,3 +178,46 @@ test("search finds ingested log lines by text and level, and cross-links to a tr
 
   await context.close();
 });
+
+// Regression test for issue #67: the search toolbar row (input/level-select/Search button) was a
+// plain `display: flex` with no wrapping, so at narrow viewport widths it overflowed sideways
+// instead of wrapping — and the app shell's content pane had no `overflowX` containment either, so
+// the overflow propagated all the way out to a page-level horizontal scrollbar with the Search
+// button partially cut off past the viewport's right edge. Reproduces the issue's exact 616×743
+// repro viewport.
+test("the Search toolbar wraps instead of overflowing at a narrow viewport, and the Search button stays reachable", async ({ browser, baseURL }) => {
+  const token = await mintTestSession({
+    sub: "e2e-logs-search-narrow",
+    email: "logs-search-narrow@example.com",
+    role: "member",
+  });
+  const context = await browser.newContext();
+  await context.addCookies([{ name: "fd_session", value: token, url: baseURL!, sameSite: "Lax" }]);
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 616, height: 743 });
+  await page.goto("/");
+
+  await page.getByText("Logs", { exact: true }).click();
+  await page.getByText("Search", { exact: true }).click();
+
+  const searchButton = page.getByRole("button", { name: "Search" });
+  await expect(searchButton).toBeVisible();
+
+  // No page-level horizontal scroll — the toolbar row must wrap/clip locally, not push the whole
+  // document wider than the viewport.
+  const overflowsHorizontally = await page.evaluate(() =>
+    document.documentElement.scrollWidth > document.documentElement.clientWidth
+  );
+  expect(overflowsHorizontally).toBe(false);
+
+  // The Search button must be fully within the viewport's width, not just "visible" while
+  // partially clipped past the right edge.
+  const box = await searchButton.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.x + box!.width).toBeLessThanOrEqual(616);
+
+  // And it must actually be clickable at this viewport, not just present in the DOM.
+  await searchButton.click();
+
+  await context.close();
+});
