@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { sessionAuth } from "../../auth/session.ts";
 import type { SessionIdentity } from "../../auth/session.ts";
+import { seedDefaultUptimeChecks } from "./default-checks.ts";
 
 interface Env {
   DB: D1Database;
@@ -15,6 +16,25 @@ projectsRoutes.use("*", sessionAuth);
 
 interface CreateProjectBody {
   name?: string;
+  baseUrl?: string;
+}
+
+// issue #72 — `baseUrl` is optional; when it's a non-empty string it must be a well-formed
+// absolute http(s) URL (rejected with 400 otherwise, same "clean 400 on malformed input" shape
+// this module already uses for `name`). Returns the trimmed, validated string, or null when
+// `baseUrl` was omitted/blank — never throws.
+function parseBaseUrl(raw: string | undefined): { ok: true; value: string | null } | { ok: false } {
+  if (raw === undefined) return { ok: true, value: null };
+  if (typeof raw !== "string") return { ok: false };
+  const trimmed = raw.trim();
+  if (!trimmed) return { ok: true, value: null };
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return { ok: false };
+  } catch {
+    return { ok: false };
+  }
+  return { ok: true, value: trimmed };
 }
 
 interface CreatedProjectRow {
@@ -31,6 +51,11 @@ projectsRoutes.post("/", async (c) => {
   if (!body || typeof body.name !== "string" || !body.name.trim()) {
     return c.text("Bad Request", 400);
   }
+  const baseUrlResult = parseBaseUrl(body.baseUrl);
+  if (!baseUrlResult.ok) {
+    return c.text("Bad Request", 400);
+  }
+  const baseUrl = baseUrlResult.value;
 
   // migration 0009: `projects.id` is D1/SQLite's native INTEGER PRIMARY KEY (rowid alias) now, not
   // a `crypto.randomUUID()` value — required so an issued DSN's project-id path segment actually
@@ -58,6 +83,42 @@ projectsRoutes.post("/", async (c) => {
       JSON.stringify({ projectId: row.id, name: row.name }),
     )
     .run();
+
+  // issue #72 — seeding is a best-effort secondary step: it must never fail (or roll back) the
+  // project creation it's part of, so any failure anywhere in here — including a bug in
+  // seedDefaultUptimeChecks() itself, not just the failures it already catches internally — is
+  // caught and logged rather than surfaced. Each successfully-seeded check gets its own
+  // "check.create" audit_log row (Constitution Principle X), same action/shape as a user-initiated
+  // check.create (uptime/routes.ts), plus a `seeded: true` marker so the audit trail can still
+  // distinguish an automatic default from one a user made by hand.
+  if (baseUrl) {
+    try {
+      const seeded = await seedDefaultUptimeChecks(c.env.DB, row.id, baseUrl);
+      for (const check of [seeded.root, seeded.health]) {
+        if (!check) continue;
+        await c.env.DB
+          .prepare(
+            `INSERT INTO audit_log (id, actor_sub, action, after_json) VALUES (?1, ?2, ?3, ?4)`,
+          )
+          .bind(
+            crypto.randomUUID(),
+            identity.sub,
+            "check.create",
+            JSON.stringify({
+              checkId: check.id,
+              name: check.name,
+              type: check.type,
+              target: check.target,
+              projectId: row.id,
+              seeded: true,
+            }),
+          )
+          .run();
+      }
+    } catch (err) {
+      console.error(`projects: failed to seed default uptime checks for project ${row.id}`, err);
+    }
+  }
 
   // research.md §3 — host derived from the request itself, correct in local/preview/production
   // alike, never hardcoded to the production custom domain.

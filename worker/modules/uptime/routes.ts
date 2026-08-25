@@ -3,6 +3,7 @@ import { sessionAuth } from "../../auth/session.ts";
 import type { SessionIdentity } from "../../auth/session.ts";
 import { runCheck } from "./evaluate.ts";
 import { resolveRequestedProject } from "../projects/resolve.ts";
+import { createCheck, MIN_INTERVAL_SECONDS } from "./create-check.ts";
 
 interface Env {
   DB: D1Database;
@@ -13,10 +14,6 @@ export const uptimeRoutes = new Hono<
 >();
 
 uptimeRoutes.use("*", sessionAuth);
-
-// research.md §4 — real abuse-prevention bounds, not user-facing configuration.
-const MIN_INTERVAL_SECONDS = 60;
-const MAX_CHECKS_PER_PROJECT = 20;
 
 interface CheckRow {
   id: string;
@@ -102,35 +99,18 @@ uptimeRoutes.post("/checks", async (c) => {
   const project = await resolveRequestedProject(c.env.DB, c.req.query("project") ?? null);
   if (!project) return c.text("Not Found", 404);
 
-  const { count } = await c.env.DB
-    .prepare(`SELECT COUNT(*) as count FROM checks WHERE project_id = ?1`)
-    .bind(project.id)
-    .first<{ count: number }>() ?? { count: 0 };
-  if (count >= MAX_CHECKS_PER_PROJECT) {
+  const created = await createCheck(c.env.DB, project.id, {
+    name: body.name,
+    type: body.type,
+    target: body.target,
+    intervalSeconds: body.intervalSeconds,
+    failureThreshold: body.failureThreshold,
+    recoveryThreshold: body.recoveryThreshold,
+    webhookUrl: body.webhookUrl,
+  });
+  if (created === "limit-reached") {
     return c.text("Forbidden", 403);
   }
-
-  const id = crypto.randomUUID();
-  const failureThreshold = body.failureThreshold ?? 3;
-  const recoveryThreshold = body.recoveryThreshold ?? 2;
-  await c.env.DB
-    .prepare(
-      `INSERT INTO checks
-         (id, project_id, name, type, target, interval_seconds, failure_threshold, recovery_threshold, webhook_url)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`,
-    )
-    .bind(
-      id,
-      project.id,
-      body.name,
-      body.type,
-      body.target,
-      body.intervalSeconds,
-      failureThreshold,
-      recoveryThreshold,
-      body.webhookUrl ?? null,
-    )
-    .run();
 
   const identity = c.get("identity");
   await c.env.DB
@@ -139,19 +119,24 @@ uptimeRoutes.post("/checks", async (c) => {
       crypto.randomUUID(),
       identity.sub,
       "check.create",
-      JSON.stringify({ checkId: id, name: body.name, type: body.type, target: body.target }),
+      JSON.stringify({
+        checkId: created.id,
+        name: created.name,
+        type: created.type,
+        target: created.target,
+      }),
     )
     .run();
 
   return c.json({
-    id,
-    name: body.name,
-    type: body.type,
-    target: body.target,
-    intervalSeconds: body.intervalSeconds,
-    failureThreshold,
-    recoveryThreshold,
-    webhookUrl: body.webhookUrl ?? null,
+    id: created.id,
+    name: created.name,
+    type: created.type,
+    target: created.target,
+    intervalSeconds: created.intervalSeconds,
+    failureThreshold: created.failureThreshold,
+    recoveryThreshold: created.recoveryThreshold,
+    webhookUrl: created.webhookUrl,
     status: "unknown",
     uptimePercent: null,
   }, 201);

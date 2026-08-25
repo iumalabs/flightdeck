@@ -99,23 +99,28 @@ type CreateProjectStatus = { kind: "idle" } | { kind: "created"; dsn: string } |
 // returned `dsn` inline on success (spec User Story 3), no separate navigation.
 function CreateProjectForm({ onCreated }: { onCreated: (project: Project) => void }) {
   const [name, setName] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
   const [status, setStatus] = useState<CreateProjectStatus>({ kind: "idle" });
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
 
+    // issue #72 — `baseUrl` is optional; only sent when non-empty, so an unchanged (empty) field
+    // reproduces the exact same request body project creation has always sent.
+    const trimmedBaseUrl = baseUrl.trim();
     const res = await fetch("/api/internal/v1/projects", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify(trimmedBaseUrl ? { name, baseUrl: trimmedBaseUrl } : { name }),
     });
 
     if (res.ok) {
       const project = await res.json() as Project;
       setStatus({ kind: "created", dsn: project.dsn });
       setName("");
+      setBaseUrl("");
       onCreated(project);
     } else {
       setStatus({ kind: "error", message: "Could not create project." });
@@ -139,6 +144,12 @@ function CreateProjectForm({ onCreated }: { onCreated: (project: Project) => voi
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
+          style={inputStyle}
+        />
+        <input
+          placeholder="Base URL (optional)"
+          value={baseUrl}
+          onChange={(e) => setBaseUrl(e.target.value)}
           style={inputStyle}
         />
         <button type="submit" style={buttonStyle}>Create project</button>

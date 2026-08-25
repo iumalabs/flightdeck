@@ -50,3 +50,27 @@ export async function runHttpCheck(target: string): Promise<CheckOutcome> {
     clearTimeout(timeout);
   }
 }
+
+// issue #72 — best-effort probe used to decide whether project creation should seed a default
+// `/health`-style uptime check. Mirrors runHttpCheck()'s abort+timeout discipline (same
+// AbortController/setTimeout shape, no SSRF handling beyond that — this codebase already accepts
+// arbitrary user-supplied check targets from an authenticated dashboard request and relies on the
+// Workers platform's `global_fetch_strictly_public` compat flag for that class of concern, see
+// wrangler.jsonc and issue #59) but with a much shorter timeout: this runs synchronously inside the
+// project-creation request, so it must never make that request hang. Returns true only on a real
+// 200 — per issue #72's own framing, anything else (error, timeout, redirect, 404, ...) means this
+// candidate isn't a real target worth seeding a check for. Never throws.
+const PROBE_TIMEOUT_MS = 3_000;
+
+export async function probeUrl(target: string, timeoutMs = PROBE_TIMEOUT_MS): Promise<boolean> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(target, { method: "GET", signal: controller.signal });
+    return res.status === 200;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
