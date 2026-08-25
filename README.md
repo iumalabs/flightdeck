@@ -153,11 +153,20 @@ production branch to `release`, not `main`. In the setup form:
 | ------------------------------------ | ------------------------------------------------------------------------------------- |
 | Build command                        | `npx -y deno task build`                                                              |
 | Deploy command                       | `npx -y deno task deploy:production`                                                  |
-| Builds for non-production branches   | enabled                                                                               |
-| Non-production branch deploy command | `npx -y deno task deploy:preview`                                                     |
+| Builds for non-production branches   | **disabled** — see below                                                              |
 | Protect with Cloudflare Access       | **leave disabled** — see [Authentication](#authentication)'s post-deploy step instead |
 
 `workers_dev` is `false` from the first commit and MUST stay that way (constitution Principle I).
+
+**"Builds for non-production branches" is deliberately left disabled**, contrary to what an
+earlier version of this doc said. Work on this repo routinely spans many short-lived,
+throwaway branches at once (per-task branches, agent worktrees) — if enabled, every push to
+every one of them would trigger a real build+deploy to the single shared `flightdeck-preview`
+Worker, so whichever branch happened to push last would silently clobber whatever anyone else
+was actually trying to preview. `deno task deploy:preview` (`wrangler deploy --env preview
+--name flightdeck-preview`) still exists and works fine run by hand when someone genuinely
+wants a preview deploy of a specific branch — it's just not wired to fire automatically on
+every push.
 
 **Required one-time Queue provisioning** (Modules 3-4, cannot be scripted via Workers Builds
 config): `wrangler.jsonc`'s `queues` block declares the `TRACE_INGEST` and `LOG_INGEST`
