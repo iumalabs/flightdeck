@@ -75,6 +75,22 @@ test("a manually-triggered HTTP check against a reachable target reports up", as
   expect(body.recentRuns.length).toBeGreaterThan(0);
 });
 
+// issue #59 / research.md §11 — a real network call (not mocked) to FlightDeck's own live
+// production domain, proving the HTTP-check mechanism itself correctly reaches a real external
+// target end-to-end. This does NOT reproduce the same-zone subrequest-loop rejection the issue
+// was actually about — that's a property of the real deployed Cloudflare edge/zone binding, which
+// local `wrangler dev` (this test's own target under `deno task test:contract`) does not
+// replicate — so it can't independently confirm wrangler.jsonc's `global_fetch_strictly_public`
+// fix holds once deployed. It's the "at minimum, a real wrangler dev contract test against
+// flightdeck.iuma.dev" bar from the issue: proof the check mechanism isn't itself broken,
+// alongside the platform-level fix and the diagnostic safety net (both in http-check.ts).
+test("a manually-triggered HTTP check against the real flightdeck.iuma.dev succeeds", async ({ request }) => {
+  const checkId = await createCheck(request, { target: "https://flightdeck.iuma.dev/" });
+  const result = await triggerCheck(request, checkId);
+  expect(result.succeeded).toBe(true);
+  expect(result.status).toBe("up");
+});
+
 test("a manually-triggered HTTP check against an unreachable target reports down", async ({ request }) => {
   const checkId = await createCheck(request, { target: "http://127.0.0.1:1" });
   const result = await triggerCheck(request, checkId);

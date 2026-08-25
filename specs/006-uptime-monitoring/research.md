@@ -202,3 +202,52 @@ path (`worker/index.ts`'s `runDueUptimeChecks`) was separately verified live via
 `trigger:
 "scheduled"` and `next_run_at` advances correctly (no immediate re-fire before the
 configured interval elapses).
+
+## 11. Self-referential HTTP checks: same-zone subrequest loop rejection, confirmed and fixed (issue #59)
+
+**Symptom**: an HTTP check on `flightdeck.iuma.dev` pointed at FlightDeck's own production domain
+(`https://flightdeck.iuma.dev/`) got HTTP `522` on every single run — scheduled and manual — with a
+7-22ms latency, even though the site was trivially reachable via a real browser throughout. A false
+"down" incident stayed open for over a day before being caught.
+
+**Root cause, confirmed (not just theorized)**: Cloudflare's own Error 522 troubleshooting doc
+states plainly: "If you are using Workers with a Custom Domain, performing a `fetch` to its own
+hostname will cause a `522` error" — and separately documents that a genuine connection-timeout 522
+requires a minimum ~19-second pre-connection SYN+ACK wait (retried at 1/1/1/1/1/2/4/8s backoff) or a
+90-second post-connection ACK wait, making the observed 7-22ms latency conclusively inconsistent
+with a real origin timeout. Without `global_fetch_strictly_public`, a Worker's global `fetch()` to a
+hostname that resolves to the Worker's OWN zone is routed via legacy same-zone origin resolution
+(bypassing the Workers routing layer entirely) instead of the public Internet — and since this
+zone's `custom_domain` route has no traditional origin server (the whole site is served by this
+Worker/its `ASSETS` binding), that resolution has nothing to connect to, producing an instant 522.
+This is the same category of restriction §2 above documents for `cloudflare:sockets`' `connect()`
+(Cloudflare's own IP ranges blocked), just the HTTP-fetch-layer equivalent, scoped specifically to
+same-zone self-fetches rather than all Cloudflare-proxied targets generally.
+
+**Real fix, not just a diagnostic**: `wrangler.jsonc` now sets
+`"compatibility_flags": ["global_fetch_strictly_public"]` at the top level (applies to both the
+`production` and `preview` named environments, matching how `compatibility_date` is already declared
+once at the top level rather than duplicated per environment) — Cloudflare's own documented fix for
+exactly this failure mode, alongside "use a Route" and "target a different hostname" (neither
+applicable here: the check's whole point is monitoring this Worker's own real production hostname).
+This flag only changes routing for fetches whose target resolves to the Worker's OWN zone; every
+other `fetch()` call in this codebase (uptime checks against third-party targets, webhook delivery,
+the GitHub API, Cloudflare's own API for R2 provisioning) already targets a different zone and is
+unaffected.
+
+**Diagnostic kept as a safety net anyway**: `runHttpCheck()` (`worker/modules/uptime/http-check.ts`)
+still detects the signature (`status === 522` and `latencyMs` under 5 seconds — a generous margin
+below the ~19s floor above) and returns a distinguishing `detail` string instead of a bare `"522"`,
+rather than relying solely on the compatibility flag. Two reasons: this fix can't be verified
+against the real deployed Cloudflare edge from this development environment (the same-zone
+loop-rejection is a property of the actual production zone/Worker binding, which local
+`wrangler dev` does not reproduce — a local contract test hitting the real `flightdeck.iuma.dev`
+proves the HTTP-check mechanism itself reaches a real external target correctly, not that the
+platform-level fix holds once deployed); and the failure signature is a strictly more honest
+diagnostic to have in place regardless, for any future case with the same shape. The check result
+itself stays unchanged either way — a matching 522 is still recorded as `down`, never silently
+marked `up`.
+
+**Source**:
+https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-522/,
+https://developers.cloudflare.com/workers/configuration/compatibility-flags/

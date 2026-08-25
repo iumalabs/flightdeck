@@ -10,6 +10,18 @@ export interface CheckOutcome {
 
 const HTTP_TIMEOUT_MS = 10_000;
 
+// issue #59 — a bare `522` is indistinguishable from a real origin outage, but a 522 arriving
+// this fast cannot BE one: Cloudflare's own Error 522 doc documents a minimum 19-second
+// pre-connection timeout (retried at 1/1/1/1/1/2/4/8s backoff) before it ever emits a genuine
+// "connection timed out" 522, and a 90-second post-connection-ACK timeout for the other 522
+// cause. A 522 well under that floor is the platform's instant same-zone-loop rejection (a
+// Worker's fetch() to a target hostname resolving to its OWN zone, which has no real origin to
+// time out against) — wrangler.jsonc's `global_fetch_strictly_public` compatibility flag is the
+// documented fix for that specific case, but this check stays in place as a diagnostic safety
+// net: honest either way (never silently marks the check "up"), just clearer about WHICH kind of
+// down this is when the signature matches.
+const SUSPICIOUSLY_FAST_522_MS = 5_000;
+
 export async function runHttpCheck(target: string): Promise<CheckOutcome> {
   const start = Date.now();
   const controller = new AbortController();
@@ -17,6 +29,16 @@ export async function runHttpCheck(target: string): Promise<CheckOutcome> {
   try {
     const res = await fetch(target, { method: "GET", signal: controller.signal });
     const latencyMs = Date.now() - start;
+    if (res.status === 522 && latencyMs < SUSPICIOUSLY_FAST_522_MS) {
+      return {
+        succeeded: false,
+        latencyMs,
+        detail:
+          "522 (suspiciously fast — likely Cloudflare rejecting this Worker's own subrequest to " +
+          "a Cloudflare-proxied target, e.g. a self-referential or cross-zone-proxied check, " +
+          "rather than a real origin timeout; see issue #59)",
+      };
+    }
     return { succeeded: res.ok, latencyMs, detail: String(res.status) };
   } catch (err) {
     return {

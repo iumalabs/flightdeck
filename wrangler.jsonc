@@ -2,6 +2,19 @@
   "name": "flightdeck",
   "main": "worker/index.ts",
   "compatibility_date": "2026-08-18",
+  // Fixes issue #59: without this flag, a Worker's global fetch() to a target hostname that
+  // resolves to the Worker's OWN zone (e.g. an uptime check on flightdeck.iuma.dev pointed at
+  // itself) is routed via legacy same-zone origin resolution instead of the public Internet —
+  // and since this zone has no traditional origin server (everything is served by this Worker /
+  // its ASSETS binding), that resolution has nothing to connect to and Cloudflare's edge returns
+  // an instant 522 (confirmed via developers.cloudflare.com's Error 522 troubleshooting doc:
+  // "If you are using Workers with a Custom Domain, performing a fetch to its own hostname will
+  // cause a 522 error" — with this exact flag listed as the fix, alongside using a Route or
+  // targeting a different hostname). Enabling it makes fetch() always route as a genuine public
+  // request instead, which is also the safer default for a Worker that fetches arbitrary
+  // customer-supplied third-party URLs (uptime checks, webhooks) — it never changes behavior for
+  // fetches to any OTHER zone, only this Worker's own.
+  "compatibility_flags": ["global_fetch_strictly_public"],
 
   // Non-negotiable (constitution Principle I) — the control-plane surface (SPA + /api/internal/*)
   // must never be reachable on a bare *.workers.dev URL. Module 2's ingest surface
