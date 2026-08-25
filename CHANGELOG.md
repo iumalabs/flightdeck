@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.13.1](https://github.com/iumalabs/flightdeck/compare/v0.13.0...v0.13.1) (2026-08-25)
+
+
+### Bug Fixes
+
+* **uptime:** don't seed a fake Health check from an SPA catch-all 200 ([4138e35](https://github.com/iumalabs/flightdeck/commit/4138e3594c225422605f22a9fc73e41a360293bf))
+* **uptime:** don't seed a fake Health check from an SPA catch-all 200 ([fc29cff](https://github.com/iumalabs/flightdeck/commit/fc29cffef45c898557d357a510983c609f2ffd83)), closes [#75](https://github.com/iumalabs/flightdeck/issues/75)
+
 ## [0.13.0](https://github.com/iumalabs/flightdeck/compare/v0.12.0...v0.13.0) (2026-08-25)
 
 
