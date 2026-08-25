@@ -10,7 +10,8 @@ import { mintTestSession } from "../e2e/support/session.ts";
 // hand-computed expected values, exercising percentileSql()/operationsListSql()/fetchPercentile()
 // (worker/modules/ingest/percentiles.ts) against real seeded D1 data.
 
-const DEMO_PROJECT_ID = "demo";
+// migration 0009: the demo project seeded by that migration is deterministically id 1.
+const DEMO_PROJECT_ID = "1";
 
 // 10 known durations (ms), strictly increasing so the p50/p95 offsets are unambiguous.
 // count=10: p50 offset = trunc(10*0.50)-1 = 4 -> sorted[4] = 500

@@ -1,5 +1,9 @@
 import { assertEquals } from "@std/assert";
-import { extractSentryKey, resolveProjectByDsnKey } from "../../worker/modules/ingest/dsn-auth.ts";
+import {
+  extractSentryKey,
+  isNumericProjectId,
+  resolveProjectByDsnKey,
+} from "../../worker/modules/ingest/dsn-auth.ts";
 
 Deno.test("extractSentryKey reads the key from the X-Sentry-Auth header", () => {
   const request = new Request("https://flightdeck.iuma.dev/api/demo/envelope/", {
@@ -63,14 +67,14 @@ class FakeD1 {
 }
 
 Deno.test("resolveProjectByDsnKey resolves a matching project/key pair", async () => {
-  const db = new FakeD1([{ id: "demo", dsn_public_key: "abc123" }]);
-  const result = await resolveProjectByDsnKey(db as unknown as D1Database, "demo", "abc123");
-  assertEquals(result, { id: "demo" });
+  const db = new FakeD1([{ id: "1", dsn_public_key: "abc123" }]);
+  const result = await resolveProjectByDsnKey(db as unknown as D1Database, "1", "abc123");
+  assertEquals(result, { id: "1" });
 });
 
 Deno.test("resolveProjectByDsnKey returns null for an unknown key", async () => {
-  const db = new FakeD1([{ id: "demo", dsn_public_key: "abc123" }]);
-  const result = await resolveProjectByDsnKey(db as unknown as D1Database, "demo", "wrong-key");
+  const db = new FakeD1([{ id: "1", dsn_public_key: "abc123" }]);
+  const result = await resolveProjectByDsnKey(db as unknown as D1Database, "1", "wrong-key");
   assertEquals(result, null);
 });
 
@@ -78,4 +82,34 @@ Deno.test("resolveProjectByDsnKey rejects project_id 'internal' outright", async
   const db = new FakeD1([{ id: "internal", dsn_public_key: "abc123" }]);
   const result = await resolveProjectByDsnKey(db as unknown as D1Database, "internal", "abc123");
   assertEquals(result, null);
+});
+
+// migration 0009: `projects.id` is now a genuinely numeric INTEGER PRIMARY KEY — a UUID-shaped (or
+// any other non-numeric) project id must never reach the DB query at all, matching the real
+// @sentry/core SDK's own /^\d+$/ DSN project-id validation.
+Deno.test("resolveProjectByDsnKey rejects a non-numeric project id, even with a matching key", async () => {
+  const db = new FakeD1([{ id: "1", dsn_public_key: "abc123" }]);
+  const result = await resolveProjectByDsnKey(
+    db as unknown as D1Database,
+    "0d1f8b2a-uuid-shaped",
+    "abc123",
+  );
+  assertEquals(result, null);
+});
+
+Deno.test("isNumericProjectId accepts a clean positive integer string", () => {
+  assertEquals(isNumericProjectId("1"), true);
+  assertEquals(isNumericProjectId("42"), true);
+  assertEquals(isNumericProjectId("1000000"), true);
+});
+
+Deno.test("isNumericProjectId rejects non-numeric, zero, negative, and leading-zero strings", () => {
+  assertEquals(isNumericProjectId("demo"), false);
+  assertEquals(isNumericProjectId("0d1f8b2a-1234-4abc-9def-1234567890ab"), false);
+  assertEquals(isNumericProjectId("0"), false);
+  assertEquals(isNumericProjectId("-1"), false);
+  assertEquals(isNumericProjectId("01"), false);
+  assertEquals(isNumericProjectId("1.0"), false);
+  assertEquals(isNumericProjectId(""), false);
+  assertEquals(isNumericProjectId(" 1"), false);
 });

@@ -12,7 +12,8 @@ import { mintTestSession } from "../e2e/support/session.ts";
 // uses — rather than waiting on/re-exercising the actual retention cron job, which is already
 // covered by tests/unit/retention.test.ts.
 
-const DEMO_PROJECT_ID = "demo";
+// migration 0009: the demo project seeded by that migration is deterministically id 1.
+const DEMO_PROJECT_ID = "1";
 
 function buildErrorEnvelope(eventId: string, uniqueTitle: string): string {
   const payload = {

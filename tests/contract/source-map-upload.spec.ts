@@ -14,7 +14,8 @@ test.beforeAll(async () => {
 // which JS runtime the library executes in (Deno test vs. this suite's actual Workers/workerd
 // instance), and both pass.
 
-const DEMO_PROJECT_ID = "demo";
+// migration 0009: the demo project seeded by that migration is deterministically id 1.
+const DEMO_PROJECT_ID = "1";
 
 // A real Source Map v3 fixture, same as tests/unit/sourcemap-resolve.test.ts's — mappings
 // "AAAAA" decodes to: generated (line 1, col 0) -> sources[0]="app.js", original (line 1, col 0),

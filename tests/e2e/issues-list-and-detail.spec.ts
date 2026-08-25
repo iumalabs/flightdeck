@@ -52,7 +52,7 @@ async function findIssueIdByTitle(
   title: string,
 ): Promise<string> {
   for (let i = 0; i < 10; i++) {
-    const res = await request.get(`/api/internal/v1/issues?project=demo&status=all`, {
+    const res = await request.get(`/api/internal/v1/issues?project=1&status=all`, {
       headers: { Cookie: cookie },
     });
     const { issues } = await res.json() as { issues: { id: string; title: string }[] };
@@ -80,7 +80,7 @@ test("navigating from the issues list into an issue's detail and back", async ({
       }],
     },
   });
-  const ingest = await request.post(`/api/demo/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
+  const ingest = await request.post(`/api/1/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
     data: body,
   });
   expect(ingest.status()).toBe(200);
@@ -130,7 +130,7 @@ test("an issue whose only event was pruned by retention shows a retention notice
       }],
     },
   });
-  const ingest = await request.post(`/api/demo/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
+  const ingest = await request.post(`/api/1/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
     data: body,
   });
   expect(ingest.status()).toBe(200);

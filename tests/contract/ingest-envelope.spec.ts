@@ -7,7 +7,10 @@ import { getDsnKey } from "./support/dsn-key.ts";
 // project's DSN key is read from the local D1 database at test setup time rather than hardcoded,
 // so this doesn't silently drift from whatever the baseline migration actually seeds.
 
-const DEMO_PROJECT_ID = "demo";
+// migration 0009: `projects.id` is now D1/SQLite's native auto-assigning INTEGER PRIMARY KEY — the
+// demo project seeded by that migration's INSERT is always the first (and, in a freshly-migrated
+// local D1, only) row, so its id is deterministically 1.
+const DEMO_PROJECT_ID = "1";
 
 function buildEnvelope(eventId: string, payload: Record<string, unknown>): string {
   const eventJson = JSON.stringify({ event_id: eventId, ...payload });
@@ -95,6 +98,20 @@ test("a trailing-slash envelope path (the real @sentry/core SDK's actual wire sh
     { data: body },
   );
   expect(response.status()).toBe(200);
+});
+
+// migration 0009 / worker/modules/ingest/dsn-auth.ts's isNumericProjectId — a UUID-shaped (the
+// project id format FlightDeck used to issue) or otherwise non-numeric project-id path segment is
+// rejected the same way an unknown DSN key is, before it ever reaches a DB query, matching the
+// real @sentry/core SDK's own /^\d+$/ DSN validation this migration exists to satisfy.
+test("a non-numeric (e.g. UUID-shaped) project id is rejected with 403, fail closed", async ({ request }) => {
+  const dsnKey = await getDsnKey();
+  const body = buildEnvelope(crypto.randomUUID(), jsShapedPayload());
+  const response = await request.post(
+    `/api/0d1f8b2a-1234-4abc-9def-1234567890ab/envelope?sentry_key=${dsnKey}&sentry_version=7`,
+    { data: body },
+  );
+  expect(response.status()).toBe(403);
 });
 
 test("an unknown DSN key is rejected, fail closed", async ({ request }) => {

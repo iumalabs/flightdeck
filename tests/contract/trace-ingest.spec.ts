@@ -10,7 +10,8 @@ import { getDsnKey } from "./support/dsn-key.ts";
 // producer->consumer end to end (research.md §4), so polling against real local delivery is the
 // primary design here, not a fallback.
 
-const DEMO_PROJECT_ID = "demo";
+// migration 0009: the demo project seeded by that migration is deterministically id 1.
+const DEMO_PROJECT_ID = "1";
 
 function buildTransactionEnvelope(
   eventId: string,

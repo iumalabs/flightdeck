@@ -13,7 +13,7 @@ import { getDsnKey } from "../contract/support/dsn-key.ts";
 test("Sentry.showReportDialog() from the real, unmodified SDK loads FlightDeck's dialog script", async ({ page, baseURL }) => {
   const dsnKey = await getDsnKey();
   const host = new URL(baseURL!).host;
-  const dsn = `http://${dsnKey}@${host}/demo`;
+  const dsn = `http://${dsnKey}@${host}/1`;
 
   // A real page, not "about:blank" — cross-origin <script src> injection (what showReportDialog()
   // itself does internally) does not reliably execute against the null/opaque origin

@@ -24,7 +24,7 @@ async function generateApiToken(
   request: import("@playwright/test").APIRequestContext,
 ): Promise<{ token: string; tokenId: string }> {
   const cookie = await sessionCookieHeader();
-  const res = await request.post("/api/internal/v1/projects/demo/api-tokens", {
+  const res = await request.post("/api/internal/v1/projects/1/api-tokens", {
     headers: { Cookie: cookie },
   });
   const body = await res.json() as { id: string; token: string };
@@ -37,12 +37,12 @@ test("a full sentry-cli release flow (create, upload-sourcemaps, finalize) succe
 
   const create = await request.post("/api/0/organizations/anyorg/releases/", {
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    data: { version, projects: ["demo"] },
+    data: { version, projects: ["1"] },
   });
   expect(create.status()).toBe(201);
 
   const upload = await request.post(
-    `/api/0/projects/anyorg/demo/releases/${version}/files/`,
+    `/api/0/projects/anyorg/1/releases/${version}/files/`,
     {
       headers: { Authorization: `Bearer ${token}` },
       multipart: {
@@ -72,13 +72,13 @@ test("a repeated 'releases new' for the same version is a no-op, not a duplicate
 
   const first = await request.post("/api/0/organizations/anyorg/releases/", {
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    data: { version, projects: ["demo"] },
+    data: { version, projects: ["1"] },
   });
   expect(first.status()).toBe(201);
 
   const second = await request.post("/api/0/organizations/anyorg/releases/", {
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    data: { version, projects: ["demo"] },
+    data: { version, projects: ["1"] },
   });
   expect(second.status()).toBe(201); // still accepted, just a no-op — not an error
 
@@ -93,7 +93,7 @@ test("an invalid API token is rejected, fail closed, no data created", async ({ 
   const version = `contract-rejected-${crypto.randomUUID()}`;
   const response = await request.post("/api/0/organizations/anyorg/releases/", {
     headers: { Authorization: "Bearer not-a-real-token", "Content-Type": "application/json" },
-    data: { version, projects: ["demo"] },
+    data: { version, projects: ["1"] },
   });
   expect(response.status()).toBe(403);
 });
@@ -114,14 +114,14 @@ test("a revoked token is rejected on subsequent use", async ({ request }) => {
   const { token, tokenId } = await generateApiToken(request);
   const cookie = await sessionCookieHeader();
 
-  const revoke = await request.delete(`/api/internal/v1/projects/demo/api-tokens/${tokenId}`, {
+  const revoke = await request.delete(`/api/internal/v1/projects/1/api-tokens/${tokenId}`, {
     headers: { Cookie: cookie },
   });
   expect(revoke.status()).toBe(200);
 
   const response = await request.post("/api/0/organizations/anyorg/releases/", {
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    data: { version: `contract-revoked-${crypto.randomUUID()}`, projects: ["demo"] },
+    data: { version: `contract-revoked-${crypto.randomUUID()}`, projects: ["1"] },
   });
   expect(response.status()).toBe(403);
 });
@@ -133,7 +133,7 @@ test("session ingest correctly aggregates into adoption/crash-free figures for a
 
   await request.post("/api/0/organizations/anyorg/releases/", {
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    data: { version, projects: ["demo"] },
+    data: { version, projects: ["1"] },
   });
 
   // Known distribution: 8 exited, 1 errored, 1 crashed = 10 sessions, 90% crash-free.
@@ -147,7 +147,7 @@ test("session ingest correctly aggregates into adoption/crash-free figures for a
     JSON.stringify({ type: "sessions", length: new TextEncoder().encode(payload).length }),
     payload,
   ].join("\n");
-  const ingest = await request.post(`/api/demo/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
+  const ingest = await request.post(`/api/1/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
     data: envelope,
   });
   expect(ingest.status()).toBe(200);
@@ -203,11 +203,11 @@ test("project-scoped release list/retrieve/delete variants work and stay project
 
   const create = await request.post("/api/0/organizations/anyorg/releases/", {
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    data: { version, projects: ["demo"] },
+    data: { version, projects: ["1"] },
   });
   expect(create.status()).toBe(201);
 
-  const list = await request.get("/api/0/projects/anyorg/demo/releases/", {
+  const list = await request.get("/api/0/projects/anyorg/1/releases/", {
     headers: { Authorization: `Bearer ${token}` },
   });
   expect(list.status()).toBe(200);
@@ -227,7 +227,7 @@ test("project-scoped release list/retrieve/delete variants work and stay project
   expect(orgBody.version).toBe(version);
 
   const retrieveProject = await request.get(
-    `/api/0/projects/anyorg/demo/releases/${version}/`,
+    `/api/0/projects/anyorg/1/releases/${version}/`,
     { headers: { Authorization: `Bearer ${token}` } },
   );
   expect(retrieveProject.status()).toBe(200);
@@ -241,7 +241,7 @@ test("project-scoped release list/retrieve/delete variants work and stay project
   expect(retrieveMissing.status()).toBe(404);
 
   const deleteProject = await request.delete(
-    `/api/0/projects/anyorg/demo/releases/${version}/`,
+    `/api/0/projects/anyorg/1/releases/${version}/`,
     { headers: { Authorization: `Bearer ${token}` } },
   );
   expect(deleteProject.status()).toBe(204);

@@ -51,7 +51,7 @@ test("live tail shows a log line within moments of it being emitted", async ({ b
   const body = buildLogEnvelope(crypto.randomUUID(), [
     { timestamp: Date.now() / 1000, level: "info", body: uniqueBody },
   ]);
-  const ingest = await request.post(`/api/demo/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
+  const ingest = await request.post(`/api/1/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
     data: body,
   });
   expect(ingest.status()).toBe(200);
@@ -94,7 +94,7 @@ test("a retried envelope submission (same header event_id) does not broadcast it
   const body = buildLogEnvelope(eventId, [
     { timestamp: Date.now() / 1000, level: "info", body: uniqueBody },
   ]);
-  const url = `/api/demo/envelope?sentry_key=${dsnKey}&sentry_version=7`;
+  const url = `/api/1/envelope?sentry_key=${dsnKey}&sentry_version=7`;
 
   const first = await request.post(url, { data: body });
   expect(first.status()).toBe(200);
@@ -126,7 +126,7 @@ test("search finds ingested log lines by text and level, and cross-links to a tr
   const logBody = buildLogEnvelope(crypto.randomUUID(), [
     { timestamp: Date.now() / 1000, trace_id: traceId, level: "info", body: uniqueWord },
   ]);
-  const logIngest = await request.post(`/api/demo/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
+  const logIngest = await request.post(`/api/1/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
     data: logBody,
   });
   expect(logIngest.status()).toBe(200);
@@ -147,7 +147,7 @@ test("search finds ingested log lines by text and level, and cross-links to a tr
     JSON.stringify({ type: "transaction", length: txnBytes }),
     txnPayload,
   ].join("\n");
-  const txnIngest = await request.post(`/api/demo/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
+  const txnIngest = await request.post(`/api/1/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
     data: txnEnvelope,
   });
   expect(txnIngest.status()).toBe(200);

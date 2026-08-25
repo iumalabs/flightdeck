@@ -13,7 +13,8 @@ import { CONTRACT_TEST_ACTOR, ensureContractTestActor } from "./support/seed-act
 // ingest queue (research.md §9's polling pattern, already covered by trace-ingest.spec.ts/
 // log-ingest.spec.ts) is orthogonal to this feature, which only adds a query parameter.
 
-const DEMO_PROJECT_ID = "demo";
+// migration 0009: the demo project seeded by that migration is deterministically id 1.
+const DEMO_PROJECT_ID = "1";
 
 test.beforeAll(async () => {
   await ensureContractTestActor();
