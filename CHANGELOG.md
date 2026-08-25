@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/iumalabs/flightdeck/compare/v0.12.0...v0.13.0) (2026-08-25)
+
+
+### Features
+
+* **uptime:** seed default checks when a project's baseUrl is given ([b318202](https://github.com/iumalabs/flightdeck/commit/b318202f4fd61685dac5ef5083d96a9728c080e8)), closes [#72](https://github.com/iumalabs/flightdeck/issues/72)
+
 ## [0.12.0](https://github.com/iumalabs/flightdeck/compare/v0.11.2...v0.12.0) (2026-08-25)
 
 
