@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.12.0](https://github.com/iumalabs/flightdeck/compare/v0.11.2...v0.12.0) (2026-08-25)
+
+
+### Features
+
+* **db:** switch projects.id to a numeric INTEGER primary key ([53c28bb](https://github.com/iumalabs/flightdeck/commit/53c28bb0c0e6b43b089c4093229e171ce722e6f2))
+
+
+### Bug Fixes
+
+* **db:** switch projects.id to a numeric primary key for Sentry SDK DSN compatibility ([3587120](https://github.com/iumalabs/flightdeck/commit/358712033b7675de3420816b80d189c6e5ebd5bc))
+* **ingest:** issue numeric project ids and validate the DSN path segment ([d158dca](https://github.com/iumalabs/flightdeck/commit/d158dcaeae61a52bbe7e7d440f6de65da7ccc83b))
+
 ## [0.11.2](https://github.com/iumalabs/flightdeck/compare/v0.11.1...v0.11.2) (2026-08-25)
 
 
