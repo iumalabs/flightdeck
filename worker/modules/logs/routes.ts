@@ -6,6 +6,7 @@ import {
   createExportToken,
   getOrCreateProjectBucket,
   revokeExportToken,
+  revokePreviousExportToken,
   snapshotProjectLogs,
 } from "./r2-provision.ts";
 import type { LiveTail } from "../../durable-objects/live-tail.ts";
@@ -153,6 +154,17 @@ logExportRoutes.post("/:id/log-export/credential", async (c) => {
     c.env.CLOUDFLARE_R2_ADMIN_TOKEN,
     projectId,
   );
+
+  // Revoke any token already issued for this project BEFORE minting a new one, so a
+  // re-provision never orphans a live R2 API token (issue #56) — mirrors the DELETE handler's
+  // SELECT-then-revoke pattern below.
+  await revokePreviousExportToken(
+    c.env.DB,
+    c.env.CF_ACCOUNT_ID,
+    c.env.CLOUDFLARE_R2_ADMIN_TOKEN,
+    projectId,
+  );
+
   const credential = await createExportToken(
     c.env.CF_ACCOUNT_ID,
     c.env.CLOUDFLARE_R2_ADMIN_TOKEN,
