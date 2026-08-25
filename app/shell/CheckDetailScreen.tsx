@@ -166,13 +166,14 @@ export function CheckDetailScreen({ checkId, projectId, onBack }: CheckDetailScr
         }}
       >
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Webhook URL</div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           <input
             placeholder="https://example.com/hook (optional)"
             value={webhookUrl}
             onChange={(e) => setWebhookUrl(e.target.value)}
             style={{
               flex: 1,
+              minWidth: 0,
               fontSize: 13,
               padding: "6px 10px",
               background: "var(--code-bg)",
