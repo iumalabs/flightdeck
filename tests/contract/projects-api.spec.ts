@@ -234,6 +234,76 @@ test("project creation with baseUrl seeds only the root check when no health-end
   }
 });
 
+// === issue #75 — a catch-all 200 (e.g. an SPA fallback route) must not be mistaken for a real
+// "/health" endpoint ===
+
+test("project creation with baseUrl seeds only the root check when the app serves an identical catch-all 200 for any path (SPA fallback)", async ({ request }) => {
+  // Every path — including /health, /api/health, and whatever random baseline path the fix probes
+  // — gets the exact same 200 response, the way FlightDeck's own marketing site behaves under
+  // `not_found_handling: "single-page-application"` (see issue #75).
+  const server = Deno.serve(
+    { hostname: "127.0.0.1", port: 0 },
+    () =>
+      new Response("<!doctype html><html><body>spa shell</body></html>", {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      }),
+  );
+
+  try {
+    const baseUrl = `http://127.0.0.1:${(server.addr as Deno.NetAddr).port}`;
+    const project = await createProject(
+      request,
+      `contract-baseurl-spa-catchall-${crypto.randomUUID().slice(0, 8)}`,
+      baseUrl,
+    );
+
+    const checks = await listChecks(request, project.id);
+    expect(checks.length).toBe(1);
+    expect(checks[0].name).toBe("Root");
+    expect(checks[0].target).toBe(baseUrl);
+  } finally {
+    await server.shutdown();
+  }
+});
+
+test("project creation with baseUrl still seeds Health when /health is genuinely distinct from the app's own catch-all 200 (issue #75 regression guard)", async ({ request }) => {
+  // The app ALSO serves a catch-all 200 for unmatched paths (including the random baseline path
+  // this fix probes) — proving the fix distinguishes by content, not by "baseline 200 => never
+  // seed Health", which would wrongly break issue #72's original working case for exactly this
+  // kind of app (one with both an SPA fallback AND a real, distinctly-behaving /health route).
+  const server = Deno.serve({ hostname: "127.0.0.1", port: 0 }, (req) => {
+    const path = new URL(req.url).pathname;
+    if (path === "/health") {
+      return new Response(JSON.stringify({ status: "ok" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    return new Response("<!doctype html><html><body>spa shell</body></html>", {
+      status: 200,
+      headers: { "content-type": "text/html" },
+    });
+  });
+
+  try {
+    const baseUrl = `http://127.0.0.1:${(server.addr as Deno.NetAddr).port}`;
+    const project = await createProject(
+      request,
+      `contract-baseurl-real-health-${crypto.randomUUID().slice(0, 8)}`,
+      baseUrl,
+    );
+
+    const checks = await listChecks(request, project.id);
+    expect(checks.length).toBe(2);
+    const health = checks.find((c) => c.target === `${baseUrl}/health`);
+    expect(health).toBeTruthy();
+    expect(health!.name).toBe("Health");
+  } finally {
+    await server.shutdown();
+  }
+});
+
 // === ?project= override, per route (US2) ===
 // One shared second project (and its own uniquely-marked data) reused across every case below —
 // each case proves its own route's isolation independent of the others.

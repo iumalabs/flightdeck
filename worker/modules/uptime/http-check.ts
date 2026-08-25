@@ -63,14 +63,96 @@ export async function runHttpCheck(target: string): Promise<CheckOutcome> {
 const PROBE_TIMEOUT_MS = 3_000;
 
 export async function probeUrl(target: string, timeoutMs = PROBE_TIMEOUT_MS): Promise<boolean> {
+  const result = await probeUrlDetailed(target, timeoutMs);
+  return result.status === 200;
+}
+
+// issue #75 — a bare 200 from probeUrl() can't tell a real `/health` endpoint apart from an app
+// that serves an identical catch-all 200 for any unmatched path (the most common case being an
+// SPA's `not_found_handling: "single-page-application"` fallback — exactly what FlightDeck's own
+// marketing site does). probeUrlDetailed() captures enough of the response — status, content-type,
+// content-length, and a bounded body sample — for the caller to compare a "/health" probe against a
+// baseline probe of a definitely-nonexistent path on the same origin: if the two are
+// indistinguishable, the "health" response is just the catch-all, not a real route. Same
+// timeout/never-throws discipline as probeUrl() itself (this now backs it).
+export interface ProbeResult {
+  status: number | null;
+  contentType: string | null;
+  contentLength: string | null;
+  bodySample: string | null;
+}
+
+// Bounded so a large real response (e.g. an SPA's full index.html) can't make this probe read an
+// unbounded amount of data — this only needs enough of the body to detect "identical to the
+// baseline", not the whole page.
+const PROBE_BODY_SAMPLE_BYTES = 2048;
+
+export async function probeUrlDetailed(
+  target: string,
+  timeoutMs = PROBE_TIMEOUT_MS,
+): Promise<ProbeResult> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(target, { method: "GET", signal: controller.signal });
-    return res.status === 200;
+    const bodySample = await readBodySample(res, PROBE_BODY_SAMPLE_BYTES);
+    return {
+      status: res.status,
+      contentType: res.headers.get("content-type"),
+      contentLength: res.headers.get("content-length"),
+      bodySample,
+    };
   } catch {
-    return false;
+    return { status: null, contentType: null, contentLength: null, bodySample: null };
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function readBodySample(res: Response, maxBytes: number): Promise<string | null> {
+  if (!res.body) return "";
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (total < maxBytes) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value || value.length === 0) continue;
+      const remaining = maxBytes - total;
+      const chunk = value.length > remaining ? value.subarray(0, remaining) : value;
+      chunks.push(chunk);
+      total += chunk.length;
+    }
+  } catch {
+    return null;
+  } finally {
+    try {
+      await reader.cancel();
+    } catch {
+      // best-effort cleanup only — the sample we already read is still usable.
+    }
+  }
+  const combined = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    combined.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return new TextDecoder().decode(combined);
+}
+
+// True when `candidate` (e.g. a "/health" probe) is indistinguishable from `baseline` (a probe of a
+// definitely-nonexistent path on the same origin) — same status, content-type, content-length, and
+// body sample. A null `baseline.status` means the baseline probe itself failed or timed out — fail
+// safe: never seeds a check we couldn't actually confirm was distinct, treated the same as
+// "looks like a catch-all" rather than as "looks distinct".
+export function looksLikeCatchAll(candidate: ProbeResult, baseline: ProbeResult): boolean {
+  if (baseline.status === null) return true;
+  return (
+    candidate.status === baseline.status &&
+    candidate.contentType === baseline.contentType &&
+    candidate.contentLength === baseline.contentLength &&
+    candidate.bodySample === baseline.bodySample
+  );
 }
