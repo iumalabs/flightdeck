@@ -32,14 +32,19 @@ projectsRoutes.post("/", async (c) => {
     return c.text("Bad Request", 400);
   }
 
-  const id = crypto.randomUUID();
+  // migration 0009: `projects.id` is D1/SQLite's native INTEGER PRIMARY KEY (rowid alias) now, not
+  // a `crypto.randomUUID()` value — required so an issued DSN's project-id path segment actually
+  // matches the real @sentry/core SDK's own /^\d+$/ validation. `id` is omitted from the INSERT
+  // list entirely and left for SQLite to auto-assign; `RETURNING CAST(id AS TEXT) AS id` keeps the
+  // rest of this handler (and every caller of this response) working with the same opaque string
+  // shape a project id has always had.
   const row = await c.env.DB
     .prepare(
-      `INSERT INTO projects (id, name, dsn_public_key)
-       VALUES (?1, ?2, lower(hex(randomblob(16))))
-       RETURNING id, name, dsn_public_key`,
+      `INSERT INTO projects (name, dsn_public_key)
+       VALUES (?1, lower(hex(randomblob(16))))
+       RETURNING CAST(id AS TEXT) AS id, name, dsn_public_key`,
     )
-    .bind(id, body.name.trim())
+    .bind(body.name.trim())
     .first<CreatedProjectRow>();
   if (!row) return c.text("Internal Server Error", 500); // shouldn't happen — defensive
 

@@ -17,14 +17,20 @@ export async function resolveRequestedProject(
 ): Promise<ResolvedProject | null> {
   if (requestedId) {
     const requested = await db
-      .prepare(`SELECT id, name FROM projects WHERE id = ?1`)
+      // `id` is now D1/SQLite's native INTEGER PRIMARY KEY (migration 0009) — CAST back to TEXT
+      // here so every caller keeps treating a project id as the opaque string it always has been
+      // (DSN/R2-key/Durable-Object-name construction, sessionStorage, JSON responses compared with
+      // `===` against a stored string) without threading a number through the whole app.
+      // `requestedId` binds fine against the INTEGER column regardless (SQLite applies NUMERIC
+      // affinity to a TEXT parameter compared against an INTEGER column).
+      .prepare(`SELECT CAST(id AS TEXT) AS id, name FROM projects WHERE id = ?1`)
       .bind(requestedId)
       .first<ResolvedProject>();
     if (requested) return requested;
   }
 
   const fallback = await db
-    .prepare(`SELECT id, name FROM projects ORDER BY created_at ASC LIMIT 1`)
+    .prepare(`SELECT CAST(id AS TEXT) AS id, name FROM projects ORDER BY created_at ASC LIMIT 1`)
     .first<ResolvedProject>();
   return fallback ?? null;
 }

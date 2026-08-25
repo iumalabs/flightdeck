@@ -1,5 +1,5 @@
 import { type Context, Hono } from "hono";
-import { extractSentryKey, resolveProjectByDsnKey } from "./dsn-auth.ts";
+import { extractSentryKey, isNumericProjectId, resolveProjectByDsnKey } from "./dsn-auth.ts";
 import {
   isEventItem,
   isFeedbackItem,
@@ -106,6 +106,15 @@ async function handleEnvelope(c: Context<{ Bindings: Env }, EnvelopeRoutePath>) 
   // "internal" is reserved (research.md §3) — never resolves as a project, checked before any DSN
   // lookup regardless of Hono's own static-before-dynamic route precedence.
   if (projectId === "internal") {
+    return c.text("Forbidden", 403);
+  }
+
+  // migration 0009: `projects.id` is a genuinely numeric INTEGER PRIMARY KEY now, matching the
+  // real @sentry/core SDK's own /^\d+$/ DSN project-id validation (dsn.ts) — reject anything else
+  // cleanly, the same 403 the "internal" guard above and the DSN-key mismatch below both already
+  // use, rather than letting a non-numeric path segment fall through to resolveProjectByDsnKey's
+  // query bind and rely on implicit SQLite affinity coercion.
+  if (!isNumericProjectId(projectId)) {
     return c.text("Forbidden", 403);
   }
 

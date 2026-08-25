@@ -24,6 +24,19 @@ export interface ResolvedProject {
   id: string;
 }
 
+// The real @sentry/core SDK's own dsn.ts validates a DSN's project-id path segment against
+// /^\d+$/ and silently disables the transport (no error, but nothing is ever sent) when it
+// doesn't match — migration 0009 made `projects.id` a genuinely numeric INTEGER PRIMARY KEY so
+// FlightDeck-issued DSNs satisfy that regex. `:projectId` still arrives here as a plain URL path
+// string regardless (Hono route params are always strings) — this rejects anything that isn't a
+// clean positive integer BEFORE it ever reaches a query bind, rather than relying on SQLite's
+// implicit TEXT->INTEGER affinity coercion to just happen to do the right thing. No leading zeros,
+// no sign, no "0" itself (SQLite's rowid-alias PRIMARY KEY never assigns 0), matching every id this
+// migration actually issues.
+export function isNumericProjectId(projectId: string): boolean {
+  return /^[1-9][0-9]*$/.test(projectId);
+}
+
 // "internal" is reserved (research.md §3) — never resolves as a project, checked here too as a
 // second line of defense alongside the route-level guard in routes.ts.
 export async function resolveProjectByDsnKey(
@@ -31,11 +44,15 @@ export async function resolveProjectByDsnKey(
   projectId: string,
   sentryKey: string,
 ): Promise<ResolvedProject | null> {
-  if (projectId === "internal" || !sentryKey) {
+  if (projectId === "internal" || !sentryKey || !isNumericProjectId(projectId)) {
     return null;
   }
   const row = await db
-    .prepare(`SELECT id FROM projects WHERE id = ?1 AND dsn_public_key = ?2`)
+    // CAST back to TEXT (migration 0009 made `id` INTEGER) — see resolve.ts's identical comment;
+    // every downstream use of `project.id` here (Durable Object idFromName, which throws on a
+    // non-string, Queue message bodies, audit-adjacent JSON) expects the opaque string this always
+    // returned.
+    .prepare(`SELECT CAST(id AS TEXT) AS id FROM projects WHERE id = ?1 AND dsn_public_key = ?2`)
     .bind(projectId, sentryKey)
     .first<ResolvedProject>();
   return row ?? null;
