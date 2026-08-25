@@ -21,6 +21,7 @@ export interface AppShellProps {
   session: Session;
   signOut: () => void;
   navigate: (path: string) => void;
+  pathname: string;
 }
 
 interface Project {
@@ -69,6 +70,31 @@ const FOOTER_ITEMS: NavItem[] = [
   { screen: "settings", label: "Settings" },
   { screen: "setup", label: "Install SDK" },
 ];
+
+const KNOWN_SCREENS = new Set<string>([
+  ...NAV_GROUPS.flatMap((group) => group.items.map((item) => item.screen)),
+  ...FOOTER_ITEMS.map((item) => item.screen),
+]);
+
+// issue #58 — the app-shell path prefix App.tsx routes on (kept in sync with the same literal
+// there; both hardcode "/web-app" rather than sharing an import, since this is the only place in
+// AppShell.tsx that needs it).
+const APP_SHELL_PATH_PREFIX = "/web-app";
+
+// URL -> screen. Only the top-level sidebar screens are addressable by URL (detail sub-screens
+// like "issue-detail" need an id the URL scheme doesn't carry yet) — anything else, including the
+// bare "/" and "/web-app" roots, falls back to Overview.
+function screenFromPathname(pathname: string): string {
+  const prefix = `${APP_SHELL_PATH_PREFIX}/`;
+  const segment = pathname.startsWith(prefix) ? pathname.slice(prefix.length).split("/")[0] : "";
+  return segment && KNOWN_SCREENS.has(segment) ? segment : "overview";
+}
+
+// screen -> URL, the inverse of screenFromPathname (Overview normalizes to the bare prefix, not
+// "/web-app/overview").
+function pathForScreen(screen: string): string {
+  return screen === "overview" ? APP_SHELL_PATH_PREFIX : `${APP_SHELL_PATH_PREFIX}/${screen}`;
+}
 
 // issues/38 — a native <select> only themes its closed box; the open popup falls back to
 // browser/OS styling (never restylable via CSS on <option>), clashing hard with the dark theme.
@@ -341,13 +367,23 @@ function renderScreen(
   }
 }
 
-export function AppShell({ session, signOut, navigate }: AppShellProps) {
-  const [screen, setScreen] = useState("overview");
+export function AppShell({ session, signOut, navigate, pathname }: AppShellProps) {
+  const [screen, setScreen] = useState(() => screenFromPathname(pathname));
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
   const [selectedReleaseId, setSelectedReleaseId] = useState<string | null>(null);
   const [selectedCheckId, setSelectedCheckId] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[] | null>(null);
+
+  // issue #58 — keeps `screen` in sync with the URL beyond just the initial mount: browser
+  // back/forward (popstate, plumbed through App.tsx's usePathname) changes `pathname` without any
+  // sidebar click, so the active screen needs to follow it here too. The initial-mount case is
+  // already handled by the useState initializer above; this covers every pathname change after
+  // that (including the navigate() calls sidebar clicks make below, which is a harmless no-op
+  // since `screen` is already set to the same value by then).
+  useEffect(() => {
+    setScreen(screenFromPathname(pathname));
+  }, [pathname]);
 
   const onSelectIssue = (id: string) => {
     setSelectedIssueId(id);
@@ -474,7 +510,10 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
                 projects={projects}
                 selectedProjectId={selectedProjectId}
                 onSelect={selectProject}
-                onCreateNew={() => setScreen("settings")}
+                onCreateNew={() => {
+                  setScreen("settings");
+                  navigate(pathForScreen("settings"));
+                }}
               />
             )
             : (
@@ -529,6 +568,7 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
                       setSelectedReleaseId(null);
                       setSelectedCheckId(null);
                       setScreen(item.screen);
+                      navigate(pathForScreen(item.screen));
                     }}
                     style={{
                       padding: "8px 10px",
@@ -550,7 +590,10 @@ export function AppShell({ session, signOut, navigate }: AppShellProps) {
             {FOOTER_ITEMS.map((item) => (
               <div
                 key={item.screen}
-                onClick={() => setScreen(item.screen)}
+                onClick={() => {
+                  setScreen(item.screen);
+                  navigate(pathForScreen(item.screen));
+                }}
                 style={{
                   padding: "8px 10px",
                   borderRadius: 6,
