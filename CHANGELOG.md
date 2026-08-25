@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.2](https://github.com/iumalabs/flightdeck/compare/v0.11.1...v0.11.2) (2026-08-25)
+
+
+### Bug Fixes
+
+* **shell:** wrap Logs search toolbar instead of overflowing at narrow widths ([4e9ea51](https://github.com/iumalabs/flightdeck/commit/4e9ea51a24feef2c2e747db9ff394b2c81d30bbf))
+* **shell:** wrap Logs search toolbar instead of overflowing at narrow widths ([ea7459a](https://github.com/iumalabs/flightdeck/commit/ea7459acc4a9f656dd258461504ea39293bb1c1e))
+
 ## [0.11.1](https://github.com/iumalabs/flightdeck/compare/v0.11.0...v0.11.1) (2026-08-25)
 
 
