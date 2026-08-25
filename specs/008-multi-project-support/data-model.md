@@ -8,7 +8,7 @@ mechanism (resolve) over the existing entity.
 
 | Field | Type | Notes |
 |---|---|---|
-| `id` | TEXT, PRIMARY KEY | Unchanged — `crypto.randomUUID()` for a newly-created project, matching every other entity's id-generation convention in this codebase. |
+| `id` | INTEGER, PRIMARY KEY | Migration 0009 (Sentry-SDK-compatibility fix): D1/SQLite's native auto-assigning rowid alias, not `crypto.randomUUID()` — the real `@sentry/core` SDK validates a DSN's project-id path segment against `/^\d+$/` and silently drops events otherwise. Every application-layer consumer still treats it as an opaque string (`CAST(id AS TEXT)` at every read site). |
 | `name` | TEXT, NOT NULL | Unchanged. Not unique — data-model.md's Edge Case: two projects MAY share a display name (spec Edge Cases). |
 | `dsn_public_key` | TEXT | Unchanged column, `UNIQUE` index already exists (migration 0002). Generated via `lower(hex(randomblob(16)))` for a new project (research.md §3), same expression used to backfill "demo". |
 | `created_at` | TEXT, NOT NULL, DEFAULT `datetime('now')` | Unchanged. This is the ordering column both `GET /api/internal/projects` and the new default-project fallback (research.md §1) already rely on — no new "first project" concept, reusing the existing one. |
