@@ -39,13 +39,32 @@ function dsnKeyOf(dsn: string): string {
 async function createProject(
   request: import("@playwright/test").APIRequestContext,
   name: string,
+  baseUrl?: string,
 ): Promise<CreatedProject> {
   const res = await request.post("/api/internal/v1/projects", {
     headers: { Cookie: await sessionCookie() },
-    data: { name },
+    data: baseUrl ? { name, baseUrl } : { name },
   });
   expect(res.status()).toBe(201);
   return await res.json() as CreatedProject;
+}
+
+interface ProjectCheck {
+  name: string;
+  type: string;
+  target: string;
+}
+
+async function listChecks(
+  request: import("@playwright/test").APIRequestContext,
+  projectId: string,
+): Promise<ProjectCheck[]> {
+  const res = await request.get(`/api/internal/v1/checks?project=${projectId}`, {
+    headers: { Cookie: await sessionCookie() },
+  });
+  expect(res.status()).toBe(200);
+  const { checks } = await res.json() as { checks: ProjectCheck[] };
+  return checks;
 }
 
 function buildErrorEnvelope(eventId: string, uniqueTitle: string): string {
@@ -132,6 +151,87 @@ test("a missing name is rejected with 400", async ({ request }) => {
     data: {},
   });
   expect(res.status()).toBe(400);
+});
+
+// === issue #72 — baseUrl-driven default uptime check seeding ===
+
+test("project creation without baseUrl seeds no uptime checks", async ({ request }) => {
+  const project = await createProject(
+    request,
+    `contract-no-baseurl-${crypto.randomUUID().slice(0, 8)}`,
+  );
+  const checks = await listChecks(request, project.id);
+  expect(checks.length).toBe(0);
+});
+
+test("a malformed baseUrl is rejected with 400, and no project is created", async ({ request }) => {
+  const projectName = `contract-bad-baseurl-${crypto.randomUUID().slice(0, 8)}`;
+  const res = await request.post("/api/internal/v1/projects", {
+    headers: { Cookie: await sessionCookie() },
+    data: { name: projectName, baseUrl: "not-a-url" },
+  });
+  expect(res.status()).toBe(400);
+
+  // Confirm the reject happened before the insert — no stray project with this name exists.
+  const list = await request.get("/api/internal/v1/projects", {
+    headers: { Cookie: await sessionCookie() },
+  });
+  const { projects } = await list.json() as { projects: { name: string }[] };
+  expect(projects.some((p) => p.name === projectName)).toBe(false);
+});
+
+test("project creation with baseUrl always seeds a root check, plus a health check only when a real target responds 200", async ({ request }) => {
+  const requestedPaths: string[] = [];
+  const server = Deno.serve({ hostname: "127.0.0.1", port: 0 }, (req) => {
+    const path = new URL(req.url).pathname;
+    requestedPaths.push(path);
+    if (path === "/health") return new Response("ok", { status: 200 });
+    return new Response("not found", { status: 404 });
+  });
+
+  try {
+    const baseUrl = `http://127.0.0.1:${(server.addr as Deno.NetAddr).port}`;
+    const project = await createProject(
+      request,
+      `contract-baseurl-health-${crypto.randomUUID().slice(0, 8)}`,
+      baseUrl,
+    );
+
+    const checks = await listChecks(request, project.id);
+    expect(checks.length).toBe(2);
+
+    const root = checks.find((c) => c.target === baseUrl);
+    expect(root).toBeTruthy();
+    expect(root!.type).toBe("http");
+
+    const health = checks.find((c) => c.target === `${baseUrl}/health`);
+    expect(health).toBeTruthy();
+    expect(health!.type).toBe("http");
+  } finally {
+    await server.shutdown();
+  }
+});
+
+test("project creation with baseUrl seeds only the root check when no health-endpoint candidate responds 200", async ({ request }) => {
+  const server = Deno.serve(
+    { hostname: "127.0.0.1", port: 0 },
+    () => new Response("not found", { status: 404 }),
+  );
+
+  try {
+    const baseUrl = `http://127.0.0.1:${(server.addr as Deno.NetAddr).port}`;
+    const project = await createProject(
+      request,
+      `contract-baseurl-nohealth-${crypto.randomUUID().slice(0, 8)}`,
+      baseUrl,
+    );
+
+    const checks = await listChecks(request, project.id);
+    expect(checks.length).toBe(1);
+    expect(checks[0].target).toBe(baseUrl);
+  } finally {
+    await server.shutdown();
+  }
 });
 
 // === ?project= override, per route (US2) ===
