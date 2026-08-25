@@ -2,6 +2,7 @@ import { assertEquals, assertExists } from "@std/assert";
 import {
   createExportToken,
   getOrCreateProjectBucket,
+  revokePreviousExportToken,
 } from "../../worker/modules/logs/r2-provision.ts";
 
 // Verifies REQUEST CONSTRUCTION against Cloudflare's real, documented API shape (research.md §8)
@@ -151,6 +152,144 @@ Deno.test("createExportToken returns null when no matching permission group is f
     async () => {
       const credential = await createExportToken("acct123", "admin-token", "bucket1");
       assertEquals(credential, null);
+    },
+  );
+});
+
+// Issue #56 — re-provisioning must revoke the project's previously-issued token before a new one
+// replaces it in log_export_tokens, or the old token_id leaks as a live, orphaned R2 API token.
+
+class FakeExportTokenD1 {
+  #tokenId: string | null;
+  constructor(tokenId: string | null) {
+    this.#tokenId = tokenId;
+  }
+  prepare = (sql: string) => ({
+    bind: (..._args: unknown[]) => ({
+      first: <T>(): Promise<T | null> =>
+        Promise.resolve(
+          (sql.includes("SELECT token_id") && this.#tokenId ? { token_id: this.#tokenId } : null) as
+            | T
+            | null,
+        ),
+    }),
+  });
+}
+
+Deno.test("revokePreviousExportToken does nothing when the project has no existing token", async () => {
+  await withMockedFetch(
+    () => new Response(JSON.stringify({ success: true }), { status: 200 }),
+    async (calls) => {
+      const db = new FakeExportTokenD1(null);
+      await revokePreviousExportToken(
+        db as unknown as D1Database,
+        "acct123",
+        "admin-token",
+        "demo",
+      );
+      assertEquals(calls.length, 0);
+    },
+  );
+});
+
+Deno.test("revokePreviousExportToken revokes the existing token_id via a DELETE call", async () => {
+  await withMockedFetch(
+    () => new Response(JSON.stringify({ success: true }), { status: 200 }),
+    async (calls) => {
+      const db = new FakeExportTokenD1("old-token-id");
+      await revokePreviousExportToken(
+        db as unknown as D1Database,
+        "acct123",
+        "admin-token",
+        "demo",
+      );
+      assertEquals(calls.length, 1);
+      assertEquals(calls[0].method, "DELETE");
+      assertEquals(
+        calls[0].url,
+        "https://api.cloudflare.com/client/v4/accounts/acct123/tokens/old-token-id",
+      );
+    },
+  );
+});
+
+Deno.test("revokePreviousExportToken does not throw when Cloudflare rejects the revoke", async () => {
+  await withMockedFetch(
+    () => new Response(JSON.stringify({ success: false }), { status: 500 }),
+    async () => {
+      const db = new FakeExportTokenD1("old-token-id");
+      // Must resolve, not reject — a failed revoke of the OLD token must never block issuing
+      // the NEW one.
+      await revokePreviousExportToken(
+        db as unknown as D1Database,
+        "acct123",
+        "admin-token",
+        "demo",
+      );
+    },
+  );
+});
+
+Deno.test("revokePreviousExportToken does not throw when the DELETE request itself errors", async () => {
+  await withMockedFetch(
+    () => {
+      throw new TypeError("network error");
+    },
+    async () => {
+      const db = new FakeExportTokenD1("old-token-id");
+      await revokePreviousExportToken(
+        db as unknown as D1Database,
+        "acct123",
+        "admin-token",
+        "demo",
+      );
+    },
+  );
+});
+
+Deno.test("re-provisioning revokes the OLD token before the NEW token is created", async () => {
+  await withMockedFetch(
+    (url) => {
+      if (url.endsWith("/permission_groups")) {
+        return new Response(
+          JSON.stringify({
+            result: [{ id: "read-group-id", name: "Workers R2 Storage Bucket Item Read" }],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(
+        JSON.stringify({ result: { id: "new-token-id", value: "new-secret-value" } }),
+        { status: 200 },
+      );
+    },
+    async (calls) => {
+      const db = new FakeExportTokenD1("old-token-id");
+
+      // Mirrors the POST /:id/log-export/credential handler's call order in routes.ts: revoke
+      // any previous token for the project, THEN mint and store the new one.
+      await revokePreviousExportToken(
+        db as unknown as D1Database,
+        "acct123",
+        "admin-token",
+        "demo",
+      );
+      const credential = await createExportToken(
+        "acct123",
+        "admin-token",
+        "flightdeck-export-demo",
+      );
+
+      assertExists(credential);
+      assertEquals(credential!.tokenId, "new-token-id");
+
+      const revokeCall = calls.find((c) => c.method === "DELETE");
+      const createCall = calls.find((c) => c.method === "POST" && c.url.endsWith("/tokens"));
+      assertExists(revokeCall);
+      assertExists(createCall);
+      assertEquals(revokeCall!.url.endsWith("/tokens/old-token-id"), true);
+      // The revoke of the OLD token must happen strictly before the NEW token is created.
+      assertEquals(calls.indexOf(revokeCall!) < calls.indexOf(createCall!), true);
     },
   );
 });

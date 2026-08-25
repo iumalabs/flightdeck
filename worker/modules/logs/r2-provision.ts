@@ -151,6 +151,46 @@ export async function revokeExportToken(
   return response.ok;
 }
 
+interface ExportTokenRow {
+  token_id: string;
+}
+
+// Revokes the project's previously-issued export token (if any) BEFORE the caller mints and
+// stores a new one. Without this, POST /:id/log-export/credential's `ON CONFLICT(project_id) DO
+// UPDATE` on log_export_tokens silently overwrites the old token_id, leaking it as a live,
+// untracked R2 API token in the Cloudflare account (issue #56). Mirrors the DELETE handler's own
+// SELECT-then-revoke pattern in routes.ts.
+//
+// A failed revoke of the OLD token must never block issuing the NEW one — surfaced via
+// console.error instead, matching log-consumer.ts's "log and continue" precedent for
+// best-effort cleanup that shouldn't fail the request it's part of.
+export async function revokePreviousExportToken(
+  db: D1Database,
+  accountId: string,
+  adminToken: string,
+  projectId: string,
+): Promise<void> {
+  const existing = await db
+    .prepare(`SELECT token_id FROM log_export_tokens WHERE project_id = ?1`)
+    .bind(projectId)
+    .first<ExportTokenRow>();
+  if (!existing) return;
+
+  try {
+    const revoked = await revokeExportToken(accountId, adminToken, existing.token_id);
+    if (!revoked) {
+      console.error(
+        `log-export: failed to revoke previous token ${existing.token_id} for project ${projectId}`,
+      );
+    }
+  } catch (err) {
+    console.error(
+      `log-export: error revoking previous token ${existing.token_id} for project ${projectId}`,
+      err,
+    );
+  }
+}
+
 // Bounded, one-time snapshot copy (research.md §8's correction) — NOT an ongoing live sync. Mints
 // a short-lived, FlightDeck-owned write-scoped token for the destination bucket, reads each known
 // batch straight off the shared LOGS binding (no S3 API needed for that half — it's a normal
