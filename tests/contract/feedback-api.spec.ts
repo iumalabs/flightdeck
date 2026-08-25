@@ -8,7 +8,8 @@ import { CONTRACT_TEST_ACTOR, ensureContractTestActor } from "./support/seed-act
 // crash-report dialog's GET/POST pair (contracts/feedback-ingest-api.md's confirmed real wire
 // shape, research.md §1).
 
-const DEMO_PROJECT_ID = "demo";
+// migration 0009: the demo project seeded by that migration is deterministically id 1.
+const DEMO_PROJECT_ID = "1";
 
 test.beforeAll(async () => {
   await ensureContractTestActor();

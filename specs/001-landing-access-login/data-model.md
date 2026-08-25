@@ -29,7 +29,7 @@ narrow and expected to gain real columns (DSN public key, retention settings, et
 
 | Field | Type | Notes |
 |---|---|---|
-| `id` | TEXT, PRIMARY KEY | e.g. a UUID or short slug. |
+| `id` | INTEGER, PRIMARY KEY | Originally TEXT (e.g. a UUID or short slug); migration 0009 (specs/008-multi-project-support) switched this to D1/SQLite's native auto-assigning integer id for Sentry-SDK DSN compatibility. |
 | `name` | TEXT, NOT NULL | Display name shown in the project switcher. |
 | `created_at` | TEXT, NOT NULL, DEFAULT `datetime('now')` | |
 

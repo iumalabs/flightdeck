@@ -6,7 +6,8 @@ import { mintTestSession } from "../e2e/support/session.ts";
 // research.md §10, specs/004-structured-logs) — hand-crafted "log" envelope items matching
 // contracts/log-ingest-api.md's grammar.
 
-const DEMO_PROJECT_ID = "demo";
+// migration 0009: the demo project seeded by that migration is deterministically id 1.
+const DEMO_PROJECT_ID = "1";
 
 function buildLogEnvelope(
   eventId: string,

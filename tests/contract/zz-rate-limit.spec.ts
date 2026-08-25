@@ -6,7 +6,8 @@ import { getDsnKey } from "./support/dsn-key.ts";
 // after it flake on a spurious 429. The "zz" prefix keeps it sorting last among this directory's
 // spec files so it always runs after everything else that shares the key.
 
-const DEMO_PROJECT_ID = "demo";
+// migration 0009: the demo project seeded by that migration is deterministically id 1.
+const DEMO_PROJECT_ID = "1";
 
 function buildEnvelope(eventId: string, payload: Record<string, unknown>): string {
   const eventJson = JSON.stringify({ event_id: eventId, ...payload });

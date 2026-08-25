@@ -70,7 +70,11 @@ export async function verifyApiToken(
   const legacyHash = await legacySha256Hex(rawToken);
   const row = await db
     .prepare(
-      `SELECT id, project_id, created_by, revoked_at FROM api_tokens WHERE token_hash = ?1 OR token_hash = ?2`,
+      // CAST(project_id AS TEXT) — migration 0009 made `api_tokens.project_id` INTEGER; this value
+      // flows into isProjectAuthorized/isProjectSlugAuthorized's `===`/`.includes()` string
+      // comparisons against sentry-cli's own request-shape (request-shape.ts), which must keep
+      // matching a plain string.
+      `SELECT id, CAST(project_id AS TEXT) AS project_id, created_by, revoked_at FROM api_tokens WHERE token_hash = ?1 OR token_hash = ?2`,
     )
     .bind(hmacHash, legacyHash)
     .first<ApiTokenRow>();

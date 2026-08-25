@@ -41,7 +41,7 @@ test("releases list -> detail shows health figures; issue resolve/regression flo
   const page = await context.newPage();
 
   // Seed via the API-token surface (mirrors a real sentry-cli flow).
-  const tokenRes = await request.post("/api/internal/v1/projects/demo/api-tokens", {
+  const tokenRes = await request.post("/api/internal/v1/projects/1/api-tokens", {
     headers: { Cookie: `fd_session=${token}` },
   });
   const { token: apiToken } = await tokenRes.json() as { id: string; token: string };
@@ -49,12 +49,12 @@ test("releases list -> detail shows health figures; issue resolve/regression flo
   const version = `e2e-release-${crypto.randomUUID().slice(0, 8)}`;
   await request.post("/api/0/organizations/anyorg/releases/", {
     headers: { Authorization: `Bearer ${apiToken}`, "Content-Type": "application/json" },
-    data: { version, projects: ["demo"] },
+    data: { version, projects: ["1"] },
   });
 
   const uniqueTitle = `e2e-resolve-${crypto.randomUUID().slice(0, 8)}`;
   const eventId = crypto.randomUUID();
-  const ingest = await request.post(`/api/demo/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
+  const ingest = await request.post(`/api/1/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
     data: buildErrorEnvelope(eventId, uniqueTitle, version),
   });
   expect(ingest.status()).toBe(200);

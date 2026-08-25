@@ -85,13 +85,13 @@ test("traces list -> waterfall -> linked error -> issue detail -> back to trace"
     childSpanId,
     uniqueOpName,
   );
-  const txnIngest = await request.post(`/api/demo/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
+  const txnIngest = await request.post(`/api/1/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
     data: transactionEnvelope,
   });
   expect(txnIngest.status()).toBe(200);
 
   const errorEnvelope = buildErrorEnvelope(crypto.randomUUID(), traceId, rootSpanId, uniqueTitle);
-  const errIngest = await request.post(`/api/demo/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
+  const errIngest = await request.post(`/api/1/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
     data: errorEnvelope,
   });
   expect(errIngest.status()).toBe(200);

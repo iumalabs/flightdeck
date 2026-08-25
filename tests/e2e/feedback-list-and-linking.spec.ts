@@ -48,7 +48,7 @@ test("an issue with linked feedback shows a feedback section; one with none show
 
   const linkedErrorEventId = crypto.randomUUID();
   const linkedTitle = `e2e-feedback-linked-${linkedErrorEventId.slice(0, 8)}`;
-  const errIngest = await request.post(`/api/demo/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
+  const errIngest = await request.post(`/api/1/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
     data: buildErrorEnvelope(linkedErrorEventId, linkedTitle),
   });
   expect(errIngest.status()).toBe(200);
@@ -56,7 +56,7 @@ test("an issue with linked feedback shows a feedback section; one with none show
   const unlinkedErrorEventId = crypto.randomUUID();
   const unlinkedTitle = `e2e-feedback-none-${unlinkedErrorEventId.slice(0, 8)}`;
   const errIngest2 = await request.post(
-    `/api/demo/envelope?sentry_key=${dsnKey}&sentry_version=7`,
+    `/api/1/envelope?sentry_key=${dsnKey}&sentry_version=7`,
     {
       data: buildErrorEnvelope(unlinkedErrorEventId, unlinkedTitle),
     },
@@ -64,7 +64,7 @@ test("an issue with linked feedback shows a feedback section; one with none show
   expect(errIngest2.status()).toBe(200);
 
   const uniqueFeedbackMessage = `e2e feedback message ${linkedErrorEventId.slice(0, 8)}`;
-  const fbIngest = await request.post(`/api/demo/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
+  const fbIngest = await request.post(`/api/1/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
     data: buildFeedbackEnvelope(crypto.randomUUID(), uniqueFeedbackMessage, linkedErrorEventId),
   });
   expect(fbIngest.status()).toBe(200);

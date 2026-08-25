@@ -30,7 +30,13 @@ interface ProjectRow {
 // InstallSdkScreen render a real, working DSN for a project created in an earlier session.
 identityRoutes.get("/projects", async (c) => {
   const { results } = await c.env.DB
-    .prepare(`SELECT id, name, dsn_public_key FROM projects ORDER BY created_at ASC`)
+    // CAST(id AS TEXT) — migration 0009 made `id` an INTEGER PRIMARY KEY; the frontend's Project
+    // type (app/lib/use-selected-project.ts) treats id as an opaque string, comparing it with
+    // `===` against a value read out of sessionStorage (always a string), so a raw JSON number
+    // here would silently break selection.
+    .prepare(
+      `SELECT CAST(id AS TEXT) AS id, name, dsn_public_key FROM projects ORDER BY created_at ASC`,
+    )
     .all<ProjectRow>();
   const host = new URL(c.req.url).host;
   return c.json({

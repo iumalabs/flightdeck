@@ -24,7 +24,9 @@ async function lookupDsnKey(): Promise<string> {
       "--env",
       "preview",
       "--command",
-      "SELECT dsn_public_key FROM projects WHERE id='demo'",
+      // migration 0009: `projects.id` is now an INTEGER PRIMARY KEY; the demo project seeded by
+      // that migration's INSERT is deterministically id 1 (the first row of a fresh table).
+      "SELECT dsn_public_key FROM projects WHERE id=1",
       "--json",
     ],
     stdout: "piped",
