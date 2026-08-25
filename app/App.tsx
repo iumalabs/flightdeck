@@ -33,10 +33,20 @@ function usePathname(): [string, (path: string) => void] {
   return [pathname, navigate];
 }
 
+// The app shell mounts at "/" (a returning authenticated user lands there per spec US2 AC4) and
+// under this prefix — everything else is a marketing pathname, authenticated or not (issues #57,
+// #58).
+const APP_SHELL_PATH_PREFIX = "/web-app";
+
+function isAppShellPath(pathname: string): boolean {
+  return pathname === "/" || pathname === APP_SHELL_PATH_PREFIX ||
+    pathname.startsWith(`${APP_SHELL_PATH_PREFIX}/`);
+}
+
 function renderMarketingPage(
   pathname: string,
   navigate: (path: string) => void,
-  onLoginClick: () => void,
+  onCtaClick: () => void,
   loggedIn: boolean,
 ): ReactElement {
   switch (pathname) {
@@ -49,7 +59,7 @@ function renderMarketingPage(
     case "/changelog":
       return <ChangelogPage />;
     default:
-      return <HomePage onLoginClick={onLoginClick} navigate={navigate} loggedIn={loggedIn} />;
+      return <HomePage onLoginClick={onCtaClick} navigate={navigate} loggedIn={loggedIn} />;
   }
 }
 
@@ -59,15 +69,17 @@ export function App() {
   // Unauthenticated-redirect guard (spec Edge Cases): a direct visit to an app-shell URL with no
   // session opens the sign-in flow immediately, rather than silently falling through to Home as
   // if the visitor had just wandered onto the marketing site.
-  const [signInOpen, setSignInOpen] = useState(() => pathname.startsWith("/web-app"));
+  const [signInOpen, setSignInOpen] = useState(() => pathname.startsWith(APP_SHELL_PATH_PREFIX));
 
   if (loading) {
     return null;
   }
 
-  // A session is authoritative regardless of pathname — a returning user with a still-valid
-  // fd_session lands in the app shell even at "/" (spec US2 AC4), not only at /web-app/*.
-  if (session) {
+  // A session is authoritative at the app-shell paths regardless of which of those paths it is —
+  // a returning user with a still-valid fd_session lands in the app shell at "/" or "/web-app/*"
+  // (spec US2 AC4) without re-authenticating. It is NOT authoritative for marketing pathnames like
+  // /docs or /changelog (issue #57) — those stay reachable, session or not.
+  if (session && isAppShellPath(pathname)) {
     return (
       <AppShell
         session={session}
@@ -76,9 +88,17 @@ export function App() {
           navigate("/");
         }}
         navigate={navigate}
+        pathname={pathname}
       />
     );
   }
+
+  const loggedIn = Boolean(session);
+  // For an authenticated session viewing a marketing page, the nav/hero CTA (already wired to
+  // toggle its label to "Open app →" / "Open the deck" when loggedIn) goes back into the app
+  // shell instead of opening the sign-in modal — issue #57's "way back in" without forcing a
+  // sign-out.
+  const onCtaClick = loggedIn ? () => navigate(APP_SHELL_PATH_PREFIX) : () => setSignInOpen(true);
 
   return (
     <div
@@ -94,11 +114,11 @@ export function App() {
       <MarketingNav
         pathname={pathname}
         navigate={navigate}
-        loggedIn={false}
+        loggedIn={loggedIn}
         sessionHint=""
-        onLoginClick={() => setSignInOpen(true)}
+        onLoginClick={onCtaClick}
       />
-      {renderMarketingPage(pathname, navigate, () => setSignInOpen(true), false)}
+      {renderMarketingPage(pathname, navigate, onCtaClick, loggedIn)}
       <Footer navigate={navigate} />
       <SignInModal open={signInOpen} onClose={() => setSignInOpen(false)} />
     </div>
