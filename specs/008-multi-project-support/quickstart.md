@@ -8,7 +8,7 @@
 ## Validate User Story 1 — create a project, get a working, isolated DSN
 
 ```sh
-curl -X POST http://127.0.0.1:8787/api/internal/projects \
+curl -X POST http://127.0.0.1:8787/api/internal/v1/projects \
   -H "Cookie: fd_session=<local test session>" -H "Content-Type: application/json" \
   -d '{"name":"typestreak"}'
 ```
@@ -20,8 +20,8 @@ curl -X POST "http://127.0.0.1:8787/api/{returned-id}/envelope?sentry_key={retur
   --data-binary $'{"event_id":"<uuid>"}\n{"type":"event"}\n{"event_id":"<uuid>","level":"error","exception":{"values":[{"type":"QuickstartTest"}]}}\n'
 ```
 
-Confirm `GET /api/internal/issues?project={returned-id}` shows it, and
-`GET /api/internal/issues?project=demo` does NOT (contracts/projects-internal-api.md's isolation
+Confirm `GET /api/internal/v1/issues?project={returned-id}` shows it, and
+`GET /api/internal/v1/issues?project=1` does NOT (contracts/projects-internal-api.md's isolation
 guarantee).
 
 ## Validate User Story 2 — switching scopes every dashboard screen

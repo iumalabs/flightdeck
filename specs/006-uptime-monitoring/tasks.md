@@ -318,3 +318,17 @@ incident open then resolved, confirm exactly one request each.
       placeholder "No alert rules yet" / "Alert rules will show up here once your workspace has data
       to evaluate them against") to describe uptime incidents, this module's actual concept, per
       FR-009/US2/AC4 (partial)
+
+---
+
+## Phase 9: Convergence
+
+- [ ] T040 Enforce `MIN_INTERVAL_SECONDS` directly inside `worker/modules/uptime/create-check.ts`'s
+      `createCheck()`, not only in `worker/modules/uptime/routes.ts`'s `POST /checks` and
+      `PATCH /checks/:id` handlers that currently re-validate it independently before calling in —
+      `createCheck()`'s own file-header comment claims it gives every caller "the same
+      max-checks-per-project enforcement" (which it does, internally) but is silent on the interval
+      floor, so a future caller that creates a check without separately re-checking
+      `intervalSeconds` (as `worker/modules/projects/default-checks.ts`'s seeding path already does,
+      today safely only because it hardcodes exactly 60) would silently bypass FR-002/research.md
+      §4's abuse-prevention floor with no enforcement left to catch it (partial)

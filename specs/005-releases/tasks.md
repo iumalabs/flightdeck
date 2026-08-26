@@ -393,32 +393,85 @@ follow-up, tracked but not required to close this convergence pass.
 
 ---
 
-## Phase 8: Convergence
+## Phase 9: Convergence (post migration 0009 — numeric project id)
 
-- [ ] T045 Implement the project-scoped path variants (`/api/0/projects/{org_slug}/{project_slug}/releases/...`)
-      for list, single-release retrieve, and delete, plus an org-scoped single-release retrieve
-      endpoint, in `worker/modules/releases/routes.ts` — currently only the org-scoped list/delete
-      variants exist, contradicting T037's own "both org- and project-scoped path variants"
-      description and research.md §1/§3's confirmed protocol coverage per FR-010 (missing)
-- [ ] T046 Change `computeReleaseFigures`'s adoption-percentage calculation in
-      `worker/modules/releases/routes.ts` (currently `SUM(sessions_total)` over ALL historical
-      `release_health` rows for the project, with no time window) to reflect "share of RECENT
-      sessions" as US2/Acceptance Scenario 1 explicitly names it, and add an automated test that
-      asserts `adoptionPercent`'s numeric correctness against a known ingested distribution — the
-      existing contract test in `tests/contract/release-management-api.spec.ts` verifies only
-      `crashFreeSessionRate`, never `adoptionPercent`, leaving half of SC-002's "adoption and
-      crash-free figures... verified by automated test" unverified per US1/AC2, SC-002 (partial)
-- [ ] T047 Add a real per-token salt to `worker/auth/api-token.ts`'s token-hashing scheme (currently
-      a plain, unsalted `SHA-256(rawToken)` with no salt generated, stored, or mixed in anywhere,
-      and no `salt` column on `api_tokens` in `worker/db/migrations/0005_releases.sql`), to match
-      the "salted hash" design explicitly documented in `specs/005-releases/data-model.md`'s API
-      Token field notes, plan.md's Primary Dependencies ("a salted-hash-and-compare scheme"), and
-      README.md's Authentication section ("Tokens are stored as a salted hash") per plan: storage
-      decision (contradicts)
-- [ ] T048 Add automated contract-level test coverage for the `set-commits` (`PUT
-      .../releases/{version}/` with a non-empty `commits` array), `deploys new`, and `releases
-      delete` endpoints in `worker/modules/releases/routes.ts` — `tests/contract/release-management-api.spec.ts`
-      currently has no test exercising any of these three live endpoints (only
-      `tests/unit/release-request-shape.test.ts`'s pure `commitsToRows` mapping function is
-      covered), leaving US4's Independent Test and constitution Principle VIII's test-first
-      requirement only manually validated via quickstart.md per US4, Constitution VIII (partial)
+A fresh `/speckit-converge` pass, run specifically to check this module against
+`worker/db/migrations/0009_numeric_project_id.sql` (PR #70, `projects.id` UUID/TEXT →
+auto-incrementing INTEGER, project-wide). Verified in detail: `worker/auth/api-token.ts`'s dual
+HMAC/legacy hash lookup, `worker/modules/releases/routes.ts`'s org- and project-scoped route logic,
+and `worker/modules/releases/request-shape.ts`'s `isProjectAuthorized`/`isProjectSlugAuthorized` all
+already correctly treat a project id as an opaque string end-to-end (`CAST(project_id AS TEXT)` at
+every read, consistent with the project-wide convention `worker/modules/projects/resolve.ts`
+established) — no type-coercion bug found in this module's code, and `deno fmt`/`deno lint`/
+`deno check` are clean across `worker/modules/releases/` and `worker/auth/api-token.ts`. All 31
+existing unit tests for this module (`api-token.test.ts`, `release-health.test.ts`,
+`regression.test.ts`, `release-request-shape.test.ts`) pass unchanged. The gaps below are all in
+this module's own design/testing docs, which PR #70 never touched, plus one pre-existing
+test-coverage gap unrelated to the migration that surfaced during this pass. No CRITICAL/HIGH
+findings.
+
+- [X] T049 [MEDIUM] `specs/005-releases/quickstart.md`'s "Validate User Story 1" section (line 16)
+      still mints an API token against the pre-migration literal project id: `curl -X POST
+      http://127.0.0.1:8787/api/internal/projects/demo/api-tokens`. Since migration 0009,
+      `projects.id` is an auto-incrementing INTEGER (the seeded demo project is deterministically
+      `1` — migration 0009's `INSERT INTO projects (name, dsn_public_key) VALUES ('Demo Project',
+      ...)` on a freshly-recreated table), and `tests/contract/release-management-api.spec.ts` was
+      already updated post-PR-70 (commit a1baf9f) to mint tokens against project id `"1"` instead of
+      `"demo"`. Following quickstart.md verbatim against a real, freshly-migrated local environment
+      mints a token scoped to a project id ("demo") that matches no real project —
+      `apiTokensRoutes.post("/:id/api-tokens")` (worker/modules/releases/routes.ts:601) never
+      validates the id exists before inserting — so every subsequent `sentry-cli` command in the
+      walkthrough then gets a silent `403` (`isProjectAuthorized`/`isProjectSlugAuthorized` never
+      matching), not the confirmed working flow the doc claims to demonstrate. This is this module's
+      own primary manual end-to-end validation procedure (SC-005, US1's Independent Test, T043's
+      "real sentry-cli installation" step) and is currently broken/misleading for anyone following it
+      fresh. (contradicts — spec SC-005, US1 Independent Test)
+      Remaining work: update quickstart.md's example project id from `demo` to `1` (or note that it
+      must be read from `GET /api/internal/v1/projects` / the dashboard rather than hardcoded).
+- [ ] T050 [MEDIUM] `tests/contract/release-management-api.spec.ts` has no test exercising the
+      `set-commits` shape (`PUT /api/0/organizations/{org_slug}/releases/{version}/` with a
+      non-empty `commits` array) or the `deploys new` endpoint (`POST
+      .../releases/{version}/deploys/`) — confirmed by direct grep: zero matches for
+      `"deploys"`/`"commits"` in that file. Every other endpoint this module exposes (create,
+      upload-sourcemaps, finalize, list/retrieve/delete in both org- and project-scoped forms,
+      session-health ingest) has contract-level coverage; these two do not, leaving plan.md's own
+      committed testing strategy ("contract tests against a real wrangler dev... matching sentry-cli's
+      confirmed wire format", plan.md Testing section) and US4's Independent Test unverified by the
+      automated suite — only manually exercised via quickstart.md's real `sentry-cli` run (T043). The
+      endpoints themselves are implemented correctly (`worker/modules/releases/routes.ts`'s PUT
+      handler and `/deploys/` handler) and were manually validated per T043 — this is a coverage gap,
+      not a broken feature, and US4 is this module's lowest-priority (P3) story. (partial — plan.md
+      Testing strategy, US4 Independent Test, constitution Principle VIII)
+      Remaining work: add two contract-test cases to
+      `tests/contract/release-management-api.spec.ts` — one asserting a `set-commits`-shaped PUT
+      persists `release_commits` rows (visible via `GET /api/internal/v1/releases/{id}`'s `commits`
+      array), one asserting a `deploys new`-shaped POST persists a deploy (visible via the same
+      endpoint's `deploys` array).
+- [X] T051 [LOW] `specs/005-releases/data-model.md` documents `project_id` as `TEXT` for both the
+      Release Health table (line 42) and the API Token table (line 79); the actual column type since
+      migration 0009 is `INTEGER` (`worker/db/migrations/0009_numeric_project_id.sql`). Separately,
+      and unrelated to the migration, data-model.md's API Token field notes (line 80) still describe
+      token hashing as "Salted hash" even though the design actually implemented and accepted (T047,
+      `worker/auth/api-token.ts`'s `hashToken`) is an HMAC-with-a-shared-pepper scheme, explicitly
+      reasoned in code comments as NOT a per-token salt (a true salt would break the
+      hash-lookup-first authentication flow). README.md's Authentication section already describes
+      the HMAC-pepper design accurately; data-model.md was never updated to match. (contradicts —
+      data-model.md vs. current schema/implementation)
+      Remaining work: update data-model.md's Release Health and API Token `project_id` rows to
+      `INTEGER`, and reword the API Token table's hashing description from "Salted hash" to match the
+      actual HMAC-with-pepper design.
+- [X] T052 [LOW] This file (`specs/005-releases/tasks.md`) contains two separate "## Phase 8:
+      Convergence" sections: the one ending at T048 (line 332, "this convergence pass.") which
+      matches this file's own preamble narrative — the "✅ Status" section near the top — and carries
+      the actual implemented rationale for T045-T047; and a second, apparently orphaned draft copy
+      immediately below the "Dependencies & Execution Order"/"Implementation Strategy" sections
+      (ending at the T048 directly above this Phase 9 header), reusing the SAME ids T045-T048 with
+      different (shorter, pre-implementation-style) descriptions, all left unchecked. A reader or
+      agent skimming for "is T045 done" could land on the second copy and wrongly conclude it is
+      still open. Not resolved by this pass — converge only appends, never edits/removes existing
+      phases — flagged here so a maintainer can deliberately delete the stale duplicate. (contradicts
+      — internal document self-consistency, no functional/spec impact)
+      Remaining work: a maintainer confirms the first "Phase 8: Convergence" section (ending "this
+      convergence pass.", T048 LOW/open) is the authoritative record, then deletes the second,
+      duplicate "## Phase 8: Convergence" block (the one immediately above this Phase 9 section)
+      entirely.

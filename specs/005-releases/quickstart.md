@@ -13,7 +13,7 @@
 ## Validate User Story 1 — sentry-cli release flow
 
 ```sh
-curl -X POST http://127.0.0.1:8787/api/internal/projects/demo/api-tokens \
+curl -X POST http://127.0.0.1:8787/api/internal/projects/1/api-tokens \
   -H "Cookie: fd_session=<local test session>"
 # save the returned "token" value — shown once
 ```
@@ -22,7 +22,7 @@ curl -X POST http://127.0.0.1:8787/api/internal/projects/demo/api-tokens \
 export SENTRY_URL=http://127.0.0.1:8787/
 export SENTRY_AUTH_TOKEN=<token from above>
 export SENTRY_ORG=flightdeck   # any value — accepted, not validated (research.md §3)
-export SENTRY_PROJECT=demo
+export SENTRY_PROJECT=1   # the seeded demo project's id — deterministically 1 on a fresh migration
 
 sentry-cli releases new 1.0.0-quickstart
 sentry-cli releases files 1.0.0-quickstart upload-sourcemaps ./dist --url-prefix '~/'
