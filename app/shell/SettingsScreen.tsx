@@ -175,6 +175,7 @@ function CreateProjectForm({ onCreated }: { onCreated: (project: Project) => voi
 
 type ConnectStatus = { kind: "idle" } | { kind: "connected" } | { kind: "disconnected" } | {
   kind: "error";
+  message: string;
 };
 
 // contracts/internal-api.md deliberately has no endpoint to browse/select repos or read back the
@@ -198,7 +199,15 @@ function GitHubConnect({ project }: { project: Project | null }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ installationId, owner, repo }),
     });
-    setStatus(res.ok ? { kind: "connected" } : { kind: "error" });
+    if (res.ok) {
+      setStatus({ kind: "connected" });
+      return;
+    }
+    // issue #98 — the backend now runs real GitHub API validation and returns a specific reason
+    // (invalid installation ID, or one that doesn't cover this owner/repo) as the response body;
+    // surface that instead of a generic "Request failed." so a bad submission is actually visible.
+    const message = (await res.text()).trim();
+    setStatus({ kind: "error", message: message || "Request failed." });
   };
 
   const disconnect = async () => {
@@ -207,7 +216,7 @@ function GitHubConnect({ project }: { project: Project | null }) {
       method: "DELETE",
       credentials: "same-origin",
     });
-    setStatus(res.ok ? { kind: "disconnected" } : { kind: "error" });
+    setStatus(res.ok ? { kind: "disconnected" } : { kind: "error", message: "Request failed." });
   };
 
   return (
@@ -263,7 +272,7 @@ function GitHubConnect({ project }: { project: Project | null }) {
           <span style={{ color: "var(--fg2)", fontSize: 12.5 }}>Repository disconnected.</span>
         )}
         {status.kind === "error" && (
-          <span style={{ color: "#FF4D4D", fontSize: 12.5 }}>Request failed.</span>
+          <span style={{ color: "#FF4D4D", fontSize: 12.5 }}>{status.message}</span>
         )}
       </form>
     </div>

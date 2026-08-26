@@ -29,11 +29,15 @@ interface InstallationTokenResponse {
 // GitHub requires a User-Agent on every REST API call, including this one.
 export const GITHUB_USER_AGENT = "flightdeck (https://flightdeck.iuma.dev)";
 
-export async function exchangeInstallationToken(
+// Raw fetch to GitHub's installation-token-exchange endpoint, exposed (not just the null-swallowing
+// exchangeInstallationToken below) so callers that need to tell "GitHub rejected this installation
+// ID" apart from "GitHub/the network is unreachable" — issue #98's connect-time validation — can
+// inspect the actual response instead of a collapsed null.
+export async function requestInstallationTokenResponse(
   appJwt: string,
   installationId: string,
-): Promise<string | null> {
-  const response = await fetch(
+): Promise<Response> {
+  return await fetch(
     `https://api.github.com/app/installations/${installationId}/access_tokens`,
     {
       method: "POST",
@@ -45,6 +49,13 @@ export async function exchangeInstallationToken(
       },
     },
   );
+}
+
+export async function exchangeInstallationToken(
+  appJwt: string,
+  installationId: string,
+): Promise<string | null> {
+  const response = await requestInstallationTokenResponse(appJwt, installationId);
   if (!response.ok) return null;
 
   const body = await response.json() as InstallationTokenResponse;
