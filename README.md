@@ -7,117 +7,95 @@
 [![Last commit](https://img.shields.io/github/last-commit/iumalabs/flightdeck)](https://github.com/iumalabs/flightdeck/commits/main)
 
 A Sentry-protocol-compatible observability platform — errors, distributed tracing, structured logs,
-releases, uptime monitoring and user feedback, unified by shared identifiers so an alert, a log
+releases, uptime monitoring, and user feedback, unified by shared identifiers so an alert, a log
 line, and a stack frame are always one click apart. Point an existing Sentry SDK at a new DSN and it
 keeps working unmodified.
 
 FlightDeck runs as a single Cloudflare Worker, self-hostable or hosted. Its dashboard sits behind
-Cloudflare Access — see [Authentication](#authentication) below.
+Cloudflare Access.
 
-Read [`.specify/memory/constitution.md`](.specify/memory/constitution.md) first; it is the
-authoritative source for the project's principles, architecture, and security requirements. This
-README covers day-to-day setup and operation only.
+> Read [`.specify/memory/constitution.md`](.specify/memory/constitution.md) first — it is the
+> authoritative source for the project's principles, architecture, and security requirements. This
+> README covers day-to-day setup and operation only.
 
-## Status
+## Screenshots
 
-Module 1 (**Landing site, Access login, and app-shell skeleton**), Module 2 (**Error monitoring**),
-Module 3 (**Distributed tracing**), Module 4 (**Structured logs**), Module 5 (**Releases**), Module
-6 (**Uptime monitoring**), Module 7 (**User feedback**), and Module 8 (**Multi-project support**)
-are implemented — see [`specs/001-landing-access-login/`](specs/001-landing-access-login/),
-[`specs/002-error-monitoring/`](specs/002-error-monitoring/),
-[`specs/003-distributed-tracing/`](specs/003-distributed-tracing/),
-[`specs/004-structured-logs/`](specs/004-structured-logs/),
-[`specs/005-releases/`](specs/005-releases/),
-[`specs/006-uptime-monitoring/`](specs/006-uptime-monitoring/),
-[`specs/007-user-feedback/`](specs/007-user-feedback/), and
-[`specs/008-multi-project-support/`](specs/008-multi-project-support/) for their specs, plans, and
-tasks. Module 2 adds the platform's first public, DSN-authenticated ingest surface (Sentry envelope
-protocol), issue grouping with source-map-aware fingerprinting, source map upload/resolution, and
-GitHub App-based suspect commits. Module 3 extends that same envelope endpoint with a
-`"transaction"` item type, written asynchronously through a Cloudflare Queue (`TRACE_INGEST`) to a
-new `transactions` table, with a visual span waterfall and trace-to-error cross-linking in both
-directions. Module 4 extends it again with a `"log"` item type — a shared `LOGS` R2 bucket holds
-NDJSON log batches (D1 only indexes at batch granularity, via FTS5), a `LiveTail` Durable Object
-streams new lines over WebSocket in real time, and revocable S3-compatible export access can be
-provisioned per project (its own, dynamically-created R2 bucket, since R2 tokens can't be
-prefix-scoped). Module 5 adds a sentry-cli-compatible release-management surface (a new
-project-scoped API-token auth mechanism — see [Authentication](#authentication) below), release
-health (adoption/crash-free sessions and users, ingested as a `"session"`/`"sessions"` envelope item
-type), and regression detection (a resolved issue automatically reopens when the same bug recurs in
-a later release). Module 6 adds FlightDeck-original (not Sentry-protocol-grounded — see
-specs/006-uptime-monitoring/research.md §9) HTTP/TCP uptime checks, run on a 1-minute cron and on
-demand through one shared `runCheck()` evaluation function (constitution Principle V's first real
-scheduled-handler consumer), with incident-aware alerting (N-consecutive-failures open one incident,
-M-consecutive-recoveries auto-resolve it) and an optional per-check webhook — ships
-**single-region** for this MVP, a documented deviation from the constitution's original
-"multi-region" roadmap wording since Cloudflare Cron Triggers have no controllable execution region
-(specs/006-uptime-monitoring/research.md §1). Module 7 extends the envelope endpoint a final time
-with a `"feedback"` item type (a widget-based submission path, authenticated identically to every
-other item type) and adds a genuinely new kind of public ingest route —
-`GET|POST /api/embed/error-page[/]` — serving a self-contained `text/javascript` payload rather than
-JSON, matching a real, unmodified `@sentry/browser` SDK's `showReportDialog()` crash-report-dialog
-contract exactly (verified live against the actual SDK bundle, not a hand-crafted approximation);
-both paths converge on one `feedback` table, cross-linked to the `issues` an `associated_event_id`
-resolves against — see the constitution for the full trust-surface split. Module 8 is a post-hoc
-addition, not one of the constitution's originally-numbered modules: every dashboard-facing internal
-route had been hardcoded to a single seeded "demo" project (or, for issues, had no project filter at
-all), which only became a real gap once a second application needed onboarding. It adds
-`POST /api/internal/projects` (a real, working, isolated DSN per project) and a shared
-`resolveRequestedProject()` helper (constitution Principle V), reused by every pillar module to
-resolve an optional `?project=` query parameter — a sidebar switcher persists the selection in
-`sessionStorage` and appears once a workspace has more than one project. See
-[`specs/008-multi-project-support/`](specs/008-multi-project-support/). Deployed — see
-[Deployment](#deployment) for the one-time Cloudflare-dashboard steps a fresh environment needs
+| Overview                                                                       | Trace waterfall                                                                    |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| <img src="docs/screenshots/overview.jpg" width="420" alt="Dashboard overview"> | <img src="docs/screenshots/trace-waterfall.jpg" width="420" alt="Trace waterfall"> |
+
+## Contents
+
+- [Modules](#modules)
+- [Authentication](#authentication)
+- [Environment](#environment)
+- [Local development](#local-development)
+- [Deployment](#deployment)
+- [Releases](#releases)
+- [License](#license)
+
+## Modules
+
+Eight modules are implemented and deployed. Each has its own spec, plan, and task list under
+`specs/<NNN-name>/`.
+
+| # | Module                                                              | What it adds                                                                                                                                                                                                                                             |
+| - | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 | [Landing, Access login, app shell](specs/001-landing-access-login/) | The marketing site, Cloudflare Access sign-in, and the authenticated app-shell skeleton.                                                                                                                                                                 |
+| 2 | [Error monitoring](specs/002-error-monitoring/)                     | The first public, DSN-authenticated ingest endpoint (Sentry envelope protocol) — issue grouping with source-map-aware fingerprinting, source map upload/resolution, and GitHub App-based suspect commits.                                                |
+| 3 | [Distributed tracing](specs/003-distributed-tracing/)               | A `"transaction"` envelope item type, processed asynchronously through a Cloudflare Queue — a visual span waterfall and two-way trace-to-error linking.                                                                                                  |
+| 4 | [Structured logs](specs/004-structured-logs/)                       | A `"log"` envelope item type — NDJSON batches in R2, full-text search, a live WebSocket tail, and revocable per-project S3-compatible export.                                                                                                            |
+| 5 | [Releases](specs/005-releases/)                                     | A sentry-cli-compatible release-management surface (project-scoped API tokens), release health (adoption/crash-free rate), and regression detection.                                                                                                     |
+| 6 | [Uptime monitoring](specs/006-uptime-monitoring/)                   | FlightDeck-original (not Sentry-protocol) HTTP/TCP checks with incident-aware alerting and an optional per-check webhook. Ships **single-region** — Cloudflare Cron Triggers have no controllable execution region, a documented constitution deviation. |
+| 7 | [User feedback](specs/007-user-feedback/)                           | A `"feedback"` envelope item type plus a real `showReportDialog()`-compatible crash-report dialog, both cross-linked to the originating issue.                                                                                                           |
+| 8 | [Multi-project support](specs/008-multi-project-support/)           | A post-hoc module: real per-project DSNs and a shared `resolveRequestedProject()` helper, reused by every pillar module to scope the dashboard to a `?project=` query parameter.                                                                         |
+
+See [Deployment](#deployment) for the one-time Cloudflare-dashboard steps a fresh environment needs
 before `release` builds go live.
 
 ## Authentication
 
-FlightDeck implements no identity provider of its own. Cloudflare Access fronts a single bounce
-path, `/login` — the SPA serves both the public marketing site and the authenticated app shell from
-one origin, so Access cannot gate "the app-shell part" directly without a distinct Access-scoped
-path. `/login` verifies the `Cf-Access-Jwt-Assertion` header Access injects there, then mints
-FlightDeck's own signed `fd_session` cookie, which is what every other control-plane request
-(`/api/internal/*`) is verified against. Both steps fail closed on any verification error
-(constitution Principle II). The ingest endpoint (`/api/{project_id}/envelope`) is public by design,
-authenticated by each project's DSN key instead — see the constitution for the full trust-surface
-split.
+FlightDeck implements no identity provider of its own — Cloudflare Access fronts a single bounce
+path, `/login`. It verifies the `Cf-Access-Jwt-Assertion` header Access injects there, then mints
+FlightDeck's own signed `fd_session` cookie, which every other control-plane request
+(`/api/internal/*`) is checked against. Both steps fail closed on any verification error.
 
-Module 5 adds a THIRD credential form — project-scoped API tokens (`Authorization: Bearer <token>`)
-— for the sentry-cli-compatible release-management surface (`/api/0/...`). This is NOT a third trust
-surface: an API token is generated by an authenticated, `fd_session`-verified human via the
-dashboard (`POST /api/internal/projects/{id}/api-tokens`) and represents the SAME control-plane
-authorization as a session cookie, just carried in a form a non-browser CI/CD client (sentry-cli)
-can hold. It is unrelated to DSN-key ingest auth — a DSN key can never manage releases, and an API
-token can never submit anonymous SDK events (specs/005-releases/research.md §4). Tokens are stored
-as a salted hash; the raw value is shown once, at generation time, and is never retrievable again.
+The ingest endpoint (`/api/{project_id}/envelope`) is public by design, authenticated by each
+project's DSN key instead — see the constitution for the full trust-surface split.
+
+Module 5 adds a third credential form — project-scoped API tokens (`Authorization: Bearer <token>`)
+for the sentry-cli-compatible release-management surface (`/api/0/...`). It's not a third trust
+surface: a token is generated by an authenticated human via the dashboard and carries the same
+control-plane authorization as a session cookie, just in a form a non-browser CI/CD client can hold.
+A DSN key can never manage releases, and an API token can never submit anonymous SDK events. Tokens
+are hashed (HMAC with a server-side pepper); the raw value is shown once, at generation time, and
+never again.
 
 **Required manual post-deploy step**: Preview URLs default to public. Restrict them via **Workers &
 Pages → flightdeck → Access tab → Protect this Worker behind Access**, scope set to **Previews
-only** — NOT "All traffic", which would also gate the public marketing site on the production custom
-domain. (Do not enable the "Protect with Cloudflare Access" toggle during the initial Workers Builds
-setup flow either, for the same reason — it is not scoped to previews-only there.)
+only** — not "All traffic", which would also gate the public marketing site.
 
 ## Environment
 
-| Variable                    | Example                              | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| --------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TEAM_DOMAIN`               | `https://yugai.cloudflareaccess.com` | Cloudflare Access team domain; enables JWT verification. Non-secret.                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `POLICY_AUD`                | _(Access application AUD tag)_       | Expected audience claim of `Cf-Access-Jwt-Assertion`. Non-secret.                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `CF_ACCOUNT_ID`             | `8b655d0dde6d223b9ce11116a014973a`   | Cloudflare account id. Non-secret.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `SESSION_SECRET`            | _(random string)_                    | **Secret** — HMAC key `/login` signs the `fd_session` cookie with. Set via `wrangler versions secret put SESSION_SECRET` (no `--env` flag — see the comment in `wrangler.jsonc`), never as a plain `var`.                                                                                                                                                                                                                                                            |
-| `GITHUB_APP_ID`             | _(GitHub App ID)_                    | Non-secret. Identifies the GitHub App used for User Story 4's suspect-commit lookups (specs/002-error-monitoring/research.md §10).                                                                                                                                                                                                                                                                                                                                   |
-| `GITHUB_APP_PRIVATE_KEY`    | _(PEM-encoded RSA private key)_      | **Secret** — signs short-lived App JWTs on demand; installation access tokens exchanged from it are never persisted. Set via `wrangler versions secret put GITHUB_APP_PRIVATE_KEY`, never as a plain `var`.                                                                                                                                                                                                                                                          |
-| `CLOUDFLARE_R2_ADMIN_TOKEN` | _(Cloudflare API Token)_             | **Secret** — account-scoped R2 bucket/token management for Module 4's per-project export credential feature (specs/004-structured-logs/research.md §8). A real Cloudflare API Token with "Workers R2 Storage Write" + "Account API Tokens Write" permissions, this account only. Set via `wrangler versions secret put CLOUDFLARE_R2_ADMIN_TOKEN`, never as a plain `var`. Not required for log ingest/search/live-tail — only for the S3-compatible export feature. |
-| `API_TOKEN_PEPPER`          | _(random string)_                    | **Secret** — HMAC key Module 5's `hashToken` signs sentry-cli-facing API tokens with (specs/005-releases). Never stored in D1, only the resulting hash is. A pre-existing (pre-T047) token's hash, computed without a pepper, keeps verifying via a legacy fallback — no forced reissuance. Set via `wrangler versions secret put API_TOKEN_PEPPER`, never as a plain `var`.                                                                                         |
+| Variable                    | Secret? | Purpose                                                                                                |
+| --------------------------- | :-----: | ------------------------------------------------------------------------------------------------------ |
+| `TEAM_DOMAIN`               |         | Cloudflare Access team domain — enables JWT verification.                                              |
+| `POLICY_AUD`                |         | Expected audience claim of `Cf-Access-Jwt-Assertion`.                                                  |
+| `CF_ACCOUNT_ID`             |         | Cloudflare account id.                                                                                 |
+| `SESSION_SECRET`            |   ✅    | HMAC key `/login` signs the `fd_session` cookie with.                                                  |
+| `GITHUB_APP_ID`             |         | GitHub App used for suspect-commit lookups (Module 2).                                                 |
+| `GITHUB_APP_PRIVATE_KEY`    |   ✅    | Signs short-lived GitHub App JWTs on demand.                                                           |
+| `CLOUDFLARE_R2_ADMIN_TOKEN` |   ✅    | Provisions per-project R2 export credentials (Module 4). Not required for log ingest/search/live-tail. |
+| `API_TOKEN_PEPPER`          |   ✅    | HMAC key Module 5 signs API tokens with.                                                               |
 
-Copy `.dev.vars.example` to `.dev.vars` (gitignored) for local `deno task dev`.
+Every secret is set via `wrangler versions secret put <NAME>` (no `--env` flag — see the comment in
+`wrangler.jsonc`), never as a plain `var`. Copy `.dev.vars.example` to `.dev.vars` (gitignored) for
+local `deno task dev`.
 
-**Known dev-mode quirk**: `deno task dev` (plain Vite, for HMR) does not apply SPA fallback on a
-hard reload of a nested path (e.g. reloading directly at `/docs` 404s) — this is a Vite
-dev-server-only limitation; the built output served through `wrangler dev` or a real deploy handles
-it correctly. Navigate via in-app links during `deno task dev`, or use
-`deno task build && deno run -A npm:wrangler dev --env preview` (what the e2e suite itself runs) to
-test deep links locally.
+**Known dev-mode quirk**: `deno task dev` (plain Vite, for HMR) doesn't apply SPA fallback on a hard
+reload of a nested path (e.g. reloading directly at `/docs` 404s). Navigate via in-app links during
+`deno task dev`, or use `deno task build && deno run -A npm:wrangler dev --env preview` (what the
+e2e suite runs) to test deep links locally.
 
 ## Local development
 
@@ -140,57 +118,53 @@ for scenario-by-scenario validation steps.
 
 ## Deployment
 
-Deployment uses the native Cloudflare → GitHub integration (Workers Builds), not a deploy step in
-GitHub Actions — GitHub Actions runs `fmt`/`lint`/`typecheck`/unit-test/build as PR gates only. The
-production branch is `release`, which `release-please` fast-forwards on every release (see
-`.github/workflows/release-please.yml`).
+Deployment uses the native Cloudflare → GitHub integration (Workers Builds) — GitHub Actions only
+runs `fmt`/`lint`/`typecheck`/unit-test/build as PR gates. The production branch is `release`, which
+`release-please` fast-forwards on every release (see `.github/workflows/release-please.yml`).
 
-**Required one-time setup** (cannot be scripted): in the Cloudflare dashboard, connect
-`iumalabs/flightdeck` under **Workers & Pages → Create → Import a repository**, and set the
-production branch to `release`, not `main`. In the setup form:
+**One-time setup, in order:**
 
-| Field                              | Value                                                                                 |
-| ---------------------------------- | ------------------------------------------------------------------------------------- |
-| Build command                      | `npx -y deno task build`                                                              |
-| Deploy command                     | `npx -y deno task deploy:production`                                                  |
-| Builds for non-production branches | **disabled** — see below                                                              |
-| Protect with Cloudflare Access     | **leave disabled** — see [Authentication](#authentication)'s post-deploy step instead |
+1. **Connect the repo.** Cloudflare dashboard → **Workers & Pages → Create → Import a repository** →
+   `iumalabs/flightdeck`. Set the production branch to `release`, not `main`.
 
-`workers_dev` is `false` from the first commit and MUST stay that way (constitution Principle I).
+   | Field                              | Value                                                                         |
+   | ---------------------------------- | ----------------------------------------------------------------------------- |
+   | Build command                      | `npx -y deno task build`                                                      |
+   | Deploy command                     | `npx -y deno task deploy:production`                                          |
+   | Builds for non-production branches | **disabled** — see note below                                                 |
+   | Protect with Cloudflare Access     | **leave disabled** — see [Authentication](#authentication)'s post-deploy step |
 
-**"Builds for non-production branches" is deliberately left disabled**, contrary to what an earlier
-version of this doc said. Work on this repo routinely spans many short-lived, throwaway branches at
-once (per-task branches, agent worktrees) — if enabled, every push to every one of them would
-trigger a real build+deploy to the single shared `flightdeck-preview` Worker, so whichever branch
-happened to push last would silently clobber whatever anyone else was actually trying to preview.
-`deno task deploy:preview` (`wrangler deploy --env preview
---name flightdeck-preview`) still exists
-and works fine run by hand when someone genuinely wants a preview deploy of a specific branch — it's
-just not wired to fire automatically on every push.
+   `workers_dev` stays `false` from the first commit onward (constitution Principle I — never relax
+   this).
 
-**Required one-time Queue provisioning** (Modules 3-4, cannot be scripted via Workers Builds
-config): `wrangler.jsonc`'s `queues` block declares the `TRACE_INGEST` and `LOG_INGEST`
-producer/consumer bindings, but the underlying queue and dead-letter-queue resources must exist
-before first deploy — `wrangler queues create flightdeck-production-trace-ingest`,
-`wrangler queues create flightdeck-production-trace-ingest-dlq`,
-`wrangler queues create flightdeck-production-log-ingest`,
-`wrangler queues create flightdeck-production-log-ingest-dlq`, and the same four commands with
-`-preview-` in place of `-production-` for the preview environment.
+2. **Provision the two Queues** (Modules 3-4 — can't be scripted via Workers Builds config):
+   ```sh
+   wrangler queues create flightdeck-production-trace-ingest
+   wrangler queues create flightdeck-production-trace-ingest-dlq
+   wrangler queues create flightdeck-production-log-ingest
+   wrangler queues create flightdeck-production-log-ingest-dlq
+   ```
+   Repeat with `-preview-` in place of `-production-` for the preview environment.
 
-**Required one-time R2 bucket provisioning** (Module 4): `wrangler.jsonc`'s `r2_buckets` block
-declares the `LOGS` binding, but the bucket itself must exist before first deploy —
-`wrangler r2 bucket create flightdeck-production-logs` and
-`wrangler r2 bucket create flightdeck-preview-logs`. Per-project export buckets (User Story 4) are
-provisioned dynamically at runtime via the Cloudflare API, not created ahead of time.
+3. **Provision the R2 bucket** (Module 4):
+   ```sh
+   wrangler r2 bucket create flightdeck-production-logs
+   wrangler r2 bucket create flightdeck-preview-logs
+   ```
+   Per-project export buckets are provisioned dynamically at runtime — nothing to create ahead of
+   time for those.
 
-**D1 migrations are not applied by Workers Builds.** `.github/workflows/d1-migrations.yml` runs
-`wrangler d1 migrations apply --remote` against both the production and preview databases on every
-push to `main` that touches `worker/db/migrations/**` (also runnable on demand via
-`workflow_dispatch`). It needs a `CLOUDFLARE_API_TOKEN` repository secret (Account → D1 Edit scope)
-— set one via **Settings → Secrets and variables → Actions → New repository secret**. Without it,
-new migrations land in the SQL files but never reach the real databases, which is exactly what
-happened to `0001_baseline.sql` the first time: it was applied locally only, so the real login flow
-500'd in production until it was applied by hand.
+4. **Add a `CLOUDFLARE_API_TOKEN` repository secret** (Account → D1 Edit scope), via **Settings →
+   Secrets and variables → Actions**. `.github/workflows/d1-migrations.yml` uses it to run
+   `wrangler d1 migrations apply --remote` against both databases on every push to `main` that
+   touches `worker/db/migrations/**` — Workers Builds never applies migrations on its own. Without
+   this secret, new migrations land in the SQL files but never reach the real databases.
+
+**Why "Builds for non-production branches" stays off:** work on this repo routinely spans many
+short-lived, throwaway branches at once. If enabled, every push to any of them would trigger a real
+build+deploy to the single shared `flightdeck-preview` Worker, so whichever branch pushed last would
+silently clobber whatever anyone else was previewing. `deno task deploy:preview` still works fine
+run by hand — it's just not wired to fire automatically.
 
 ## Releases
 
