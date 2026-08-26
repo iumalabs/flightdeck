@@ -82,7 +82,7 @@ const FEATURES = [
   },
   {
     title: "Uptime",
-    body: "HTTP checks from four regions every 60 seconds, with incident-aware alerting.",
+    body: "HTTP and TCP checks every 60 seconds, with incident-aware alerting.",
     icon: <path d="M3 12h3l2.5-6 3 12 3-8 2 4h4" />,
   },
   {
