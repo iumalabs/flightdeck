@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.13.4](https://github.com/iumalabs/flightdeck/compare/v0.13.3...v0.13.4) (2026-08-26)
+
+
+### Bug Fixes
+
+* **marketing:** catch remaining false claims missed in first pass ([21324a2](https://github.com/iumalabs/flightdeck/commit/21324a2646135d10c4b4728da7a4732bd2671e51))
+* **marketing:** correct false capability claims on Product/Home pages ([bf38855](https://github.com/iumalabs/flightdeck/commit/bf38855320a2f6fdaf31f09d21db605b59fc132a))
+* **marketing:** correct false capability claims on Product/Home pages ([59ba17e](https://github.com/iumalabs/flightdeck/commit/59ba17e52a173c35502b693fd524de4280527512))
+* **marketing:** rename misleading 'Single-binary self-host' comparison row ([1c5a5ce](https://github.com/iumalabs/flightdeck/commit/1c5a5ce5fa5548aba04fc94a1dc0d0580f9866d1))
+* **marketing:** rename misleading 'Single-binary self-host' comparison row ([3915fdb](https://github.com/iumalabs/flightdeck/commit/3915fdb53ca320853abb3357167fb3fbf38acd74))
+
 ## [0.13.3](https://github.com/iumalabs/flightdeck/compare/v0.13.2...v0.13.3) (2026-08-26)
 
 
