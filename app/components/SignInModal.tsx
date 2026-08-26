@@ -122,7 +122,7 @@ export function SignInModal({ open, onClose }: SignInModalProps) {
             color: "var(--fg3)",
           }}
         >
-          <div>idp · yugai.cloudflareaccess.com</div>
+          <div>idp · your-team.cloudflareaccess.com</div>
           <div>audience · flightdeck.iuma.dev/login</div>
           <div>token · Cf-Access-Jwt-Assertion (JWT, RS256)</div>
         </div>
