@@ -27,6 +27,25 @@ interface TransactionDetail {
   logs: LinkedLog[];
 }
 
+// A lightweight runtime shape guard on just the fields layoutWaterfall()/computeDepths() actually
+// read (plus the top-level fields used to derive transactionEnd) — not a full schema validator
+// (overkill for this), but enough that a future field-name mismatch between this screen and
+// contracts/traces-internal-api.md (the bug behind GitHub issue #79) fails loudly as "Transaction
+// not found" instead of silently rendering NaN-positioned bars. `res.json() as
+// Promise<TransactionDetail>` alone is compile-time-only and can't catch that class of bug.
+function isValidTransactionDetail(data: unknown): data is TransactionDetail {
+  if (!data || typeof data !== "object") return false;
+  const d = data as Record<string, unknown>;
+  if (typeof d.startTimestamp !== "number" || typeof d.durationMs !== "number") return false;
+  if (!Array.isArray(d.spans)) return false;
+  return d.spans.every((span) => {
+    if (!span || typeof span !== "object") return false;
+    const s = span as Record<string, unknown>;
+    return typeof s.spanId === "string" && typeof s.startTimestamp === "number" &&
+      typeof s.timestamp === "number";
+  });
+}
+
 export interface TraceDetailScreenProps {
   transactionId: string;
   projectId: string | null;
@@ -51,9 +70,9 @@ export function TraceDetailScreen(
     setLoading(true);
     const params = projectId ? `?project=${projectId}` : "";
     fetch(`/api/internal/v1/traces/${transactionId}${params}`, { credentials: "same-origin" })
-      .then((res) => (res.ok ? res.json() as Promise<TransactionDetail> : null))
+      .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (!cancelled) setTransaction(data);
+        if (!cancelled) setTransaction(isValidTransactionDetail(data) ? data : null);
       })
       .catch(() => {
         if (!cancelled) setTransaction(null);
@@ -196,7 +215,7 @@ export function TraceDetailScreen(
           <div style={{ border: "1px solid var(--line)", background: "var(--panel)", padding: 14 }}>
             {laidOut.map((span) => (
               <div
-                key={span.span_id}
+                key={span.spanId}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -232,7 +251,7 @@ export function TraceDetailScreen(
                       background: span.status && span.status !== "ok" ? "#FF4D4D" : "var(--accent)",
                       opacity: 0.85,
                     }}
-                    title={`${Math.round((span.timestamp - span.start_timestamp) * 1000)}ms`}
+                    title={`${Math.round((span.timestamp - span.startTimestamp) * 1000)}ms`}
                   />
                 </span>
               </div>

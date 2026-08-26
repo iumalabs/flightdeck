@@ -2,7 +2,6 @@ import { Hono } from "hono";
 import { sessionAuth } from "../../auth/session.ts";
 import type { SessionIdentity } from "../../auth/session.ts";
 import { fetchPercentile, operationsListSql } from "../ingest/percentiles.ts";
-import type { RawSpan } from "../ingest/waterfall-layout.ts";
 import { extractMatchingLines } from "../logs/extract.ts";
 import { resolveRequestedProject } from "../projects/resolve.ts";
 
@@ -94,6 +93,21 @@ interface LinkedErrorRow {
   level: string;
 }
 
+// The wire/stored shape of one entry in `spans_json` — the raw Sentry-protocol span exactly as
+// ingested (data-model.md's Span entity), snake_case per that protocol. Deliberately NOT the same
+// type as waterfall-layout.ts's `RawSpan`, which is camelCase and describes this route's own
+// response shape (contracts/traces-internal-api.md) after the mapping below — conflating the two
+// was the root cause of GitHub issue #79 (the waterfall silently computing NaN positions).
+interface StoredSpan {
+  span_id: string;
+  parent_span_id?: string | null;
+  op?: string | null;
+  description?: string | null;
+  start_timestamp: number;
+  timestamp: number;
+  status?: string | null;
+}
+
 // contracts/traces-internal-api.md's GET /api/internal/traces/{id} — {id} is transactions.id, not
 // the raw trace_id (mirrors Module 2's issues.id-keyed detail route). linkedErrors is [] rather
 // than omitted when no error shares this transaction's trace_id (spec FR-009's "absent, not an
@@ -115,9 +129,9 @@ tracesRoutes.get("/:id", async (c) => {
     return c.text("Not Found", 404);
   }
 
-  let spans: RawSpan[] = [];
+  let spans: StoredSpan[] = [];
   try {
-    spans = JSON.parse(transaction.spans_json) as RawSpan[];
+    spans = JSON.parse(transaction.spans_json) as StoredSpan[];
   } catch {
     spans = []; // malformed spans_json never fails the whole transaction view (spec.md Edge Cases)
   }

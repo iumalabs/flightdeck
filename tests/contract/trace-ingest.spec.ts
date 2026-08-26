@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { getDsnKey } from "./support/dsn-key.ts";
+import { layoutWaterfall } from "../../worker/modules/ingest/waterfall-layout.ts";
 
 // Contract tests against a real wrangler dev (research.md's testing rationale,
 // specs/003-distributed-tracing) — hand-crafted "transaction" envelope items matching
@@ -142,6 +143,65 @@ test("an oversized transaction item is rejected with 413, not a generic 500", as
 
   const transactionId = await pollForTransaction(request, traceId, 2);
   expect(transactionId).toBeNull();
+});
+
+// Regression guard for GitHub issue #79 (waterfall renders no bars — layoutWaterfall() expected
+// snake_case fields while the real internal API returns camelCase per
+// contracts/traces-internal-api.md). Unlike waterfall-layout.test.ts's unit tests, this feeds
+// layoutWaterfall() the ACTUAL response from a real ingested transaction — a hand-typed fixture in
+// the function's own expected shape can't catch a mismatch between that shape and what the API
+// genuinely emits, which is exactly how this bug slipped past the previous test suite.
+test("the real internal API response lays out into non-NaN waterfall positions", async ({ request }) => {
+  const dsnKey = await getDsnKey();
+  const eventId = crypto.randomUUID();
+  const traceId = crypto.randomUUID().replace(/-/g, "");
+  const rootSpanId = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+  const childSpanId = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+  const body = buildTransactionEnvelope(eventId, traceId, rootSpanId, "GET /waterfall-regression", [
+    {
+      span_id: childSpanId,
+      parent_span_id: rootSpanId,
+      op: "db.query",
+      description: "SELECT 1",
+      start_timestamp: Date.now() / 1000 - 4.9,
+      timestamp: Date.now() / 1000 - 4.7,
+      status: "ok",
+    },
+  ]);
+
+  const ingest = await request.post(
+    `/api/${DEMO_PROJECT_ID}/envelope?sentry_key=${dsnKey}&sentry_version=7`,
+    { data: body },
+  );
+  expect(ingest.status()).toBe(200);
+
+  const transactionId = await pollForTransaction(request, traceId);
+  expect(transactionId).not.toBeNull();
+
+  const detail = await request.get(`/api/internal/v1/traces/${transactionId}`, {
+    headers: { Cookie: await sessionCookieHeader() },
+  });
+  expect(detail.ok()).toBe(true);
+  const transaction = await detail.json() as {
+    startTimestamp: number;
+    durationMs: number;
+    spans: {
+      spanId: string;
+      parentSpanId: string | null;
+      startTimestamp: number;
+      timestamp: number;
+    }[];
+  };
+  expect(transaction.spans.length).toBe(1);
+
+  const transactionEnd = transaction.startTimestamp + transaction.durationMs / 1000;
+  const laidOut = layoutWaterfall(transaction.startTimestamp, transactionEnd, transaction.spans);
+
+  expect(laidOut.length).toBe(1);
+  expect(Number.isNaN(laidOut[0].leftPercent)).toBe(false);
+  expect(Number.isNaN(laidOut[0].widthPercent)).toBe(false);
+  expect(laidOut[0].widthPercent).toBeGreaterThan(0);
+  expect(laidOut[0].depth).toBe(1);
 });
 
 test("submitting the same transaction twice does not duplicate it", async ({ request }) => {
