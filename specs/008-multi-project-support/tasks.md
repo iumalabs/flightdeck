@@ -212,7 +212,6 @@ a second project to meaningfully switch to).
 - [x] T032 Update `README.md`'s Status section and `.specify/memory/constitution.md`'s Product Scope
       & Module Roadmap to note this as an 8th, post-hoc module (plan.md's Status note) — same style
       Module 6's Complexity Tracking entry documented its own real deviation
-
 ---
 
 ## Dependencies & Execution Order

@@ -1,21 +1,26 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 1.1.1 → 1.2.0
+Version change: 1.2.0 → 1.3.0
 Modified principles: n/a (no Core Principle changed)
-Modified sections: Product Scope & Module Roadmap — added item 8, "Multi-project
-  support", documenting a real, already-implemented post-hoc module
-  (specs/008-multi-project-support/) discovered mid-session: every
-  dashboard-facing internal route had been hardcoded to a single seeded "demo"
-  project (or, for issues, had no project filter at all), which only became a
-  real gap once a second real application needed onboarding. This is a MINOR
-  bump (new roadmap item / materially expanded guidance), not a Core Principle
-  change — the module's own design (a project-creation endpoint plus a shared
-  ?project= resolution helper reused by every pillar module) is directly
-  governed by, and fully consistent with, Principle V's shared-module rule and
-  Principle X's admin-mutation audit-log rule; nothing here contradicts an
-  existing principle.
-Added sections: Product Scope & Module Roadmap, item 8 (Multi-project support)
+Modified sections: Product Scope & Module Roadmap — item 8, "Multi-project
+  support", extended to document a real, already-implemented post-hoc
+  capability (GitHub issue #72, plus issue #75's follow-up fix) that shipped
+  entirely through the GitHub-issue workflow, never through /speckit-specify:
+  project creation optionally accepts a `baseUrl`, which seeds a default root
+  HTTP uptime check always, plus a `/health`-or-`/api/health` check only when a
+  live probe confirms a real, distinct endpoint rather than an app's catch-all
+  response (e.g. an SPA fallback route). This is a MINOR bump (existing
+  roadmap item's guidance materially expanded), not a Core Principle change —
+  the capability is directly governed by, and fully consistent with,
+  Principle V's shared-module rule (seeding reuses the existing
+  uptime/create-check.ts helper rather than reimplementing check insertion)
+  and Principle X's admin-mutation audit-log rule (each seeded check gets its
+  own check.create audit_log row); nothing here contradicts an existing
+  principle. specs/008-multi-project-support/spec.md and plan.md were
+  backfilled in the same change to document this already-shipped, already-
+  tested behavior.
+Added sections: n/a
 Removed sections: n/a
 Templates requiring alignment: none — this change touches roadmap prose only,
   no principle or gate structure changed.
@@ -223,7 +228,12 @@ a commitment to build all of it now):
    for issues, had no project filter at all), which only became a real gap once a second real
    application needed onboarding. Adds a project-creation endpoint (a real, working, isolated DSN
    per project) and dashboard-wide `?project=` scoping/switching, resolved through one shared helper
-   reused by every pillar module (Principle V) — see specs/008-multi-project-support/.
+   reused by every pillar module (Principle V) — see specs/008-multi-project-support/. Project
+   creation also optionally accepts a `baseUrl` (issue #72), which seeds a default root HTTP uptime
+   check always, plus a `/health`-or-`/api/health` check only when a live probe confirms a real,
+   distinct endpoint rather than an app's catch-all response such as an SPA fallback route (issue
+   #75) — reusing the existing uptime module's check-creation helper rather than a separate
+   implementation (Principle V).
 
 ## Identity & Authorization Data Model
 
@@ -305,4 +315,4 @@ against this constitution before implementation begins. Deviations discovered du
 MUST be raised for resolution (either fixing the implementation or amending the constitution) before
 merge, not silently absorbed.
 
-**Version**: 1.2.0 | **Ratified**: 2026-08-21 | **Last Amended**: 2026-08-23
+**Version**: 1.3.0 | **Ratified**: 2026-08-21 | **Last Amended**: 2026-08-26
