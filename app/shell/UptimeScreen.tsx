@@ -154,7 +154,7 @@ export function UptimeScreen({ projectId, onSelectCheck }: UptimeScreenProps) {
                 onClick={() => onSelectCheck(check.id)}
                 style={{
                   display: "flex",
-                  alignItems: "center",
+                  alignItems: "flex-start",
                   gap: 12,
                   padding: "12px 16px",
                   borderBottom: "1px solid var(--line2)",
