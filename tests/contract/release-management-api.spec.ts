@@ -252,3 +252,82 @@ test("project-scoped release list/retrieve/delete variants work and stay project
   );
   expect(retrieveAfterDelete.status()).toBe(404);
 });
+
+test("'releases set-commits' persists release_commits rows, surfaced via the internal release detail", async ({ request }) => {
+  const { token } = await generateApiToken(request);
+  const version = `contract-set-commits-${crypto.randomUUID()}`;
+
+  const create = await request.post("/api/0/organizations/anyorg/releases/", {
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    data: { version, projects: ["1"] },
+  });
+  expect(create.status()).toBe(201);
+
+  const sha = crypto.randomUUID().replace(/-/g, "");
+  const setCommits = await request.put(`/api/0/organizations/anyorg/releases/${version}/`, {
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    data: {
+      commits: [
+        { id: sha, message: "fix: contract test commit", author_name: "Contract Tester" },
+      ],
+    },
+  });
+  expect(setCommits.status()).toBe(200);
+  const setCommitsBody = await setCommits.json() as {
+    version: string;
+    dateReleased: string | null;
+  };
+  expect(setCommitsBody.version).toBe(version);
+
+  const cookie = await sessionCookieHeader();
+  const list = await request.get("/api/internal/v1/releases", { headers: { Cookie: cookie } });
+  const { releases } = await list.json() as { releases: { id: string; version: string }[] };
+  const releaseId = releases.find((r) => r.version === version)?.id;
+  expect(releaseId).toBeDefined();
+
+  const detail = await request.get(`/api/internal/v1/releases/${releaseId}`, {
+    headers: { Cookie: cookie },
+  });
+  expect(detail.status()).toBe(200);
+  const detailBody = await detail.json() as {
+    commits: { sha: string; message: string | null; author: string | null }[];
+  };
+  expect(detailBody.commits).toEqual([
+    { sha, message: "fix: contract test commit", author: "Contract Tester" },
+  ]);
+});
+
+test("'releases deploys new' persists a deploy row, surfaced via the internal release detail", async ({ request }) => {
+  const { token } = await generateApiToken(request);
+  const version = `contract-deploy-${crypto.randomUUID()}`;
+
+  const create = await request.post("/api/0/organizations/anyorg/releases/", {
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    data: { version, projects: ["1"] },
+  });
+  expect(create.status()).toBe(201);
+
+  const deploy = await request.post(`/api/0/organizations/anyorg/releases/${version}/deploys/`, {
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    data: { environment: "production" },
+  });
+  expect(deploy.status()).toBe(201);
+  const deployBody = await deploy.json() as { id: string };
+  expect(deployBody.id).toBeTruthy();
+
+  const cookie = await sessionCookieHeader();
+  const list = await request.get("/api/internal/v1/releases", { headers: { Cookie: cookie } });
+  const { releases } = await list.json() as { releases: { id: string; version: string }[] };
+  const releaseId = releases.find((r) => r.version === version)?.id;
+  expect(releaseId).toBeDefined();
+
+  const detail = await request.get(`/api/internal/v1/releases/${releaseId}`, {
+    headers: { Cookie: cookie },
+  });
+  expect(detail.status()).toBe(200);
+  const detailBody = await detail.json() as {
+    deploys: { environment: string; deployedAt: string }[];
+  };
+  expect(detailBody.deploys).toHaveLength(1);
+  expect(detailBody.deploys[0].environment).toBe("production");
+});

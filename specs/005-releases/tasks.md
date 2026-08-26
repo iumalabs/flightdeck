@@ -428,7 +428,7 @@ findings.
       fresh. (contradicts — spec SC-005, US1 Independent Test)
       Remaining work: update quickstart.md's example project id from `demo` to `1` (or note that it
       must be read from `GET /api/internal/v1/projects` / the dashboard rather than hardcoded).
-- [ ] T050 [MEDIUM] `tests/contract/release-management-api.spec.ts` has no test exercising the
+- [X] T050 [MEDIUM] `tests/contract/release-management-api.spec.ts` has no test exercising the
       `set-commits` shape (`PUT /api/0/organizations/{org_slug}/releases/{version}/` with a
       non-empty `commits` array) or the `deploys new` endpoint (`POST
       .../releases/{version}/deploys/`) — confirmed by direct grep: zero matches for
@@ -442,11 +442,13 @@ findings.
       handler and `/deploys/` handler) and were manually validated per T043 — this is a coverage gap,
       not a broken feature, and US4 is this module's lowest-priority (P3) story. (partial — plan.md
       Testing strategy, US4 Independent Test, constitution Principle VIII)
-      Remaining work: add two contract-test cases to
-      `tests/contract/release-management-api.spec.ts` — one asserting a `set-commits`-shaped PUT
-      persists `release_commits` rows (visible via `GET /api/internal/v1/releases/{id}`'s `commits`
-      array), one asserting a `deploys new`-shaped POST persists a deploy (visible via the same
-      endpoint's `deploys` array).
+      Closed: added two contract-test cases to `tests/contract/release-management-api.spec.ts` —
+      `"'releases set-commits' persists release_commits rows, surfaced via the internal release
+      detail"` (PUTs a `commits`-shaped body, verifies via `GET /api/internal/v1/releases/{id}`'s
+      `commits` array) and `"'releases deploys new' persists a deploy row, surfaced via the internal
+      release detail"` (POSTs a `deploys new`-shaped body, verifies via the same endpoint's `deploys`
+      array). `releases delete` already had coverage via the existing project-scoped delete test, so
+      no third case was needed there. Full contract suite: 68/68 passing.
 - [X] T051 [LOW] `specs/005-releases/data-model.md` documents `project_id` as `TEXT` for both the
       Release Health table (line 42) and the API Token table (line 79); the actual column type since
       migration 0009 is `INTEGER` (`worker/db/migrations/0009_numeric_project_id.sql`). Separately,
