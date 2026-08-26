@@ -4,49 +4,12 @@ interface Deployment {
   spec: string;
 }
 
-const DEPLOYMENTS: Deployment[] = [
-  {
-    name: "Docker Compose",
-    body:
-      "One app container plus Postgres and MinIO. The right choice for a single VM and a few million events a month.",
-    spec: "2 vCPU · 4 GB RAM · 50 GB disk",
-  },
-  {
-    name: "Kubernetes",
-    body:
-      "Helm chart with separate ingest and web deployments, HPA on ingest lag, and a job for migrations.",
-    spec: "helm repo add flightdeck https://charts.iuma.dev",
-  },
-  {
-    name: "Cloudflare",
-    body:
-      "Workers for ingest, D1 for metadata, R2 for payloads and Access for auth. No servers to patch.",
-    spec: "wrangler deploy · free tier friendly",
-  },
-];
-
-const COMPOSE = `services:
-  flightdeck:
-    image: ghcr.io/iumalabs/flightdeck:0.1.0
-    environment:
-      FD_DATABASE_URL: postgres://fd:fd@db:5432/fd
-      FD_STORAGE_URL: s3://minio:9000/flightdeck
-      FD_PUBLIC_URL: https://flightdeck.iuma.dev
-    ports: ["8080:8080"]
-    depends_on: [db, minio]
-
-  db:
-    image: postgres:17-alpine
-    volumes: ["pgdata:/var/lib/postgresql/data"]`;
-
-const OPS = `# upgrade (migrations run on boot, forward-only)
-docker compose pull && docker compose up -d
-
-# backup: Postgres holds metadata, object storage holds payloads
-pg_dump $FD_DATABASE_URL | zstd > fd-$(date +%F).sql.zst
-
-# retention is enforced by a nightly job
-fd maintenance prune --events 90d --logs 30d --traces 14d`;
+const DEPLOYMENT: Deployment = {
+  name: "Cloudflare",
+  body:
+    "Workers for ingest, D1 for metadata, R2 for payloads and Access for auth. No servers to patch.",
+  spec: "wrangler deploy · free tier friendly",
+};
 
 interface EnvVar {
   key: string;
@@ -117,114 +80,47 @@ export function SelfHostingPage() {
           Your data, your infrastructure
         </h1>
         <p style={{ fontSize: 16, lineHeight: 1.6, color: "var(--fg2)", margin: 0 }}>
-          One binary plus Postgres and object storage. No Kafka, no Zookeeper, no twelve-service
-          compose file.
+          Deploy FlightDeck into your own Cloudflare account. No cluster to run, no image to pull —
+          just Workers, D1 and R2.
         </p>
       </div>
 
       <div
         style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3,minmax(0,1fr))",
-          gap: 1,
-          background: "var(--line)",
+          maxWidth: 420,
+          margin: "0 auto 36px",
+          background: "var(--panel)",
           border: "1px solid var(--line)",
-          marginBottom: 36,
+          padding: 28,
+          textAlign: "center",
         }}
       >
-        {DEPLOYMENTS.map((d) => (
-          <div key={d.name} style={{ background: "var(--panel)", padding: 24, minWidth: 0 }}>
-            <div
-              style={{
-                fontFamily: "var(--font-display)",
-                fontSize: 18,
-                fontWeight: 600,
-                letterSpacing: "-.02em",
-                marginBottom: 6,
-              }}
-            >
-              {d.name}
-            </div>
-            <div
-              style={{ fontSize: 13.5, lineHeight: 1.55, color: "var(--fg2)", marginBottom: 14 }}
-            >
-              {d.body}
-            </div>
-            <div
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: 11.5,
-                color: "var(--fg3)",
-                borderTop: "1px solid var(--line2)",
-                paddingTop: 12,
-              }}
-            >
-              {d.spec}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 36 }}>
         <div
           style={{
-            border: "1px solid var(--line)",
-            background: "var(--code-bg)",
-            padding: 18,
-            overflowX: "auto",
+            fontFamily: "var(--font-display)",
+            fontSize: 20,
+            fontWeight: 600,
+            letterSpacing: "-.02em",
+            marginBottom: 8,
           }}
         >
-          <div
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 10,
-              letterSpacing: ".12em",
-              textTransform: "uppercase",
-              color: "var(--fg3)",
-              marginBottom: 12,
-            }}
-          >
-            docker-compose.yml
-          </div>
-          <pre
-            style={{
-              margin: 0,
-              fontFamily: "var(--font-mono)",
-              fontSize: 12.5,
-              lineHeight: 1.7,
-              color: "var(--fg2)",
-            }}
-          >{COMPOSE}</pre>
+          {DEPLOYMENT.name}
+        </div>
+        <div
+          style={{ fontSize: 13.5, lineHeight: 1.55, color: "var(--fg2)", marginBottom: 16 }}
+        >
+          {DEPLOYMENT.body}
         </div>
         <div
           style={{
-            border: "1px solid var(--line)",
-            background: "var(--code-bg)",
-            padding: 18,
-            overflowX: "auto",
+            fontFamily: "var(--font-mono)",
+            fontSize: 11.5,
+            color: "var(--fg3)",
+            borderTop: "1px solid var(--line2)",
+            paddingTop: 12,
           }}
         >
-          <div
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 10,
-              letterSpacing: ".12em",
-              textTransform: "uppercase",
-              color: "var(--fg3)",
-              marginBottom: 12,
-            }}
-          >
-            Upgrade &amp; backup
-          </div>
-          <pre
-            style={{
-              margin: 0,
-              fontFamily: "var(--font-mono)",
-              fontSize: 12.5,
-              lineHeight: 1.7,
-              color: "var(--fg2)",
-            }}
-          >{OPS}</pre>
+          {DEPLOYMENT.spec}
         </div>
       </div>
 
