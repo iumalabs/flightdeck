@@ -10,7 +10,7 @@ const DOC_NAV: Array<{ label: string; href: string }> = [
   { label: "DSN & endpoints", href: "#dsn" },
   { label: "Source maps", href: "#sourcemaps" },
   { label: "Releases & deploys", href: "#releases" },
-  { label: "Alerts & webhooks", href: "#alerts" },
+  { label: "Uptime webhooks", href: "#webhooks" },
   { label: "Access control", href: "#access" },
 ];
 
@@ -33,65 +33,61 @@ Sentry.init({
     id: "dsn",
     title: "DSN & endpoints",
     body:
-      "The DSN encodes the public key and the project id. Both the legacy store endpoint and the envelope endpoint are served; envelopes are preferred by all modern SDKs.",
-    code: `POST /api/{project_id}/envelope/
-POST /api/{project_id}/store/
-POST /api/{project_id}/minidump/
+      "The DSN encodes the public key and the project id. The only ingest endpoint is the Sentry envelope endpoint — FlightDeck speaks the envelope protocol exclusively; there is no legacy store or minidump endpoint. Auth travels in either the X-Sentry-Auth header or the sentry_key query parameter (both are checked when present, and must agree).",
+    code: `POST /api/{project_id}/envelope
+POST /api/{project_id}/envelope/   # trailing slash also accepted
 
 X-Sentry-Auth: Sentry sentry_key={public_key}, sentry_version=7
 
+# or, for SDKs that authenticate via the query string instead:
+POST /api/{project_id}/envelope?sentry_key={public_key}
+
 # confirm which environment is live
-GET  /api/version   → 200 {"version":"0.9.1","environment":"production"}`,
+GET  /api/version   → 200 {"version":"x.y.z","environment":"production"}`,
   },
   {
     id: "sourcemaps",
     title: "Source maps",
     body:
-      "Upload artifacts in CI, keyed by release. The FlightDeck CLI is API-compatible with sentry-cli, so an existing pipeline works after changing two environment variables.",
-    code: `export FLIGHTDECK_URL=https://flightdeck.iuma.dev
-export FLIGHTDECK_TOKEN=$CI_FLIGHTDECK_TOKEN
+      "Upload artifacts in CI, keyed by release, using the real, unmodified sentry-cli — no separate FlightDeck-specific CLI to install. Generate a sentry-cli API token from the project's Settings screen, then export it and point sentry-cli's own environment variables at FlightDeck.",
+    code: `export SENTRY_URL=https://flightdeck.iuma.dev
+export SENTRY_AUTH_TOKEN=<token from Settings → sentry-cli API token>
+export SENTRY_ORG=acme        # any value — accepted, not validated
+export SENTRY_PROJECT=1       # your project id
 
-fd releases new web@$GIT_SHA
-fd releases files web@$GIT_SHA upload-sourcemaps ./dist
-fd releases finalize web@$GIT_SHA`,
+sentry-cli releases new web@$GIT_SHA
+sentry-cli releases files web@$GIT_SHA upload-sourcemaps ./dist
+sentry-cli releases finalize web@$GIT_SHA`,
   },
   {
     id: "releases",
     title: "Releases & deploys",
     body:
-      "Tell FlightDeck when a version reaches an environment. Adoption, crash-free rate and regression detection all derive from this call.",
-    code: `fd deploys new --release web@$GIT_SHA --env production
-
-# resolve an issue in the next release
-PUT /api/0/issues/{id}/  {"status":"resolvedInNextRelease"}`,
+      "Tell FlightDeck when a version reaches an environment with sentry-cli's own deploys command. Adoption, crash-free rate and regression detection all derive from release and session data ingested this way. Issues also carry regression detection tied to releases: resolving one from the dashboard marks it fixed as of a specific release, and the same underlying error reappearing in a later release reopens it automatically.",
+    code: `sentry-cli releases deploys web@$GIT_SHA new -e production`,
   },
   {
-    id: "alerts",
-    title: "Alerts & webhooks",
+    id: "webhooks",
+    title: "Uptime webhooks",
     body:
-      "Rules are evaluated on the ingest stream. Outgoing webhooks are signed with HMAC-SHA256 over the raw body; verify before trusting.",
+      "An uptime check can notify an external URL when it opens or resolves an incident. Delivery is a single fire-and-forget POST with a 5 second timeout — no retry, and the request is not signed.",
     code: `POST https://hooks.acme.io/flightdeck
-X-FlightDeck-Signature: sha256=9f1a…
 
 {
-  "rule": "New issue in production",
-  "issue": { "id": "FD-4F2", "type": "TypeError", "events": 1284 },
-  "release": "web@2026.8.3",
-  "url": "https://flightdeck.iuma.dev/web-app/issues/FD-4F2"
+  "checkId": "chk_1a2b3c",
+  "checkName": "API health",
+  "event": "incident.opened",
+  "incidentId": "inc_9f8e7d"
 }`,
   },
   {
     id: "access",
     title: "Access control",
     body:
-      "The dashboard sits behind Cloudflare Access — FlightDeck trusts the verified identity from an Access-gated login exchange and maps it to a member. Ingest endpoints stay public and are authenticated by the DSN key.",
-    code: `# wrangler.jsonc / access policy
-team  = "your-team.cloudflareaccess.com"
-aud   = "<this application's Access AUD tag>"
-rules = ["emails ending in @acme.io", "group: platform"]
-
-# roles are derived from the identity's groups
-owner | admin | member | read-only`,
+      "The dashboard sits behind Cloudflare Access — FlightDeck trusts the verified identity from an Access-gated login exchange, verifies the resulting JWT, and maps it to a member record. Ingest endpoints stay public and are authenticated by the DSN key instead.",
+    code: `# conceptual — see wrangler.jsonc / .dev.vars.example for the live values
+TEAM_DOMAIN = "https://your-team.cloudflareaccess.com"
+POLICY_AUD  = "<this application's Access AUD tag>"`,
   },
 ];
 
