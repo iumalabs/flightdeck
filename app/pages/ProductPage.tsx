@@ -13,16 +13,16 @@ const PILLARS: Pillar[] = [
     meta: "issues · grouping · symbolication",
     bullets: [
       "Fingerprinting by exception type, culprit frame and normalised message.",
-      "Source maps, dSYM, ProGuard and Go build IDs uploaded from CI; frames resolve to app code, vendor frames collapse by default.",
+      "Source maps uploaded from CI; frames resolve to app code, vendor frames collapse by default.",
       "Local variables, breadcrumbs, request context and suspect commit derived from the release's diff.",
     ],
   },
   {
     title: "Distributed tracing",
-    meta: "spans · p50/p95 · budgets",
+    meta: "spans · p50/p95 · cross-linked",
     bullets: [
-      "W3C traceparent propagation across browser, backend and workers — one waterfall per request.",
-      "Per-transaction p50/p75/p95, throughput and failure rate, with a latency budget that can page you.",
+      "sentry-trace/baggage propagation across browser, backend and workers — one waterfall per request.",
+      "Per-transaction p50/p95 duration, grouped by operation over a trailing window.",
       "Errors are attached to the span that produced them, so a trace opens straight into the stack trace.",
     ],
   },
@@ -30,9 +30,9 @@ const PILLARS: Pillar[] = [
     title: "Structured logs",
     meta: "stream · search · retention",
     bullets: [
-      "Ingest over the same envelope endpoint or via OTLP; attributes stay typed, not stringified.",
+      "Ingest over the same envelope endpoint; attributes stay typed, not stringified.",
       "Live tail with level and free-text filters; every line carries its trace id.",
-      "30-day hot retention by default, with continuous export to S3-compatible storage.",
+      "7-day hot retention by default, with revocable, on-demand export to S3-compatible storage.",
     ],
   },
   {
@@ -46,20 +46,20 @@ const PILLARS: Pillar[] = [
   },
   {
     title: "Uptime",
-    meta: "http checks · 4 regions",
+    meta: "http & tcp checks",
     bullets: [
-      "HTTP and TCP checks every 60 seconds from four regions, with assertions on status, body and latency.",
-      "Two consecutive failures open an incident; recovery closes it and annotates the timeline.",
-      "Check history is a first-class series — the same alert rules apply as to events.",
+      "HTTP and TCP checks on a configurable interval, tracking reachability and latency.",
+      "A configurable run of consecutive failures opens an incident; consecutive recoveries close it.",
+      "An optional per-check webhook fires on every incident open and resolve.",
     ],
   },
   {
     title: "User feedback",
     meta: "widget · crash reports",
     bullets: [
-      "A drop-in widget that attaches the user's last event, breadcrumbs and screenshot to the message.",
-      "Crash-report dialog after an unhandled error, so the report lands on the right issue.",
-      "Replies go out through your existing support inbox — FlightDeck keeps the linkage, not the mailbox.",
+      "A drop-in widget that links a message to the user's last event, so it lands on the right issue.",
+      "Crash-report dialog matches the real SDK's showReportDialog() contract, so it works unmodified.",
+      "Both paths converge on the same feedback record, cross-linked from the issue it names.",
     ],
   },
 ];
