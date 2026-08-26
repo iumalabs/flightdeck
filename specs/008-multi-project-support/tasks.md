@@ -212,6 +212,15 @@ a second project to meaningfully switch to).
 - [x] T032 Update `README.md`'s Status section and `.specify/memory/constitution.md`'s Product Scope
       & Module Roadmap to note this as an 8th, post-hoc module (plan.md's Status note) — same style
       Module 6's Complexity Tracking entry documented its own real deviation
+- [x] T033 Backfill documentation for GitHub issue #72's optional `baseUrl` project-creation field
+      (default uptime-check seeding, reusing `uptime/create-check.ts` per Principle V; issue #75's
+      catch-all probe guard), which shipped through the GitHub-issue workflow and was never reflected
+      in this module's own spec/plan/constitution roadmap entry — no `worker/`/`app/` code changed,
+      the feature and its tests (`tests/contract/projects-api.spec.ts`,
+      `tests/e2e/create-project-with-base-url.spec.ts`) already existed. Added FR-011 and an
+      acceptance scenario to `spec.md`, added `default-checks.ts` to `plan.md`'s Project Structure
+      list and a Principle V example to its Constitution Check table, and amended
+      `.specify/memory/constitution.md`'s item 8 (MINOR version bump, 1.2.0 → 1.3.0)
 
 ---
 

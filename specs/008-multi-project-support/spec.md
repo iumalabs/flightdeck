@@ -35,6 +35,10 @@ attributed to the new project (not "demo").
    **Then** it is attributed only to that project, never to the first.
 3. **Given** an attempt to create a project with no name, **When** the creation is submitted,
    **Then** it is rejected and no project is created.
+4. **Given** a signed-in workspace member creating a project, **When** they optionally provide a
+   base URL for the application being onboarded, **Then** a default root uptime check is seeded
+   against it, plus a health-endpoint check only if a live probe confirms `/health` or `/api/health`
+   is a real, distinct endpoint rather than a catch-all response (e.g. an SPA fallback route).
 
 ---
 
@@ -93,6 +97,11 @@ immediately, without a separate navigation step.
 - An ingest request's DSN resolves to a project that isn't the currently-selected dashboard
   project: ingest is entirely unaffected by dashboard selection — ingest has always resolved
   project by DSN key alone, and this feature does not change that.
+- A `baseUrl` provided at project creation is malformed (not a well-formed absolute `http`/`https`
+  URL): the request is rejected with no project created, same as an empty name (FR-002).
+- A `baseUrl`'s health-endpoint probe fails, times out, or the app serves an identical response for
+  any path (e.g. an SPA catch-all): only the root check is seeded — seeding is a best-effort
+  secondary step and its failure never blocks or rolls back project creation.
 
 ## Requirements *(mandatory)*
 
@@ -116,6 +125,13 @@ immediately, without a separate navigation step.
   additional step required to see that project's data.
 - **FR-010**: The system MUST show a newly-created project's DSN at creation time, without a
   separate navigation step to find it.
+- **FR-011**: The system MAY optionally accept a `baseUrl` when creating a project. When provided,
+  the system MUST validate it is a well-formed absolute `http`/`https` URL, rejecting creation (no
+  project created) otherwise, per FR-002's malformed-input pattern. On a valid `baseUrl`, the system
+  MUST seed a default root HTTP uptime check against it, and MUST additionally seed a health-endpoint
+  check — trying `/health`, then `/api/health` — only when a live probe confirms a real, distinct
+  endpoint at that path rather than an identical catch-all response (e.g. an SPA fallback route).
+  Seeding is best-effort: it MUST NOT block or roll back project creation if it fails.
 
 ### Key Entities *(include if feature involves data)*
 

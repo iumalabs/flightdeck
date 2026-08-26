@@ -74,7 +74,7 @@ frontend hook (`app/lib/use-selected-project.ts`), ~11 screen components updated
 | II. Defense-in-Depth (control plane) | Yes | **PASS** — reuses `sessionAuth` unchanged on every new/updated route. |
 | III. DSN-Key Authentication (ingest) | N/A, confirmed unchanged | Ingest continues to resolve project solely from the DSN key (`resolveProjectByDsnKey`), exactly as Module 2 built it — this feature adds a way to *create* a DSN, not a way to *authenticate* with one differently. |
 | IV. Sentry Protocol Compatibility | N/A | This feature touches no protocol-facing surface — the new DSN's format is unchanged from every existing project's (`https://{key}@{host}/{projectId}`), so any SDK pointed at it works exactly as it already does against "demo". |
-| V. Single Worker, One Module Per Pillar | Yes — this module's central requirement | **PASS by design, proof-by-construction required**: the "resolve which project this request is scoped to" logic is genuinely cross-pillar (six different pillar modules all need it) — exactly the shared-mechanics case Principle V names explicitly. `worker/modules/projects/resolve.ts`'s `resolveRequestedProject()` is the single implementation every pillar's routes.ts imports; a dedicated test (research.md §2) verifies no pillar reimplements the fallback-to-first-project logic independently. |
+| V. Single Worker, One Module Per Pillar | Yes — this module's central requirement | **PASS by design, proof-by-construction required**: the "resolve which project this request is scoped to" logic is genuinely cross-pillar (six different pillar modules all need it) — exactly the shared-mechanics case Principle V names explicitly. `worker/modules/projects/resolve.ts`'s `resolveRequestedProject()` is the single implementation every pillar's routes.ts imports; a dedicated test (research.md §2) verifies no pillar reimplements the fallback-to-first-project logic independently. A second, concrete instance of this same rule (added post-hoc, issue #72): the optional `baseUrl` on project creation seeds default uptime checks via `worker/modules/projects/default-checks.ts`, which calls into `worker/modules/uptime/create-check.ts`'s existing shared `createCheck()` helper rather than re-implementing check insertion in the `projects` module — a seeded check goes through the exact same insert, limit-enforcement, and threshold defaults as a user-created one. |
 | VI. Deno-Only Local Toolchain | Yes | **PASS** — no new dependency. |
 | VII. One Configuration File | Yes | **PASS** — no `wrangler.jsonc` change at all; no new binding, no new migration. |
 | VIII. Strict TypeScript, Test-First, Playwright | Yes | **PASS by design** — see Testing above. |
@@ -105,8 +105,14 @@ worker/
 ├── modules/
 │   ├── projects/
 │   │   ├── routes.ts          # + POST / (create), unchanged existing source-map route
-│   │   └── resolve.ts         # new — resolveRequestedProject(db, requestedId): shared across
-│   │                           #   every pillar module, constitution Principle V
+│   │   ├── resolve.ts         # new — resolveRequestedProject(db, requestedId): shared across
+│   │   │                       #   every pillar module, constitution Principle V
+│   │   └── default-checks.ts  # issue #72 — seedDefaultUptimeChecks(): optional `baseUrl` on
+│   │                           #   project creation seeds a root HTTP check always, plus a
+│   │                           #   /health-or-/api/health check only when a live probe (issue #75's
+│   │                           #   looksLikeCatchAll()) confirms a real, distinct endpoint; calls
+│   │                           #   into uptime/create-check.ts's shared createCheck() rather than
+│   │                           #   reimplementing check insertion — another Principle V reuse
 │   ├── issues/routes.ts        # both routes gain WHERE project_id = ?, via resolve.ts
 │   ├── traces/routes.ts        # hardcoded "demo" -> resolve.ts
 │   ├── logs/routes.ts          # 2 hardcoded "demo" spots -> resolve.ts
