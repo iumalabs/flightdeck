@@ -67,7 +67,7 @@ const FEATURES = [
   },
   {
     title: "Distributed tracing",
-    body: "Span waterfalls across services, p50/p95 per transaction and latency budgets.",
+    body: "Span waterfalls across services, with p50/p95 duration per transaction.",
     icon: <path d="M4 5h11M4 10h16M8 15h12M4 20h9" />,
   },
   {

@@ -19,9 +19,9 @@ const PILLARS: Pillar[] = [
   },
   {
     title: "Distributed tracing",
-    meta: "spans · p50/p95 · budgets",
+    meta: "spans · p50/p95 · cross-linked",
     bullets: [
-      "W3C traceparent propagation across browser, backend and workers — one waterfall per request.",
+      "sentry-trace/baggage propagation across browser, backend and workers — one waterfall per request.",
       "Per-transaction p50/p95 duration, grouped by operation over a trailing window.",
       "Errors are attached to the span that produced them, so a trace opens straight into the stack trace.",
     ],
@@ -48,7 +48,7 @@ const PILLARS: Pillar[] = [
     title: "Uptime",
     meta: "http & tcp checks",
     bullets: [
-      "HTTP and TCP checks on a configurable interval, with assertions on status, body and latency.",
+      "HTTP and TCP checks on a configurable interval, tracking reachability and latency.",
       "A configurable run of consecutive failures opens an incident; consecutive recoveries close it.",
       "An optional per-check webhook fires on every incident open and resolve.",
     ],
