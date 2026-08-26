@@ -40,7 +40,7 @@ export async function seedDefaultUptimeChecks(
       target: baseUrl,
       intervalSeconds: DEFAULT_INTERVAL_SECONDS,
     });
-    if (created !== "limit-reached") result.root = created;
+    if (created !== "limit-reached" && created !== "interval-too-low") result.root = created;
   } catch (err) {
     console.error(`projects: failed to seed root uptime check for project ${projectId}`, err);
   }
@@ -74,7 +74,7 @@ export async function seedDefaultUptimeChecks(
         target: candidate,
         intervalSeconds: DEFAULT_INTERVAL_SECONDS,
       });
-      if (created !== "limit-reached") result.health = created;
+      if (created !== "limit-reached" && created !== "interval-too-low") result.health = created;
     } catch (err) {
       console.error(`projects: failed to seed health uptime check for project ${projectId}`, err);
     }
