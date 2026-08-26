@@ -85,7 +85,7 @@ const COMPARE: CompareRow[] = [
   { name: "Uptime monitoring", sentry: "yes", glitchtip: "yes", fd: "yes", color: TEAL },
   { name: "Session replay", sentry: "yes", glitchtip: "no", fd: "on the roadmap", color: AMBER },
   { name: "Profiling", sentry: "yes", glitchtip: "no", fd: "not planned", color: "#8A8A82" },
-  { name: "Single-binary self-host", sentry: "no", glitchtip: "yes", fd: "yes", color: TEAL },
+  { name: "Self-hostable", sentry: "no", glitchtip: "yes", fd: "yes", color: TEAL },
 ];
 
 export function ProductPage() {
