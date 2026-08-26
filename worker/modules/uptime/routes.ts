@@ -92,9 +92,6 @@ uptimeRoutes.post("/checks", async (c) => {
   ) {
     return c.text("Bad Request", 400);
   }
-  if (body.intervalSeconds < MIN_INTERVAL_SECONDS) {
-    return c.text("Bad Request", 400);
-  }
 
   const project = await resolveRequestedProject(c.env.DB, c.req.query("project") ?? null);
   if (!project) return c.text("Not Found", 404);
@@ -108,6 +105,11 @@ uptimeRoutes.post("/checks", async (c) => {
     recoveryThreshold: body.recoveryThreshold,
     webhookUrl: body.webhookUrl,
   });
+  // createCheck() enforces both MIN_INTERVAL_SECONDS and MAX_CHECKS_PER_PROJECT itself (T040) —
+  // this route no longer duplicates the interval check ahead of the call.
+  if (created === "interval-too-low") {
+    return c.text("Bad Request", 400);
+  }
   if (created === "limit-reached") {
     return c.text("Forbidden", 403);
   }

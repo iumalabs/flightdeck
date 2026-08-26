@@ -216,6 +216,19 @@ test("creating a check below the 60s minimum interval is rejected", async ({ req
   expect(res.status()).toBe(400);
 });
 
+// T040 (specs/006-uptime-monitoring tasks.md) — PATCH /checks/:id doesn't route through
+// createCheck() (it's an UPDATE, not an insert), so its own MIN_INTERVAL_SECONDS check remains the
+// only enforcement on that path; this proves it still rejects the same way after createCheck()
+// gained its own internal check for the create path.
+test("updating a check to below the 60s minimum interval is rejected", async ({ request }) => {
+  const checkId = await createCheck(request, { target: "https://example.com" });
+  const res = await request.patch(`/api/internal/v1/checks/${checkId}`, {
+    headers: { Cookie: await sessionCookieHeader() },
+    data: { intervalSeconds: 30 },
+  });
+  expect(res.status()).toBe(400);
+});
+
 // User Story 4 — webhook delivery, a request-capturing local endpoint the contract test controls
 // (tasks.md T031). wrangler dev's real fetch() can reach a plain localhost listener.
 test("an incident open fires exactly one webhook request, resolve fires exactly one more", async ({ request }) => {

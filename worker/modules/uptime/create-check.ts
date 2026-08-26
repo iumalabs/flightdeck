@@ -31,14 +31,20 @@ export interface CreatedCheck {
   webhookUrl: string | null;
 }
 
-// Returns the created check, or the string "limit-reached" if the project is already at
-// MAX_CHECKS_PER_PROJECT (callers decide how to surface that — a 403 for a user-initiated create,
-// a silent skip for seeding).
+// Returns the created check, or one of two rejection sentinels the caller decides how to surface
+// (a 400/403 for a user-initiated create, a silent skip for seeding):
+//   - "interval-too-low" if input.intervalSeconds is below MIN_INTERVAL_SECONDS
+//   - "limit-reached" if the project is already at MAX_CHECKS_PER_PROJECT
+// Both bounds are enforced here, inside the shared helper, rather than left to each caller to
+// re-check independently — so a future caller (another route, another seeding path) gets both
+// invariants for free instead of silently being unimplemented for it (T040).
 export async function createCheck(
   db: D1Database,
   projectId: string,
   input: CreateCheckInput,
-): Promise<CreatedCheck | "limit-reached"> {
+): Promise<CreatedCheck | "limit-reached" | "interval-too-low"> {
+  if (input.intervalSeconds < MIN_INTERVAL_SECONDS) return "interval-too-low";
+
   const { count } = await db
     .prepare(`SELECT COUNT(*) as count FROM checks WHERE project_id = ?1`)
     .bind(projectId)
