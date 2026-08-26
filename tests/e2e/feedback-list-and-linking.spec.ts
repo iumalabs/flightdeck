@@ -100,3 +100,42 @@ test("an issue with linked feedback shows a feedback section; one with none show
 
   await context.close();
 });
+
+// Regression test for issue #103: the feedback row's message span was the only flexible column
+// (`flex: 1, minWidth: 0`), while the trailing timestamp span had no width constraint and rendered
+// at its natural, unpredictable width. At narrower viewports the fixed/natural-width columns
+// (source + linked/standalone + timestamp) could consume the entire row, leaving flexbox nothing
+// to give the message span — it shrank all the way to 0px and the message text disappeared
+// entirely instead of ellipsizing. Reproduces the issue's exact 616px repro viewport.
+test("the feedback message stays visible (ellipsized, not collapsed to 0px) at a narrow viewport", async ({ browser, request, baseURL }) => {
+  const dsnKey = await getDsnKey();
+
+  const uniqueId = crypto.randomUUID().slice(0, 8);
+  const uniqueFeedbackMessage =
+    `e2e narrow-viewport feedback message ${uniqueId} — long enough to require ellipsis truncation once the row is squeezed by its fixed-width sibling columns`;
+  const fbIngest = await request.post(`/api/1/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
+    data: buildFeedbackEnvelope(crypto.randomUUID(), uniqueFeedbackMessage, ""),
+  });
+  expect(fbIngest.status()).toBe(200);
+
+  const token = await mintTestSession({
+    sub: "e2e-feedback-narrow",
+    email: "feedback-narrow@example.com",
+    role: "member",
+  });
+  const context = await browser.newContext();
+  await context.addCookies([{ name: "fd_session", value: token, url: baseURL!, sameSite: "Lax" }]);
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 616, height: 743 });
+  await page.goto("/");
+
+  await page.getByText("Feedback", { exact: true }).click();
+
+  const messageSpan = page.getByText(uniqueFeedbackMessage);
+  await expect(messageSpan).toBeVisible();
+  const box = await messageSpan.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.width).toBeGreaterThan(0);
+
+  await context.close();
+});
