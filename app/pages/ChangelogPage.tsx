@@ -22,6 +22,21 @@ interface ChangelogEntry {
 // off since they carry no user-visible meaning.
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.13.5",
+    date: "26 Aug 2026",
+    channel: "patch",
+    channelColor: "#8A8A82",
+    items: [
+      {
+        tag: "fixed",
+        color: "#F1A93C",
+        border: "rgba(241,169,60,.4)",
+        text:
+          'Settings → Connect GitHub now verifies the installation ID and owner/repo against GitHub\'s API before saving, instead of accepting fabricated input as a false "connected" success.',
+      },
+    ],
+  },
+  {
     version: "0.13.2",
     date: "26 Aug 2026",
     channel: "patch",
