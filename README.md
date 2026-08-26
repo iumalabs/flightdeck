@@ -20,9 +20,11 @@ Cloudflare Access.
 
 ## Screenshots
 
-| Overview                                                                       | Trace waterfall                                                                    |
+| Overview                                                                       | Issues                                                                             |
 | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
-| <img src="docs/screenshots/overview.jpg" width="420" alt="Dashboard overview"> | <img src="docs/screenshots/trace-waterfall.jpg" width="420" alt="Trace waterfall"> |
+| <img src="docs/screenshots/overview.jpg" width="420" alt="Dashboard overview"> | <img src="docs/screenshots/issues.jpg" width="420" alt="Issues">                   |
+| **Traces**                                                                     | **Trace waterfall**                                                                |
+| <img src="docs/screenshots/traces.jpg" width="420" alt="Traces">               | <img src="docs/screenshots/trace-waterfall.jpg" width="420" alt="Trace waterfall"> |
 
 ## Contents
 
