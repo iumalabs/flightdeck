@@ -46,3 +46,8 @@ jobs:
 
       - name: build
         run: deno task build
+
+      - name: changelog currency check
+        # Never fails the build (issue #104) — see scripts/check-changelog-current.ts's own header
+        # comment for why this is a warning annotation, not a gate.
+        run: deno task check:changelog
