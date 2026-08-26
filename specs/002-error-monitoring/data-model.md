@@ -15,7 +15,7 @@ supplied. Existing demo project (Module 1) is backfilled with a real key by this
 | Field | Type | Notes |
 |---|---|---|
 | `id` | TEXT, PRIMARY KEY | |
-| `project_id` | TEXT, NOT NULL, REFERENCES projects(id) | |
+| `project_id` | INTEGER, NOT NULL, REFERENCES projects(id) | |
 | `fingerprint` | TEXT, NOT NULL | Computed per research.md §5. |
 | `title` | TEXT, NOT NULL | Exception type + normalized message, or the message alone for stack-trace-less events. |
 | `culprit` | TEXT | Human-readable "where" — top in-app frame's function/module, or null if unavailable. |
@@ -37,7 +37,7 @@ FR — the design mockup's bulk-resolve UI is out of scope here).
 |---|---|---|
 | `id` | TEXT, PRIMARY KEY | Server-generated. |
 | `issue_id` | TEXT, NOT NULL, REFERENCES issues(id) | |
-| `project_id` | TEXT, NOT NULL | Denormalized — the retention job (research.md §8) and rate-limit-adjacent queries scope by project without a join. |
+| `project_id` | INTEGER, NOT NULL | Denormalized — the retention job (research.md §8) and rate-limit-adjacent queries scope by project without a join. |
 | `sdk_event_id` | TEXT, NOT NULL | The SDK's own `event_id` from the envelope header — used for de-duplication. |
 | `release` | TEXT | Nullable — not every event carries a release. |
 | `environment` | TEXT | Nullable. |
@@ -56,7 +56,7 @@ exceeds the default window (90 days) — deleting an `event` row never deletes o
 | Field | Type | Notes |
 |---|---|---|
 | `id` | TEXT, PRIMARY KEY | |
-| `project_id` | TEXT, NOT NULL, REFERENCES projects(id) | |
+| `project_id` | INTEGER, NOT NULL, REFERENCES projects(id) | |
 | `version` | TEXT, NOT NULL | The release string as reported by SDKs/uploads — no format validation beyond non-empty. |
 | `created_at` | TEXT, NOT NULL, DEFAULT `datetime('now')` | |
 
@@ -70,7 +70,7 @@ rejected).
 | Field | Type | Notes |
 |---|---|---|
 | `id` | TEXT, PRIMARY KEY | |
-| `project_id` | TEXT, NOT NULL | Denormalized for lookup without a join through `releases`. |
+| `project_id` | INTEGER, NOT NULL | Denormalized for lookup without a join through `releases`. |
 | `release_id` | TEXT, NOT NULL, REFERENCES releases(id) | |
 | `minified_path_pattern` | TEXT, NOT NULL | The minified file path (or pattern) this map resolves. |
 | `r2_object_key` | TEXT, NOT NULL | Where the actual map content lives (research.md §7). |
@@ -82,7 +82,7 @@ rejected).
 
 | Field | Type | Notes |
 |---|---|---|
-| `project_id` | TEXT, PRIMARY KEY, REFERENCES projects(id) | One connection per project (spec FR-009: "exactly one"), so `project_id` is the primary key, not a separate `id`. |
+| `project_id` | INTEGER, PRIMARY KEY, REFERENCES projects(id) | One connection per project (spec FR-009: "exactly one"), so `project_id` is the primary key, not a separate `id`. |
 | `owner` | TEXT, NOT NULL | GitHub repository owner/org. |
 | `repo` | TEXT, NOT NULL | GitHub repository name. |
 | `installation_id` | TEXT, NOT NULL | GitHub App installation identifier — not a secret (research.md §10), used to mint short-lived tokens on demand. |

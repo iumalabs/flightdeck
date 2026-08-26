@@ -354,3 +354,28 @@ confirm the suspect commit shown matches the actual most recent commit touching 
       currently exercises this path despite contracts/ingest-api.md explicitly naming it as part of
       the ingest contract, per FR-013 / contracts/ingest-api.md line 33 / Constitution Principle
       VIII (partial)
+
+---
+
+## Phase 9: Convergence
+
+- [X] T052 Update `specs/002-error-monitoring/data-model.md`'s `project_id` column type
+      documentation — Issue (line 18), Event (line 40), Release (line 59), Source Map (line 73),
+      and Repository Connection (line 85) all still document `project_id` as `TEXT`; migration
+      `worker/db/migrations/0009_numeric_project_id.sql` recreated every one of these tables with
+      `project_id INTEGER`, so this Phase 1 design artifact no longer matches the actual current
+      schema per `worker/db/migrations/0002_error_monitoring.sql` + `0009_numeric_project_id.sql`
+      read together (contradicts)
+- [X] T053 Update `specs/002-error-monitoring/quickstart.md`'s User Story 1/3/4 validation
+      instructions, which still assume the pre-migration-0009 literal string project id `"demo"`:
+      the D1 lookup command (`WHERE id = 'demo'`, line 17), the example DSN
+      (`http://<public_key>@127.0.0.1:8787/demo`, line 21), the curl target
+      (`http://127.0.0.1:8787/api/demo/envelope/...`, line 28), and the source-map/GitHub-connect
+      endpoint paths (`/api/internal/projects/demo/source-maps` line 44,
+      `/api/internal/projects/demo/github/connect` line 52) all predate migration 0009, which made
+      `projects.id` a numeric `INTEGER PRIMARY KEY` (the re-seeded demo project is deterministically
+      id `1`, per `tests/contract/ingest-envelope.spec.ts`'s and
+      `tests/contract/source-map-upload.spec.ts`'s own comments) and made `isNumericProjectId`
+      reject any non-numeric `{project_id}` path segment outright — literally following this
+      quickstart as written today would 403 at the ingest step and return zero rows from the D1
+      lookup (contradicts)

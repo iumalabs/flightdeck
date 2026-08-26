@@ -264,3 +264,44 @@ a second project to meaningfully switch to).
   diffs (swap a hardcoded constant for a resolved value) rather than one large one.
 - Tests are written first within each story's phase and are expected to fail until that story's
   implementation tasks land (constitution Principle VIII).
+
+---
+
+## Phase 1: Convergence
+
+**Purpose**: This module's first `/speckit-converge` pass since its original clean convergence.
+Since that pass, `project.id` was migrated from UUID to a native INTEGER PRIMARY KEY (migration
+`0009_numeric_project_id.sql`, a Sentry-SDK-compatibility fix — the real `@sentry/core` DSN parser
+rejects a non-numeric project-id path segment) and issue #72 added an optional `baseUrl` field to
+project creation that seeds default uptime checks. The shared `resolveRequestedProject()` helper and
+every pillar route's `?project=` handling correctly account for the numeric id (all read sites use
+`CAST(id AS TEXT)`, no leftover UUID-shaped assumption found). The two gaps below are documentation
+drift in this module's own governing artifacts, not functional defects — issue #72's feature is
+fully implemented and tested (contract + Playwright e2e), it just was never run through
+`/speckit-specify`/`/speckit-plan`/`/speckit-tasks` for this module.
+
+- [ ] T033 [HIGH] Backfill issue #72's `baseUrl` field and default-uptime-check-seeding behavior
+      into this module's own spec-of-record: add a Functional Requirement (and, if warranted, a User
+      Story/acceptance scenario) to `spec.md` describing that project creation MAY accept an optional
+      `baseUrl` and, when given, seeds a "Root" check (always) and a "Health" check (only when a live
+      probe of `{baseUrl}/health` or `{baseUrl}/api/health` returns a genuine, non-catch-all `200`);
+      update `plan.md`'s Project Structure tree to list `worker/modules/projects/default-checks.ts`
+      and its Constitution Check table (Principle V row) to acknowledge that this module's `projects`
+      pillar now calls into `uptime`'s `createCheck()`/`http-check.ts` helpers directly (correct reuse
+      per Principle V, but currently undocumented); update `.specify/memory/constitution.md`'s Product
+      Scope & Module Roadmap item 8 description to mention this capability. Currently implemented at
+      `worker/modules/projects/routes.ts:17-121`, `worker/modules/projects/default-checks.ts` (whole
+      file), and tested at `tests/contract/projects-api.spec.ts:156-299` and
+      `tests/e2e/create-project-with-base-url.spec.ts` (whole file) — none of `spec.md`, `plan.md`, or
+      `tasks.md` (T001-T032) mention `baseUrl` anywhere.
+- [X] T034 [LOW] Correct `quickstart.md`'s "Validate User Story 1" example: the `curl` target
+      `http://127.0.0.1:8787/api/internal/projects` is missing the `/v1/` prefix every route
+      actually mounts under (`worker/index.ts:87`, `app.route("/api/internal/v1/projects", ...)`,
+      landed same-day via the API-versioning PR), and the isolation check
+      `GET /api/internal/issues?project=demo` (also missing `/v1/`) relies on a pre-migration-0009
+      assumption that a project's id can literally be the string `"demo"` — migration 0009 made
+      every project id a native INTEGER (the demo project reseeded by that migration is id `1`, not
+      `"demo"`), so `?project=demo` today only "works" as documented by accident (an unresolvable id
+      falls back to the first project by `created_at ASC`, which happens to be demo in a fresh DB) —
+      not because it names the demo project the way the doc implies. Replace the literal `"demo"`
+      example with the actual returned numeric id, and fix both paths to include `/v1/`.

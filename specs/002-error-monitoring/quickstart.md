@@ -14,18 +14,18 @@
 ```sh
 # Look up the demo project's DSN (seeded by this module's migration)
 deno run -A npm:wrangler d1 execute flightdeck-production --local \
-  --command "SELECT id, dsn_public_key FROM projects WHERE id = 'demo'"
+  --command "SELECT id, dsn_public_key FROM projects WHERE id = 1"
 ```
 
 Configure a real `@sentry/browser` (or `@sentry/react`) instance and a real Python `sentry-sdk`
-instance, each with `dsn: "http://<public_key>@127.0.0.1:8787/demo"` (local dev — no TLS), trigger a
+instance, each with `dsn: "http://<public_key>@127.0.0.1:8787/1"` (local dev — no TLS), trigger a
 captured exception from each, and confirm both appear in `GET /api/internal/issues` (or the Issues
 screen in the browser) as separate issues with `eventCount: 1`. Trigger the JS error a second time
 and confirm the existing issue's `eventCount` becomes 2, not a new issue.
 
 Contract-level alternative (no real SDK install needed): hand-craft an envelope body matching
 `contracts/ingest-api.md`'s grammar and `curl` it directly at
-`http://127.0.0.1:8787/api/demo/envelope/?sentry_key=<key>&sentry_version=7`.
+`http://127.0.0.1:8787/api/1/envelope/?sentry_key=<key>&sentry_version=7`.
 
 ## Validate User Story 2 — issue detail
 
@@ -41,7 +41,7 @@ User Story 1 are all present in the response.
 
 1. Build a minified JS bundle with a real source map from any small test project.
 2. Trigger an error from the minified bundle against the demo project's DSN.
-3. Upload the source map: `POST /api/internal/projects/demo/source-maps` (multipart: `release`,
+3. Upload the source map: `POST /api/internal/projects/1/source-maps` (multipart: `release`,
    `minifiedPathPattern`, `file`).
 4. Re-fetch the issue's detail and confirm the stack trace now shows original file/function/line,
    not the minified equivalent — without re-triggering the error.
@@ -49,7 +49,7 @@ User Story 1 are all present in the response.
 ## Validate User Story 4 — suspect commits
 
 1. Complete a GitHub App installation against a real (test) repository.
-2. `POST /api/internal/projects/demo/github/connect` with the resulting installation id/owner/repo.
+2. `POST /api/internal/projects/1/github/connect` with the resulting installation id/owner/repo.
 3. Trigger an error whose culprit frame's file path exists in that repository.
 4. Confirm the issue detail's `suspectCommit` field names the actual most recent commit that
    touched that file.

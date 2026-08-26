@@ -39,7 +39,7 @@ commit in the specified range.
 
 | Field | Type | Notes |
 |---|---|---|
-| `project_id` | TEXT, NOT NULL, REFERENCES projects(id) | |
+| `project_id` | INTEGER, NOT NULL, REFERENCES projects(id) | |
 | `release_id` | TEXT, NOT NULL, REFERENCES releases(id) | |
 | `environment` | TEXT, NOT NULL | |
 | `date` | TEXT, NOT NULL | The UTC day this aggregate row covers. |
@@ -58,7 +58,7 @@ breakdown and the release list's aggregate figures.
 
 | Field | Type | Notes |
 |---|---|---|
-| `project_id` | TEXT, NOT NULL | |
+| `project_id` | INTEGER, NOT NULL | |
 | `release_id` | TEXT, NOT NULL | |
 | `environment` | TEXT, NOT NULL | |
 | `date` | TEXT, NOT NULL | |
@@ -76,8 +76,8 @@ the bucket, understood as exact below the cap and reported as "10,000+" beyond i
 | Field | Type | Notes |
 |---|---|---|
 | `id` | TEXT, PRIMARY KEY | |
-| `project_id` | TEXT, NOT NULL, REFERENCES projects(id) | Project-scoped (research.md §4), matching sentry-cli's own `SENTRY_PROJECT` usage. |
-| `token_hash` | TEXT, NOT NULL | Salted hash — the raw token value is never stored. |
+| `project_id` | INTEGER, NOT NULL, REFERENCES projects(id) | Project-scoped (research.md §4), matching sentry-cli's own `SENTRY_PROJECT` usage. |
+| `token_hash` | TEXT, NOT NULL | HMAC-SHA256 keyed by the `API_TOKEN_PEPPER` Worker secret (not a per-token salt — a shared server-side pepper, chosen so pre-existing tokens keep authenticating via a legacy plain-SHA256 fallback with no forced reissuance; see `worker/auth/api-token.ts`). The raw token value is never stored. |
 | `created_by` | TEXT, NOT NULL, REFERENCES users(sub) | |
 | `created_at` | TEXT, NOT NULL, DEFAULT `datetime('now')` | |
 | `revoked_at` | TEXT, NULLABLE | Null while active. |
