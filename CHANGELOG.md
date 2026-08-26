@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.13.3](https://github.com/iumalabs/flightdeck/compare/v0.13.2...v0.13.3) (2026-08-26)
+
+
+### Bug Fixes
+
+* **changelog:** add 0.13.2 entry that landed mid-task ([61ca2fd](https://github.com/iumalabs/flightdeck/commit/61ca2fd7d4d436b1a26e982e782ac847d81df4c0))
+* **changelog:** catch up public changelog through 0.13.1, correct region claim ([35ea69c](https://github.com/iumalabs/flightdeck/commit/35ea69c1723b3aaa31b20e5c12e1ee51ccd65f46))
+* **changelog:** catch up public changelog, correct region claim ([35b5a5e](https://github.com/iumalabs/flightdeck/commit/35b5a5eabb5f04ae0eafa2a296d4c748e0fdf6b8))
+
 ## [0.13.2](https://github.com/iumalabs/flightdeck/compare/v0.13.1...v0.13.2) (2026-08-26)
 
 
