@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.5](https://github.com/iumalabs/flightdeck/compare/v0.13.4...v0.13.5) (2026-08-26)
+
+
+### Bug Fixes
+
+* **github:** validate installation ID and owner/repo against GitHub before connecting ([#100](https://github.com/iumalabs/flightdeck/issues/100)) ([eeed7ba](https://github.com/iumalabs/flightdeck/commit/eeed7ba90910f0e01e4be24b195e15e3ed117113))
+
 ## [0.13.4](https://github.com/iumalabs/flightdeck/compare/v0.13.3...v0.13.4) (2026-08-26)
 
 
