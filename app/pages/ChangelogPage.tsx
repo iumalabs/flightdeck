@@ -22,6 +22,130 @@ interface ChangelogEntry {
 // off since they carry no user-visible meaning.
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.13.1",
+    date: "25 Aug 2026",
+    channel: "patch",
+    channelColor: "#8A8A82",
+    items: [
+      {
+        tag: "fixed",
+        color: "#F1A93C",
+        border: "rgba(241,169,60,.4)",
+        text:
+          "Automatic uptime-check seeding no longer treats an SPA's catch-all response as a real health endpoint.",
+      },
+    ],
+  },
+  {
+    version: "0.13.0",
+    date: "25 Aug 2026",
+    channel: "minor",
+    channelColor: "#8A8A82",
+    items: [
+      {
+        tag: "added",
+        color: LIME,
+        border: "rgba(184,241,53,.4)",
+        text:
+          "Creating a project can seed a few default uptime checks (root + health endpoint) automatically from its base URL.",
+      },
+    ],
+  },
+  {
+    version: "0.12.0",
+    date: "25 Aug 2026",
+    channel: "minor",
+    channelColor: "#8A8A82",
+    items: [
+      {
+        tag: "added",
+        color: LIME,
+        border: "rgba(184,241,53,.4)",
+        text:
+          "DSN project ids are now plain numbers instead of UUIDs, so an unmodified @sentry/* SDK — whose DSN parser rejects non-numeric project ids — can point straight at FlightDeck.",
+      },
+    ],
+  },
+  {
+    version: "0.11.2",
+    date: "25 Aug 2026",
+    channel: "patch",
+    channelColor: "#8A8A82",
+    items: [
+      {
+        tag: "fixed",
+        color: "#F1A93C",
+        border: "rgba(241,169,60,.4)",
+        text: "The Logs screen's search toolbar no longer overflows at narrow browser widths.",
+      },
+    ],
+  },
+  {
+    version: "0.11.1",
+    date: "25 Aug 2026",
+    channel: "patch",
+    channelColor: "#8A8A82",
+    items: [
+      {
+        tag: "fixed",
+        color: "#F1A93C",
+        border: "rgba(241,169,60,.4)",
+        text:
+          "Signed-in users can now reach the public marketing pages (Docs, Changelog, Product, Self-hosting) and deep-link or refresh into a specific app-shell screen.",
+      },
+      {
+        tag: "fixed",
+        color: "#F1A93C",
+        border: "rgba(241,169,60,.4)",
+        text:
+          "An uptime check targeting FlightDeck's own domain no longer false-positives as down.",
+      },
+    ],
+  },
+  {
+    version: "0.11.0",
+    date: "24 Aug 2026",
+    channel: "minor",
+    channelColor: "#8A8A82",
+    items: [
+      {
+        tag: "added",
+        color: LIME,
+        border: "rgba(184,241,53,.4)",
+        text: "The crash-report dialog now prefills name and email from query params.",
+      },
+      {
+        tag: "fixed",
+        color: "#F1A93C",
+        border: "rgba(241,169,60,.4)",
+        text:
+          "Uptime incident evaluation is now correctly wired up, so the Alerts screen reflects real incidents instead of always showing empty.",
+      },
+    ],
+  },
+  {
+    version: "0.10.0",
+    date: "24 Aug 2026",
+    channel: "minor",
+    channelColor: "#8A8A82",
+    items: [
+      {
+        tag: "added",
+        color: LIME,
+        border: "rgba(184,241,53,.4)",
+        text:
+          "Release routes are now project-scoped, and adoption percentage is windowed to recent sessions instead of all-time.",
+      },
+      {
+        tag: "fixed",
+        color: "#F1A93C",
+        border: "rgba(241,169,60,.4)",
+        text:
+          "Issue detail now distinguishes retention-pruned event data from data that was never recorded.",
+      },
+    ],
+  },
+  {
     version: "0.9.1",
     date: "23 Aug 2026",
     channel: "patch",
@@ -104,7 +228,7 @@ const CHANGELOG: ChangelogEntry[] = [
         tag: "added",
         color: LIME,
         border: "rgba(184,241,53,.4)",
-        text: "Uptime monitoring — HTTP/TCP checks from four regions with incident-aware alerting.",
+        text: "Uptime monitoring — HTTP/TCP checks with incident-aware alerting.",
       },
       {
         tag: "added",
