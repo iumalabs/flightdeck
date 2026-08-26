@@ -22,6 +22,20 @@ interface ChangelogEntry {
 // off since they carry no user-visible meaning.
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.13.2",
+    date: "26 Aug 2026",
+    channel: "patch",
+    channelColor: "#8A8A82",
+    items: [
+      {
+        tag: "fixed",
+        color: "#F1A93C",
+        border: "rgba(241,169,60,.4)",
+        text: "The Traces waterfall now renders correctly against the real API's field names.",
+      },
+    ],
+  },
+  {
     version: "0.13.1",
     date: "25 Aug 2026",
     channel: "patch",
