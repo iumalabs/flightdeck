@@ -35,7 +35,7 @@ const ENV_VARS: EnvVar[] = [
   },
   {
     key: "FD_ACCESS_TEAM",
-    example: "yugai.cloudflareaccess.com",
+    example: "your-team.cloudflareaccess.com",
     note: "Cloudflare Access team domain; enables JWT verification.",
   },
   {

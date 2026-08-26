@@ -86,7 +86,7 @@ X-FlightDeck-Signature: sha256=9f1a…
     body:
       "The dashboard sits behind Cloudflare Access — FlightDeck trusts the verified identity from an Access-gated login exchange and maps it to a member. Ingest endpoints stay public and are authenticated by the DSN key.",
     code: `# wrangler.jsonc / access policy
-team  = "yugai.cloudflareaccess.com"
+team  = "your-team.cloudflareaccess.com"
 aud   = "<this application's Access AUD tag>"
 rules = ["emails ending in @acme.io", "group: platform"]
 
