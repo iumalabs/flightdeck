@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.13.6](https://github.com/iumalabs/flightdeck/compare/v0.13.5...v0.13.6) (2026-08-26)
+
+
+### Bug Fixes
+
+* **changelog:** catch up public changelog through 0.13.5 ([#107](https://github.com/iumalabs/flightdeck/issues/107)) ([ea5d6e7](https://github.com/iumalabs/flightdeck/commit/ea5d6e7d1d95787b9ba8146df08018ba563911b8))
+* **feedback:** keep message text visible at narrow viewports ([#106](https://github.com/iumalabs/flightdeck/issues/106)) ([555676c](https://github.com/iumalabs/flightdeck/commit/555676c965675b7d6ca890b6626a2839ffd2358b))
+* **uptime:** align check-row columns to first line of wrapped name ([#105](https://github.com/iumalabs/flightdeck/issues/105)) ([d684887](https://github.com/iumalabs/flightdeck/commit/d6848877e8957d91f0e9d88423ddbd28909f1679))
+
 ## [0.13.5](https://github.com/iumalabs/flightdeck/compare/v0.13.4...v0.13.5) (2026-08-26)
 
 
