@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.13.2](https://github.com/iumalabs/flightdeck/compare/v0.13.1...v0.13.2) (2026-08-26)
+
+
+### Bug Fixes
+
+* **marketing:** drop false 'manual merge and split' claim from Product page ([995e780](https://github.com/iumalabs/flightdeck/commit/995e780ccb2dd93ed680d788b6f4c74ab5d55dfc))
+* **marketing:** drop false 'manual merge and split' claim from Product page ([b780c30](https://github.com/iumalabs/flightdeck/commit/b780c306936aec89fb33bb3f35bab9b32b00d664))
+* **marketing:** remove fake Docker Compose / Kubernetes self-hosting paths ([4ec5b2f](https://github.com/iumalabs/flightdeck/commit/4ec5b2fd824832c9a039cad6d77c0436bbd74ca1))
+* **marketing:** remove fake Docker Compose / Kubernetes self-hosting paths ([3f79a3c](https://github.com/iumalabs/flightdeck/commit/3f79a3cb51072503dbdbc11566e3fcff1658c919)), closes [#86](https://github.com/iumalabs/flightdeck/issues/86)
+* **marketing:** rewrite Docs page to describe real, shipped behavior ([ddfeb71](https://github.com/iumalabs/flightdeck/commit/ddfeb719ae360748a1d40fc1f03fb638c281826d))
+* **marketing:** rewrite Docs page to describe real, shipped behavior ([ac8de75](https://github.com/iumalabs/flightdeck/commit/ac8de75a8f5af79b509ac57d5e87b121ab0e68ca))
+* remove duplicate T033 entry from tasks.md ([7f554e4](https://github.com/iumalabs/flightdeck/commit/7f554e44331259a1c34e323c7acd1e4afb98fcc4))
+* **traces:** align waterfall-layout field names with real camelCase API contract ([80f2b8a](https://github.com/iumalabs/flightdeck/commit/80f2b8a7786ab177650b34db3b03629e9f585ad3))
+* **traces:** align waterfall-layout field names with real camelCase API contract ([850eb51](https://github.com/iumalabs/flightdeck/commit/850eb519fbc481df2a11ecb2790254336d7737a5)), closes [#79](https://github.com/iumalabs/flightdeck/issues/79)
+* **uptime:** enforce MIN_INTERVAL_SECONDS inside createCheck() ([1903c12](https://github.com/iumalabs/flightdeck/commit/1903c12ad4df791f500d0d55dbdd1fa34a3de7a4))
+* **uptime:** enforce MIN_INTERVAL_SECONDS inside createCheck() ([fc97c50](https://github.com/iumalabs/flightdeck/commit/fc97c50170796217a621d621bf4a6e2c3b12aaef))
+
 ## [0.13.1](https://github.com/iumalabs/flightdeck/compare/v0.13.0...v0.13.1) (2026-08-25)
 
 
