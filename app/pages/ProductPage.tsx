@@ -12,7 +12,7 @@ const PILLARS: Pillar[] = [
     title: "Error monitoring",
     meta: "issues · grouping · symbolication",
     bullets: [
-      "Fingerprinting by exception type, culprit frame and normalised message, with manual merge and split.",
+      "Fingerprinting by exception type, culprit frame and normalised message.",
       "Source maps, dSYM, ProGuard and Go build IDs uploaded from CI; frames resolve to app code, vendor frames collapse by default.",
       "Local variables, breadcrumbs, request context and suspect commit derived from the release's diff.",
     ],
