@@ -171,7 +171,14 @@ export function FeedbackScreen({ projectId }: FeedbackScreenProps) {
                 <span
                   style={{
                     flex: 1,
-                    minWidth: 0,
+                    // Floor the message column so it ellipsizes instead of collapsing to 0px
+                    // once the fixed-width columns to its right (plus the now flex:none
+                    // timestamp) consume the rest of a narrow row (#103). Kept modest (rather than
+                    // e.g. 120px) because at the issue's 616px repro width the source/status
+                    // columns are already squeezed to their own single-word floors — a larger
+                    // message floor would just push the row's total width past its container and
+                    // get silently clipped by the content pane's overflowX: hidden instead.
+                    minWidth: 100,
                     fontSize: 13.5,
                     overflow: "hidden",
                     textOverflow: "ellipsis",
@@ -186,7 +193,21 @@ export function FeedbackScreen({ projectId }: FeedbackScreenProps) {
                 <span style={{ width: 90, fontSize: 12, color: "var(--fg3)" }}>
                   {item.issueId ? "linked" : "standalone"}
                 </span>
-                <span style={{ color: "var(--fg3)", fontSize: 12 }}>{item.receivedAt}</span>
+                <span
+                  style={{
+                    // Fixed, non-shrinking footprint (sized to comfortably fit the
+                    // "YYYY-MM-DD HH:MM:SS" format `receivedAt` renders in, ~96px observed) so
+                    // this column no longer eats into the message column's remaining space
+                    // unpredictably (#103).
+                    flex: "none",
+                    width: 104,
+                    whiteSpace: "nowrap",
+                    color: "var(--fg3)",
+                    fontSize: 12,
+                  }}
+                >
+                  {item.receivedAt}
+                </span>
               </div>
             ))}
           </div>
