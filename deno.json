@@ -37,7 +37,8 @@
     "db:migrations:apply:preview:local": "deno run -A npm:wrangler d1 migrations apply flightdeck-preview --local --env preview",
     "db:migrations:apply:preview:remote": "deno run -A npm:wrangler d1 migrations apply flightdeck-preview --remote --env preview",
     "fmt": "deno fmt",
-    "lint": "deno lint"
+    "lint": "deno lint",
+    "check:changelog": "deno run -A scripts/check-changelog-current.ts"
   },
   "compilerOptions": {
     "strict": true,
@@ -60,6 +61,7 @@
       "worker/",
       "app/",
       "tests/",
+      "scripts/",
       "vite.config.ts",
       "README.md",
       "CLAUDE.md"
@@ -71,6 +73,7 @@
       "worker/",
       "app/",
       "tests/",
+      "scripts/",
       "vite.config.ts"
     ],
     "exclude": ["app/.vite/"]
