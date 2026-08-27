@@ -9,6 +9,7 @@ interface Issue {
   eventCount: number;
   firstSeen: string;
   lastSeen: string;
+  status: string;
 }
 
 const LEVEL_COLOR: Record<string, string> = {
@@ -16,6 +17,18 @@ const LEVEL_COLOR: Record<string, string> = {
   warning: "#FFC53D",
   info: "#4FD1C5",
 };
+
+type StatusFilter = "unresolved" | "resolved" | "all";
+
+// worker/modules/issues/routes.ts's GET / only distinguishes "unresolved" (the implicit default —
+// any query value other than "all", including none) from "all" (every status). There's no
+// server-side resolved-only filter, so the "Resolved" option below is fetched via "all" and
+// narrowed client-side using each issue's own `status` field.
+const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
+  { value: "unresolved", label: "Unresolved" },
+  { value: "resolved", label: "Resolved" },
+  { value: "all", label: "All" },
+];
 
 export interface IssuesScreenProps {
   projectId: string | null;
@@ -25,11 +38,16 @@ export interface IssuesScreenProps {
 export function IssuesScreen({ projectId, onSelectIssue }: IssuesScreenProps) {
   const [loading, setLoading] = useState(true);
   const [issues, setIssues] = useState<Issue[] | null>(null);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("unresolved");
 
   useEffect(() => {
     let cancelled = false;
-    const params = projectId ? `?project=${projectId}` : "";
-    fetch(`/api/internal/v1/issues${params}`, { credentials: "same-origin" })
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (projectId) params.set("project", projectId);
+    if (statusFilter !== "unresolved") params.set("status", "all");
+    const qs = params.toString();
+    fetch(`/api/internal/v1/issues${qs ? `?${qs}` : ""}`, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() as Promise<{ issues: Issue[] }> : null))
       .then((data) => {
         if (!cancelled) setIssues(data?.issues ?? []);
@@ -43,7 +61,11 @@ export function IssuesScreen({ projectId, onSelectIssue }: IssuesScreenProps) {
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [projectId, statusFilter]);
+
+  const visibleIssues = statusFilter === "resolved"
+    ? issues?.filter((issue) => issue.status === "resolved") ?? null
+    : issues;
 
   return (
     <div>
@@ -58,12 +80,31 @@ export function IssuesScreen({ projectId, onSelectIssue }: IssuesScreenProps) {
         Issues
       </h1>
 
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        {STATUS_FILTERS.map(({ value, label }) => (
+          <span
+            key={value}
+            onClick={() => setStatusFilter(value)}
+            style={{
+              cursor: "pointer",
+              padding: "3px 8px",
+              borderRadius: 4,
+              fontSize: 11.5,
+              background: statusFilter === value ? "rgba(184,241,53,.12)" : "var(--chip)",
+              color: statusFilter === value ? "var(--accent)" : "var(--fg2)",
+            }}
+          >
+            {label}
+          </span>
+        ))}
+      </div>
+
       {loading
         ? null
-        : issues && issues.length > 0
+        : visibleIssues && visibleIssues.length > 0
         ? (
           <div style={{ border: "1px solid var(--line)", background: "var(--panel)" }}>
-            {issues.map((issue) => (
+            {visibleIssues.map((issue) => (
               <div
                 key={issue.id}
                 onClick={() => onSelectIssue(issue.id)}
@@ -112,10 +153,17 @@ export function IssuesScreen({ projectId, onSelectIssue }: IssuesScreenProps) {
             ))}
           </div>
         )
-        : (
+        : statusFilter === "unresolved"
+        ? (
           <EmptyState
             title="No issues yet"
             body="Install an SDK to get started — errors will show up here, grouped and with full stack traces."
+          />
+        )
+        : (
+          <EmptyState
+            title={statusFilter === "resolved" ? "No resolved issues" : "No issues"}
+            body="Nothing matches this filter yet."
           />
         )}
     </div>

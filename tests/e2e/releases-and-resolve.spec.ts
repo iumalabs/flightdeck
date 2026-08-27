@@ -80,5 +80,16 @@ test("releases list -> detail shows health figures; issue resolve/regression flo
   await page.getByText("Issues", { exact: true }).click();
   await expect(page.getByText(new RegExp(`^${uniqueTitle}:`))).toHaveCount(0);
 
+  // Switching the status filter to Resolved (or All) brings it back — issue #110.
+  await page.getByText("Resolved", { exact: true }).click();
+  await expect(page.getByText(new RegExp(`^${uniqueTitle}:`))).toBeVisible();
+
+  await page.getByText("All", { exact: true }).click();
+  await expect(page.getByText(new RegExp(`^${uniqueTitle}:`))).toBeVisible();
+
+  // Switching back to Unresolved hides it again.
+  await page.getByText("Unresolved", { exact: true }).click();
+  await expect(page.getByText(new RegExp(`^${uniqueTitle}:`))).toHaveCount(0);
+
   await context.close();
 });
