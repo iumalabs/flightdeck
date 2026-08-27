@@ -152,6 +152,14 @@ export function UptimeScreen({ projectId, onSelectCheck }: UptimeScreenProps) {
               <div
                 key={check.id}
                 onClick={() => onSelectCheck(check.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelectCheck(check.id);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
                 style={{
                   display: "flex",
                   alignItems: "flex-start",

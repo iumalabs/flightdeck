@@ -107,6 +107,18 @@ test("navigating from the issues list into an issue's detail and back", async ({
   await expect(page.getByRole("heading", { name: "Issues", exact: true })).toBeVisible();
   await expect(issueRow).toBeVisible();
 
+  // issue #120 — the same row/back-link must also be reachable and operable from the keyboard
+  // alone (no click): focus each element directly and activate it with Enter.
+  const issueRowButton = page.locator('[role="button"]').filter({ hasText: uniqueTitle });
+  await issueRowButton.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: new RegExp(`^${uniqueTitle}:`) })).toBeVisible();
+
+  const backToIssuesLink = page.getByText("← Back to Issues");
+  await backToIssuesLink.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: "Issues", exact: true })).toBeVisible();
+
   await context.close();
 });
 

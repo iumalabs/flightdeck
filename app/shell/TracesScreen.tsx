@@ -78,6 +78,14 @@ export function TracesScreen({ projectId, onSelectTransaction }: TracesScreenPro
               <div
                 key={op.name}
                 onClick={() => onSelectTransaction(op.latestTransactionId)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelectTransaction(op.latestTransactionId);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
                 style={{
                   display: "flex",
                   alignItems: "center",

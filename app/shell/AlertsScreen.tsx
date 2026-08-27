@@ -59,6 +59,14 @@ export function AlertsScreen({ projectId, onSelectCheck }: AlertsScreenProps) {
               <div
                 key={incident.id}
                 onClick={() => onSelectCheck(incident.checkId)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelectCheck(incident.checkId);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
                 style={{
                   display: "flex",
                   alignItems: "center",
