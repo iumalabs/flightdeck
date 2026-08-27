@@ -72,9 +72,7 @@ export function TracesScreen({ projectId, onSelectTransaction }: TracesScreenPro
               }}
             >
               <span style={{ flex: 1 }}>Operation</span>
-              <span style={{ width: 70, textAlign: "right" }}>p50</span>
-              <span style={{ width: 70, textAlign: "right" }}>p95</span>
-              <span style={{ width: 60, textAlign: "right" }}>Count</span>
+              <span>Count</span>
             </div>
             {sorted.map((op) => (
               <div
@@ -89,6 +87,12 @@ export function TracesScreen({ projectId, onSelectTransaction }: TracesScreenPro
                   cursor: "pointer",
                 }}
               >
+                {
+                  /* issues/108 — p50/p95 move into the muted subline (the same `·`-joined
+                    metadata idiom used elsewhere, e.g. IssueDetailScreen's suspect-commit line)
+                    instead of two more fixed-width trailing columns, so the flex:1 name span
+                    keeps enough room to stay legible at narrow widths. */
+                }
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <div
                     style={{
@@ -101,43 +105,25 @@ export function TracesScreen({ projectId, onSelectTransaction }: TracesScreenPro
                   >
                     {op.name}
                   </div>
-                  {op.op && (
-                    <div
-                      style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--fg3)" }}
-                    >
-                      {op.op}
-                    </div>
-                  )}
+                  <div
+                    style={{
+                      fontFamily: "var(--font-mono)",
+                      fontSize: 11,
+                      color: "var(--fg3)",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {op.op ? `${op.op} · ` : ""}p50 {op.p50Ms}ms · p95 {op.p95Ms}ms
+                  </div>
                 </span>
                 <span
                   style={{
-                    width: 70,
-                    textAlign: "right",
+                    flex: "none",
                     fontFamily: "var(--font-mono)",
-                    fontSize: 12.5,
+                    fontSize: 12,
                     color: "var(--fg2)",
-                  }}
-                >
-                  {op.p50Ms}ms
-                </span>
-                <span
-                  style={{
-                    width: 70,
-                    textAlign: "right",
-                    fontFamily: "var(--font-mono)",
-                    fontSize: 12.5,
-                    color: "var(--fg2)",
-                  }}
-                >
-                  {op.p95Ms}ms
-                </span>
-                <span
-                  style={{
-                    width: 60,
-                    textAlign: "right",
-                    fontFamily: "var(--font-mono)",
-                    fontSize: 12.5,
-                    color: "var(--fg3)",
                   }}
                 >
                   {op.count}
