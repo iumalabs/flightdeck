@@ -123,6 +123,14 @@ function FeedbackDetailView(
             Linked issue:{" "}
             <span
               onClick={() => onSelectIssue(linkedIssue.id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onSelectIssue(linkedIssue.id);
+                }
+              }}
+              role="button"
+              tabIndex={0}
               style={{ color: "var(--accent)", cursor: "pointer" }}
             >
               {linkedIssue.title}
