@@ -101,12 +101,19 @@ function FeedbackDetailView(
 
 export interface FeedbackScreenProps {
   projectId: string | null;
+  // issue #109 — selection now lives in AppShell (matching issues/traces/releases/uptime) so it's
+  // reflected in the URL (/web-app/feedback/{id}) instead of being purely local React state that
+  // vanished on reload and didn't participate in browser back/forward.
+  selectedFeedbackId: string | null;
+  onSelectFeedback: (id: string) => void;
+  onBackToFeedback: () => void;
 }
 
-export function FeedbackScreen({ projectId }: FeedbackScreenProps) {
+export function FeedbackScreen(
+  { projectId, selectedFeedbackId, onSelectFeedback, onBackToFeedback }: FeedbackScreenProps,
+) {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<FeedbackListItem[] | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -127,12 +134,12 @@ export function FeedbackScreen({ projectId }: FeedbackScreenProps) {
     };
   }, [projectId]);
 
-  if (selectedId) {
+  if (selectedFeedbackId) {
     return (
       <FeedbackDetailView
-        id={selectedId}
+        id={selectedFeedbackId}
         projectId={projectId}
-        onBack={() => setSelectedId(null)}
+        onBack={onBackToFeedback}
       />
     );
   }
@@ -158,7 +165,7 @@ export function FeedbackScreen({ projectId }: FeedbackScreenProps) {
             {items.map((item) => (
               <div
                 key={item.id}
-                onClick={() => setSelectedId(item.id)}
+                onClick={() => onSelectFeedback(item.id)}
                 style={{
                   display: "flex",
                   alignItems: "center",

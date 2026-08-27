@@ -81,19 +81,59 @@ const KNOWN_SCREENS = new Set<string>([
 // AppShell.tsx that needs it).
 const APP_SHELL_PATH_PREFIX = "/web-app";
 
-// URL -> screen. Only the top-level sidebar screens are addressable by URL (detail sub-screens
-// like "issue-detail" need an id the URL scheme doesn't carry yet) — anything else, including the
-// bare "/" and "/web-app" roots, falls back to Overview.
-function screenFromPathname(pathname: string): string {
-  const prefix = `${APP_SHELL_PATH_PREFIX}/`;
-  const segment = pathname.startsWith(prefix) ? pathname.slice(prefix.length).split("/")[0] : "";
-  return segment && KNOWN_SCREENS.has(segment) ? segment : "overview";
+// issue #109 — maps a list screen's URL segment to the internal "detail" screen name shown when an
+// id segment follows it, e.g. "/web-app/issues/abc" -> screen "issue-detail". "feedback" is
+// deliberately absent: FeedbackScreen renders its own list/detail split from a single screen name
+// (see FeedbackScreen.tsx), so a feedback id segment changes which item it shows, not which
+// internal screen is selected.
+const DETAIL_SCREEN_FOR_LIST: Record<string, string> = {
+  issues: "issue-detail",
+  traces: "trace-detail",
+  releases: "release-detail",
+  uptime: "check-detail",
+};
+
+interface ParsedPathname {
+  screen: string;
+  detailId: string | null;
 }
 
-// screen -> URL, the inverse of screenFromPathname (Overview normalizes to the bare prefix, not
-// "/web-app/overview").
+// URL -> screen (+ optional selected-item id). issue #58 made the top-level sidebar screens
+// addressable; issue #109 extends that one level deeper so the specific issue/trace/release/uptime
+// check/feedback item selected within a screen is also addressable, bookmarkable, and survives a
+// reload — the second pathname segment, if present, is that item's id. Anything unrecognized,
+// including the bare "/" and "/web-app" roots, falls back to Overview.
+function parsePathname(pathname: string): ParsedPathname {
+  const prefix = `${APP_SHELL_PATH_PREFIX}/`;
+  const rest = pathname.startsWith(prefix) ? pathname.slice(prefix.length) : "";
+  const [segment, idSegment] = rest.split("/");
+
+  if (!segment || !KNOWN_SCREENS.has(segment)) {
+    return { screen: "overview", detailId: null };
+  }
+  if (!idSegment) {
+    return { screen: segment, detailId: null };
+  }
+
+  let detailId: string;
+  try {
+    detailId = decodeURIComponent(idSegment);
+  } catch {
+    detailId = idSegment;
+  }
+  return { screen: DETAIL_SCREEN_FOR_LIST[segment] ?? segment, detailId };
+}
+
+// screen -> URL, the inverse of parsePathname for the top-level (no-id) case (Overview normalizes
+// to the bare prefix, not "/web-app/overview").
 function pathForScreen(screen: string): string {
   return screen === "overview" ? APP_SHELL_PATH_PREFIX : `${APP_SHELL_PATH_PREFIX}/${screen}`;
+}
+
+// screen -> URL for a specific selected item, e.g. pathForDetail("issues", "abc") ->
+// "/web-app/issues/abc".
+function pathForDetail(listScreen: string, id: string): string {
+  return `${pathForScreen(listScreen)}/${encodeURIComponent(id)}`;
 }
 
 // issues/38 — a native <select> only themes its closed box; the open popup falls back to
@@ -291,6 +331,9 @@ function renderScreen(
   selectedCheckId: string | null,
   onSelectCheck: (id: string) => void,
   onBackToUptime: () => void,
+  selectedFeedbackId: string | null,
+  onSelectFeedback: (id: string) => void,
+  onBackToFeedback: () => void,
 ) {
   switch (screen) {
     case "overview":
@@ -349,7 +392,14 @@ function renderScreen(
         )
         : <UptimeScreen projectId={projectId} onSelectCheck={onSelectCheck} />;
     case "feedback":
-      return <FeedbackScreen projectId={projectId} />;
+      return (
+        <FeedbackScreen
+          projectId={projectId}
+          selectedFeedbackId={selectedFeedbackId}
+          onSelectFeedback={onSelectFeedback}
+          onBackToFeedback={onBackToFeedback}
+        />
+      );
     case "alerts":
       return <AlertsScreen projectId={projectId} onSelectCheck={onSelectCheck} />;
     case "settings":
@@ -368,54 +418,91 @@ function renderScreen(
 }
 
 export function AppShell({ session, signOut, navigate, pathname }: AppShellProps) {
-  const [screen, setScreen] = useState(() => screenFromPathname(pathname));
-  const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
-  const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
-  const [selectedReleaseId, setSelectedReleaseId] = useState<string | null>(null);
-  const [selectedCheckId, setSelectedCheckId] = useState<string | null>(null);
+  const initialParsed = parsePathname(pathname);
+  const [screen, setScreen] = useState(initialParsed.screen);
+  const [selectedIssueId, setSelectedIssueId] = useState<string | null>(
+    initialParsed.screen === "issue-detail" ? initialParsed.detailId : null,
+  );
+  const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(
+    initialParsed.screen === "trace-detail" ? initialParsed.detailId : null,
+  );
+  const [selectedReleaseId, setSelectedReleaseId] = useState<string | null>(
+    initialParsed.screen === "release-detail" ? initialParsed.detailId : null,
+  );
+  const [selectedCheckId, setSelectedCheckId] = useState<string | null>(
+    initialParsed.screen === "check-detail" ? initialParsed.detailId : null,
+  );
+  const [selectedFeedbackId, setSelectedFeedbackId] = useState<string | null>(
+    initialParsed.screen === "feedback" ? initialParsed.detailId : null,
+  );
   const [projects, setProjects] = useState<Project[] | null>(null);
 
   // issue #58 — keeps `screen` in sync with the URL beyond just the initial mount: browser
   // back/forward (popstate, plumbed through App.tsx's usePathname) changes `pathname` without any
   // sidebar click, so the active screen needs to follow it here too. The initial-mount case is
-  // already handled by the useState initializer above; this covers every pathname change after
-  // that (including the navigate() calls sidebar clicks make below, which is a harmless no-op
-  // since `screen` is already set to the same value by then).
+  // already handled by the useState initializers above; this covers every pathname change after
+  // that (including the navigate() calls sidebar clicks and onSelectX/onBackToX handlers make
+  // below, which is a harmless no-op since state is already set to the same values by then).
+  // issue #109 — also re-derives the selected-item id for whichever detail screen the URL now
+  // points at (and clears the others), so a direct visit to a detail URL, and back/forward between
+  // two different detail URLs, both work without any prior in-app navigation.
   useEffect(() => {
-    setScreen(screenFromPathname(pathname));
+    const parsed = parsePathname(pathname);
+    setScreen(parsed.screen);
+    setSelectedIssueId(parsed.screen === "issue-detail" ? parsed.detailId : null);
+    setSelectedTransactionId(parsed.screen === "trace-detail" ? parsed.detailId : null);
+    setSelectedReleaseId(parsed.screen === "release-detail" ? parsed.detailId : null);
+    setSelectedCheckId(parsed.screen === "check-detail" ? parsed.detailId : null);
+    setSelectedFeedbackId(parsed.screen === "feedback" ? parsed.detailId : null);
   }, [pathname]);
 
   const onSelectIssue = (id: string) => {
     setSelectedIssueId(id);
     setScreen("issue-detail");
+    navigate(pathForDetail("issues", id));
   };
   const onBackToIssues = () => {
     setSelectedIssueId(null);
     setScreen("issues");
+    navigate(pathForScreen("issues"));
   };
   const onSelectTransaction = (id: string) => {
     setSelectedTransactionId(id);
     setScreen("trace-detail");
+    navigate(pathForDetail("traces", id));
   };
   const onBackToTraces = () => {
     setSelectedTransactionId(null);
     setScreen("traces");
+    navigate(pathForScreen("traces"));
   };
   const onSelectRelease = (id: string) => {
     setSelectedReleaseId(id);
     setScreen("release-detail");
+    navigate(pathForDetail("releases", id));
   };
   const onBackToReleases = () => {
     setSelectedReleaseId(null);
     setScreen("releases");
+    navigate(pathForScreen("releases"));
   };
   const onSelectCheck = (id: string) => {
     setSelectedCheckId(id);
     setScreen("check-detail");
+    navigate(pathForDetail("uptime", id));
   };
   const onBackToUptime = () => {
     setSelectedCheckId(null);
     setScreen("uptime");
+    navigate(pathForScreen("uptime"));
+  };
+  const onSelectFeedback = (id: string) => {
+    setSelectedFeedbackId(id);
+    navigate(pathForDetail("feedback", id));
+  };
+  const onBackToFeedback = () => {
+    setSelectedFeedbackId(null);
+    navigate(pathForScreen("feedback"));
   };
   // Resolves an issue's traceId (the raw trace_id column) to a transactions.id via
   // contracts/traces-internal-api.md's by-trace-id lookup — not a direct id match
@@ -567,6 +654,7 @@ export function AppShell({ session, signOut, navigate, pathname }: AppShellProps
                       setSelectedTransactionId(null);
                       setSelectedReleaseId(null);
                       setSelectedCheckId(null);
+                      setSelectedFeedbackId(null);
                       setScreen(item.screen);
                       navigate(pathForScreen(item.screen));
                     }}
@@ -675,6 +763,9 @@ export function AppShell({ session, signOut, navigate, pathname }: AppShellProps
           selectedCheckId,
           onSelectCheck,
           onBackToUptime,
+          selectedFeedbackId,
+          onSelectFeedback,
+          onBackToFeedback,
         )}
       </div>
     </div>
