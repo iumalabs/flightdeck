@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.13.7](https://github.com/iumalabs/flightdeck/compare/v0.13.6...v0.13.7) (2026-08-27)
+
+
+### Bug Fixes
+
+* **a11y:** make list rows and back-links keyboard-reachable ([#122](https://github.com/iumalabs/flightdeck/issues/122)) ([de4d1f1](https://github.com/iumalabs/flightdeck/commit/de4d1f108a6f0e00e8da2ea7d01fdf56fe7cef62))
+* **feedback:** make linked issue title clickable in Feedback detail view ([#121](https://github.com/iumalabs/flightdeck/issues/121)) ([af3a770](https://github.com/iumalabs/flightdeck/commit/af3a770ae716436e7ed25c69528d4a877d6939ec))
+* **issues:** add status filter so resolved issues stay reachable ([#114](https://github.com/iumalabs/flightdeck/issues/114)) ([8d1241a](https://github.com/iumalabs/flightdeck/commit/8d1241a49ca6c6d4f52a0e97dc0e486d1094d42d))
+* **traces:** keep operation name legible at narrow widths ([#119](https://github.com/iumalabs/flightdeck/issues/119)) ([9bebac6](https://github.com/iumalabs/flightdeck/commit/9bebac6db8f0deee0b482bcc1c7bbeb494d08670))
+* **uptime:** support editing and deleting uptime checks from the UI ([#117](https://github.com/iumalabs/flightdeck/issues/117)) ([2df6aa5](https://github.com/iumalabs/flightdeck/commit/2df6aa5d843600ce2185fd21c0ec8aaf4a15a464))
+* **web-app:** deep-link selected issue/trace/release/uptime/feedback item ([#116](https://github.com/iumalabs/flightdeck/issues/116)) ([5a412b6](https://github.com/iumalabs/flightdeck/commit/5a412b68842fab72daed324e1dcb6a1808374e58))
+
 ## [0.13.6](https://github.com/iumalabs/flightdeck/compare/v0.13.5...v0.13.6) (2026-08-26)
 
 
