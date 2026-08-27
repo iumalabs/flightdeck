@@ -75,7 +75,18 @@ export function ReleaseDetailScreen(
   if (!release) {
     return (
       <div>
-        <span onClick={onBack} style={{ cursor: "pointer", color: "var(--fg2)", fontSize: 13 }}>
+        <span
+          onClick={onBack}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onBack();
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          style={{ cursor: "pointer", color: "var(--fg2)", fontSize: 13 }}
+        >
           ← Back to Releases
         </span>
         <p style={{ color: "var(--fg2)", marginTop: 16 }}>Release not found.</p>
@@ -85,7 +96,18 @@ export function ReleaseDetailScreen(
 
   return (
     <div>
-      <span onClick={onBack} style={{ cursor: "pointer", color: "var(--fg2)", fontSize: 13 }}>
+      <span
+        onClick={onBack}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onBack();
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        style={{ cursor: "pointer", color: "var(--fg2)", fontSize: 13 }}
+      >
         ← Back to Releases
       </span>
       <h1

@@ -63,7 +63,18 @@ function FeedbackDetailView(
   if (!feedback) {
     return (
       <div>
-        <span onClick={onBack} style={{ cursor: "pointer", color: "var(--fg2)", fontSize: 13 }}>
+        <span
+          onClick={onBack}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onBack();
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          style={{ cursor: "pointer", color: "var(--fg2)", fontSize: 13 }}
+        >
           ← Back to Feedback
         </span>
         <p style={{ color: "var(--fg2)", marginTop: 16 }}>Feedback not found.</p>
@@ -75,7 +86,18 @@ function FeedbackDetailView(
 
   return (
     <div>
-      <span onClick={onBack} style={{ cursor: "pointer", color: "var(--fg2)", fontSize: 13 }}>
+      <span
+        onClick={onBack}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onBack();
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        style={{ cursor: "pointer", color: "var(--fg2)", fontSize: 13 }}
+      >
         ← Back to Feedback
       </span>
       <div
@@ -182,6 +204,14 @@ export function FeedbackScreen(
               <div
                 key={item.id}
                 onClick={() => onSelectFeedback(item.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelectFeedback(item.id);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
                 style={{
                   display: "flex",
                   alignItems: "center",
