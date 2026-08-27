@@ -84,6 +84,14 @@ export function ReleasesScreen({ projectId, onSelectRelease }: ReleasesScreenPro
               <div
                 key={release.id}
                 onClick={() => onSelectRelease(release.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelectRelease(release.id);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
                 style={{
                   display: "flex",
                   alignItems: "center",

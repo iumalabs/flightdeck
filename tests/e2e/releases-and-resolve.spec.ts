@@ -66,6 +66,18 @@ test("releases list -> detail shows health figures; issue resolve/regression flo
   await releaseRow.click();
   await expect(page.getByRole("heading", { name: version })).toBeVisible();
 
+  // issue #120 — the release row and its "← Back to Releases" link must be reachable and
+  // operable from the keyboard alone (no click): focus each element directly, then Enter.
+  const backToReleasesLink = page.getByText("← Back to Releases");
+  await backToReleasesLink.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: "Releases", exact: true })).toBeVisible();
+
+  const releaseRowButton = page.locator('[role="button"]').filter({ hasText: version });
+  await releaseRowButton.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: version })).toBeVisible();
+
   // Resolve the seeded issue from its own detail view.
   await page.getByText("Issues", { exact: true }).click();
   const issueRow = page.getByText(new RegExp(`^${uniqueTitle}:`));

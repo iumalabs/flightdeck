@@ -129,7 +129,18 @@ export function IssueDetailScreen(
   if (!issue) {
     return (
       <div>
-        <span onClick={onBack} style={{ cursor: "pointer", color: "var(--fg2)", fontSize: 13 }}>
+        <span
+          onClick={onBack}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onBack();
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          style={{ cursor: "pointer", color: "var(--fg2)", fontSize: 13 }}
+        >
           ← Back to Issues
         </span>
         <p style={{ color: "var(--fg2)", marginTop: 16 }}>Issue not found.</p>
@@ -141,7 +152,18 @@ export function IssueDetailScreen(
 
   return (
     <div>
-      <span onClick={onBack} style={{ cursor: "pointer", color: "var(--fg2)", fontSize: 13 }}>
+      <span
+        onClick={onBack}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onBack();
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        style={{ cursor: "pointer", color: "var(--fg2)", fontSize: 13 }}
+      >
         ← Back to Issues
       </span>
       <h1

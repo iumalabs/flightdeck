@@ -108,6 +108,14 @@ export function IssuesScreen({ projectId, onSelectIssue }: IssuesScreenProps) {
               <div
                 key={issue.id}
                 onClick={() => onSelectIssue(issue.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelectIssue(issue.id);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
                 style={{
                   display: "flex",
                   alignItems: "center",
