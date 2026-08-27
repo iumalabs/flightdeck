@@ -398,6 +398,7 @@ function renderScreen(
           selectedFeedbackId={selectedFeedbackId}
           onSelectFeedback={onSelectFeedback}
           onBackToFeedback={onBackToFeedback}
+          onSelectIssue={onSelectIssue}
         />
       );
     case "alerts":
