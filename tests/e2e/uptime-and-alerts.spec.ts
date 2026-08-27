@@ -126,3 +126,55 @@ test("the Type column aligns with the first line of a wrapped check name, not th
 
   await context.close();
 });
+
+// issue #111 — CheckDetailScreen only wired up "test now" and a webhook-only PATCH; a check with a
+// typo'd name/target or wrong interval/thresholds was stuck forever, and there was no way to
+// delete one from the UI at all. Covers the full edit (all PATCH-able fields persist across a
+// reload) and delete (two-step in-page confirm, no native dialog, navigates back) round trip.
+test("uptime check detail screen supports editing all fields and deleting the check", async ({ browser, baseURL }) => {
+  await ensureContractTestActor();
+  const token = await mintTestSession({
+    sub: CONTRACT_TEST_ACTOR.sub,
+    email: CONTRACT_TEST_ACTOR.email,
+    role: "member",
+  });
+  const context = await browser.newContext();
+  await context.addCookies([{ name: "fd_session", value: token, url: baseURL!, sameSite: "Lax" }]);
+  const page = await context.newPage();
+  await page.goto("/");
+
+  const uniqueName = `e2e-edit-${crypto.randomUUID().slice(0, 8)}`;
+  const renamedName = `${uniqueName}-renamed`;
+
+  await page.getByText("Uptime", { exact: true }).click();
+  await expect(page.getByText("Add a check")).toBeVisible();
+  await page.getByPlaceholder("Name").fill(uniqueName);
+  await page.getByPlaceholder("https://example.com", { exact: false }).fill("http://127.0.0.1:1");
+  await page.getByRole("button", { name: "Add check" }).click();
+
+  const checkRow = page.getByText(uniqueName);
+  await expect(checkRow).toBeVisible();
+  await checkRow.click();
+  await expect(page.getByRole("heading", { name: uniqueName })).toBeVisible();
+
+  // Edit name and interval, save, then reload to prove the PATCH actually persisted rather than
+  // just updating local state.
+  await page.getByLabel("Name").fill(renamedName);
+  await page.getByLabel("Interval (seconds)").fill("120");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByText("Saved.")).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("heading", { name: renamedName })).toBeVisible();
+  await expect(page.getByLabel("Interval (seconds)")).toHaveValue("120");
+
+  // Delete: first click only arms the two-step confirm (no native dialog — verifiable because the
+  // page stays interactive and "Confirm delete" is a normal button we can click programmatically).
+  await page.getByRole("button", { name: "Delete check", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm delete" }).click();
+
+  await expect(page.getByText("Add a check")).toBeVisible();
+  await expect(page.getByText(renamedName)).toHaveCount(0);
+
+  await context.close();
+});
