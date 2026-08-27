@@ -101,6 +101,52 @@ test("an issue with linked feedback shows a feedback section; one with none show
   await context.close();
 });
 
+// Regression test for issue #115: FeedbackDetailView rendered a feedback item's linked issue title
+// as inert text with no way to navigate to it, unlike every other cross-screen reference in the
+// app. Seeds a linked error + feedback pair, opens the feedback item's own detail view (not the
+// issue's, which the first test above already covers), and confirms clicking the linked-issue text
+// navigates to that issue's detail view.
+test("clicking a feedback item's linked issue navigates to that issue's detail view", async ({ browser, request, baseURL }) => {
+  const dsnKey = await getDsnKey();
+
+  const linkedErrorEventId = crypto.randomUUID();
+  const linkedTitle = `e2e-feedback-detail-link-${linkedErrorEventId.slice(0, 8)}`;
+  const errIngest = await request.post(`/api/1/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
+    data: buildErrorEnvelope(linkedErrorEventId, linkedTitle),
+  });
+  expect(errIngest.status()).toBe(200);
+
+  const uniqueFeedbackMessage = `e2e feedback detail-link message ${
+    linkedErrorEventId.slice(0, 8)
+  }`;
+  const fbIngest = await request.post(`/api/1/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
+    data: buildFeedbackEnvelope(crypto.randomUUID(), uniqueFeedbackMessage, linkedErrorEventId),
+  });
+  expect(fbIngest.status()).toBe(200);
+
+  const token = await mintTestSession({
+    sub: "e2e-feedback-detail-link",
+    email: "feedback-detail-link@example.com",
+    role: "member",
+  });
+  const context = await browser.newContext();
+  await context.addCookies([{ name: "fd_session", value: token, url: baseURL!, sameSite: "Lax" }]);
+  const page = await context.newPage();
+  await page.goto("/");
+
+  await page.getByText("Feedback", { exact: true }).click();
+  await page.getByText(uniqueFeedbackMessage).click();
+
+  const linkedIssueLink = page.getByText(linkedTitle);
+  await expect(linkedIssueLink).toBeVisible();
+  await linkedIssueLink.click();
+
+  await expect(page).toHaveURL(/\/web-app\/issues\//);
+  await expect(page.getByRole("heading", { name: linkedTitle })).toBeVisible();
+
+  await context.close();
+});
+
 // Regression test for issue #103: the feedback row's message span was the only flexible column
 // (`flex: 1, minWidth: 0`), while the trailing timestamp span had no width constraint and rendered
 // at its natural, unpredictable width. At narrower viewports the fixed/natural-width columns

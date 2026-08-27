@@ -28,7 +28,12 @@ const SOURCE_LABEL: Record<string, string> = {
 };
 
 function FeedbackDetailView(
-  { id, projectId, onBack }: { id: string; projectId: string | null; onBack: () => void },
+  { id, projectId, onBack, onSelectIssue }: {
+    id: string;
+    projectId: string | null;
+    onBack: () => void;
+    onSelectIssue: (id: string) => void;
+  },
 ) {
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<FeedbackDetail | null>(null);
@@ -66,6 +71,8 @@ function FeedbackDetailView(
     );
   }
 
+  const linkedIssue = feedback.issue;
+
   return (
     <div>
       <span onClick={onBack} style={{ cursor: "pointer", color: "var(--fg2)", fontSize: 13 }}>
@@ -89,9 +96,15 @@ function FeedbackDetailView(
           {SOURCE_LABEL[feedback.source] ?? feedback.source} · {feedback.receivedAt}
           {feedback.url ? ` · ${feedback.url}` : ""}
         </div>
-        {feedback.issue && (
+        {linkedIssue && (
           <div style={{ marginTop: 12, fontSize: 12.5 }}>
-            Linked issue: <span style={{ color: "var(--accent)" }}>{feedback.issue.title}</span>
+            Linked issue:{" "}
+            <span
+              onClick={() => onSelectIssue(linkedIssue.id)}
+              style={{ color: "var(--accent)", cursor: "pointer" }}
+            >
+              {linkedIssue.title}
+            </span>
           </div>
         )}
       </div>
@@ -107,10 +120,12 @@ export interface FeedbackScreenProps {
   selectedFeedbackId: string | null;
   onSelectFeedback: (id: string) => void;
   onBackToFeedback: () => void;
+  onSelectIssue: (id: string) => void;
 }
 
 export function FeedbackScreen(
-  { projectId, selectedFeedbackId, onSelectFeedback, onBackToFeedback }: FeedbackScreenProps,
+  { projectId, selectedFeedbackId, onSelectFeedback, onBackToFeedback, onSelectIssue }:
+    FeedbackScreenProps,
 ) {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<FeedbackListItem[] | null>(null);
@@ -140,6 +155,7 @@ export function FeedbackScreen(
         id={selectedFeedbackId}
         projectId={projectId}
         onBack={onBackToFeedback}
+        onSelectIssue={onSelectIssue}
       />
     );
   }
