@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { sessionAuth } from "../../auth/session.ts";
 import type { SessionIdentity } from "../../auth/session.ts";
-import type { Breadcrumb, EventPayload, StackFrame } from "../ingest/types.ts";
+import type { Breadcrumb, EventPayload, StackFrame, UserContext } from "../ingest/types.ts";
 import { deriveCulpritFrame } from "../ingest/fingerprint.ts";
 import { lookupSuspectCommit } from "../github/suspect-commit.ts";
 import { resolveRequestedProject } from "../projects/resolve.ts";
@@ -31,6 +31,18 @@ interface IssueRow {
   resolved_release_id: string | null;
 }
 
+// List-only shape: adds the latest event's environment, selected via a correlated subquery (see
+// LATEST_EVENT_ENVIRONMENT_SQL) rather than a stored column on `issues` itself.
+interface IssueListRow extends IssueRow {
+  environment: string | null;
+}
+
+// Correlated subquery (issue #129) — the latest event's `environment` column, using the same
+// idx_events_issue_received (issue_id, received_at DESC) index the detail route's latest-event
+// lookup relies on, so this stays cheap per row.
+const LATEST_EVENT_ENVIRONMENT_SQL =
+  `(SELECT environment FROM events WHERE events.issue_id = issues.id ORDER BY received_at DESC LIMIT 1) AS environment`;
+
 // contracts/internal-api.md (specs/002-error-monitoring), scoped by ?project= (specs/008-multi-
 // project-support research.md §2 — this route previously had NO project filter at all).
 // specs/005-releases: defaults to the active-issues view (status = 'unresolved', spec.md
@@ -43,13 +55,15 @@ issuesRoutes.get("/", async (c) => {
   const { results } = await c.env.DB
     .prepare(
       showAll
-        ? `SELECT id, title, culprit, level, event_count, first_seen, last_seen, status, resolved_release_id
+        ? `SELECT id, title, culprit, level, event_count, first_seen, last_seen, status, resolved_release_id,
+             ${LATEST_EVENT_ENVIRONMENT_SQL}
            FROM issues WHERE project_id = ?1 ORDER BY last_seen DESC`
-        : `SELECT id, title, culprit, level, event_count, first_seen, last_seen, status, resolved_release_id
+        : `SELECT id, title, culprit, level, event_count, first_seen, last_seen, status, resolved_release_id,
+             ${LATEST_EVENT_ENVIRONMENT_SQL}
            FROM issues WHERE project_id = ?1 AND status = 'unresolved' ORDER BY last_seen DESC`,
     )
     .bind(project.id)
-    .all<IssueRow>();
+    .all<IssueListRow>();
 
   return c.json({
     issues: (results ?? []).map((row) => ({
@@ -64,6 +78,9 @@ issuesRoutes.get("/", async (c) => {
       // A "regressed" indicator is inferred from the current state (data-model.md,
       // specs/005-releases research.md §9) — unresolved but with a resolution history.
       regressed: row.status === "unresolved" && row.resolved_release_id !== null,
+      // issue #129 — the latest event's environment, null when no event carried one (or none
+      // retained).
+      environment: row.environment,
     })),
   });
 });
@@ -71,6 +88,7 @@ issuesRoutes.get("/", async (c) => {
 interface EventRow {
   payload: string;
   trace_id: string | null;
+  environment: string | null;
 }
 
 interface LatestEvent {
@@ -78,6 +96,9 @@ interface LatestEvent {
   breadcrumbs: Breadcrumb[];
   tags: Record<string, string>;
   contexts: Record<string, unknown>;
+  // issue #130 — Sentry's standard `Sentry.setUser({...})` shape, carried through from the raw
+  // event payload the same way tags/contexts already are.
+  user: UserContext | null;
 }
 
 export function shapeLatestEvent(payload: EventPayload): LatestEvent {
@@ -91,6 +112,7 @@ export function shapeLatestEvent(payload: EventPayload): LatestEvent {
     breadcrumbs,
     tags: payload.tags ?? {},
     contexts: payload.contexts ?? {},
+    user: payload.user ?? null,
   };
 }
 
@@ -116,7 +138,7 @@ issuesRoutes.get("/:id", async (c) => {
 
   const latestEventRow = await c.env.DB
     .prepare(
-      `SELECT payload, trace_id FROM events WHERE issue_id = ?1 ORDER BY received_at DESC LIMIT 1`,
+      `SELECT payload, trace_id, environment FROM events WHERE issue_id = ?1 ORDER BY received_at DESC LIMIT 1`,
     )
     .bind(id)
     .first<EventRow>();
@@ -184,6 +206,9 @@ issuesRoutes.get("/:id", async (c) => {
     // event's trace_id, null when it carried no contexts.trace (spec FR-009, "absent, not an
     // error state").
     traceId: latestEventRow?.trace_id ?? null,
+    // issue #129 — the latest event's environment, null when no event carried one (or none
+    // retained).
+    environment: latestEventRow?.environment ?? null,
     status: issue.status,
     regressed: issue.status === "unresolved" && issue.resolved_release_id !== null,
     feedback: (feedbackRows ?? []).map((row) => ({
