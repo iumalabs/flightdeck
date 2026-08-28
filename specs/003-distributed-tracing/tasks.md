@@ -330,7 +330,7 @@ list never closed.
       research.md §4 itself flags this exact gap as unresolved ("the plan should verify a realistic
       large transaction fits under 128 KB, not just under MAX_ENVELOPE_BYTES") with no evidence in
       code or tests that the verification, or a guard, was ever added.
-- [ ] T041 Add an interactive sort/filter affordance to `app/shell/TracesScreen.tsx`'s Traces list
+- [x] T041 Add an interactive sort/filter affordance to `app/shell/TracesScreen.tsx`'s Traces list
       (e.g. clickable column headers to toggle sort field/direction, or a duration filter control),
       per spec.md User Story 2 Acceptance Scenario 3, "When a developer sorts or filters by
       duration..." (partial) — the current implementation (lines 41, 60-78) only applies a fixed,
