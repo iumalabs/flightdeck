@@ -39,6 +39,14 @@ export function computeFingerprint(event: EventPayload): string {
     return `stack:${exceptionValue.type ?? "Error"}:${signature}`;
   }
 
+  // No stack frames, but an exception value is still present (e.g. a frameless exception) —
+  // group by its type/value instead of collapsing every such exception into "message:unknown".
+  if (exceptionValue) {
+    return exceptionValue.value
+      ? `exception:${exceptionValue.type ?? "Error"}:${exceptionValue.value}`
+      : `exception:${exceptionValue.type ?? "Error"}`;
+  }
+
   return `message:${messageText(event)}`;
 }
 

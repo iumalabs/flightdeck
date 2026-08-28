@@ -63,6 +63,31 @@ Deno.test("computeFingerprint produces different fingerprints for different exce
   assertNotEquals(computeFingerprint(STACK_EVENT), computeFingerprint(other));
 });
 
+Deno.test("computeFingerprint distinguishes frameless exceptions by type/value instead of collapsing to message:unknown", () => {
+  const eventA: EventPayload = {
+    exception: { values: [{ type: "QARegressionMarker99", value: "marker A" }] },
+  };
+  const eventB: EventPayload = {
+    exception: { values: [{ type: "QANegativeControl99", value: "marker B" }] },
+  };
+  const fpA = computeFingerprint(eventA);
+  const fpB = computeFingerprint(eventB);
+  assertNotEquals(fpA, fpB);
+  assertEquals(fpA.includes("unknown"), false);
+  assertEquals(fpB.includes("unknown"), false);
+});
+
+Deno.test("computeFingerprint still uses stack-based grouping when frames are present (no regression)", () => {
+  const fp = computeFingerprint(STACK_EVENT);
+  assertEquals(fp.startsWith("stack:TypeError:"), true);
+  assertEquals(fp.includes("unknown"), false);
+});
+
+Deno.test("computeFingerprint falls back to message:unknown for a bare message-only event with no exception", () => {
+  const event: EventPayload = { message: {} };
+  assertEquals(computeFingerprint(event), "message:unknown");
+});
+
 Deno.test("deriveTitle combines exception type and value", () => {
   assertEquals(deriveTitle(STACK_EVENT), "TypeError: Cannot read properties of undefined");
 });
