@@ -290,3 +290,54 @@ test("environment, user, and contexts surface on the issue list/detail, and a re
 
   await context.close();
 });
+
+// issue #134 — a title with a long unbroken run of characters (no whitespace to break on) has no
+// natural wrap point, and the detail page's <h1> had no overflow handling at all: the browser's
+// default `overflow-wrap: normal` refuses to break mid-word, so the line extended far past its
+// container, invisibly, with no ellipsis or scroll affordance.
+test("a long unbroken-string issue title wraps on the detail page instead of overflowing invisibly", async ({ browser, request, baseURL }) => {
+  const dsnKey = await getDsnKey();
+  const eventId = crypto.randomUUID();
+  const uniqueTitle = `e2e-overflow-${crypto.randomUUID().slice(0, 8)}`;
+  const longRun = "X".repeat(5000);
+
+  const body = buildEnvelope(eventId, {
+    level: "error",
+    exception: {
+      values: [{ type: uniqueTitle, value: longRun }],
+    },
+  });
+  const ingest = await request.post(`/api/1/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
+    data: body,
+  });
+  expect(ingest.status()).toBe(200);
+
+  const token = await mintTestSession({
+    sub: "e2e-issue-title-overflow",
+    email: "issue-title-overflow@example.com",
+    role: "member",
+  });
+  const context = await browser.newContext();
+  await context.addCookies([{ name: "fd_session", value: token, url: baseURL!, sameSite: "Lax" }]);
+  const page = await context.newPage();
+  await page.goto("/");
+
+  await page.getByText("Issues", { exact: true }).click();
+  const issueRow = page.getByText(new RegExp(`^${uniqueTitle}:`));
+  await expect(issueRow).toBeVisible();
+  await issueRow.click();
+
+  const heading = page.getByRole("heading", { name: new RegExp(`^${uniqueTitle}:`) });
+  await expect(heading).toBeVisible();
+
+  // The regression was scrollWidth ballooning to ~45x clientWidth with the overflow rendered
+  // invisibly past the container's right edge. Wrapping keeps scrollWidth within a small margin
+  // of clientWidth (a little slack for scrollbar/subpixel rounding, nowhere near a 45x blowout).
+  const { scrollWidth, clientWidth } = await heading.evaluate((el) => ({
+    scrollWidth: el.scrollWidth,
+    clientWidth: el.clientWidth,
+  }));
+  expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 4);
+
+  await context.close();
+});
