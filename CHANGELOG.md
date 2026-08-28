@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.14.0](https://github.com/iumalabs/flightdeck/compare/v0.13.7...v0.14.0) (2026-08-28)
+
+
+### Features
+
+* **traces:** add interactive sort controls to Traces list ([#133](https://github.com/iumalabs/flightdeck/issues/133)) ([ee67d7e](https://github.com/iumalabs/flightdeck/commit/ee67d7e862d996400c36cc8ae1069a5f65a81d7e))
+
+
+### Bug Fixes
+
+* **github:** don't 500 issue detail when GitHub's commits response has a non-JSON body ([#136](https://github.com/iumalabs/flightdeck/issues/136)) ([d7cb466](https://github.com/iumalabs/flightdeck/commit/d7cb466d444cd7fec0aa61a9e77d4cc8a1ae5dd1))
+* **ingest:** fingerprint frameless exceptions by type/value ([#135](https://github.com/iumalabs/flightdeck/issues/135)) ([316464b](https://github.com/iumalabs/flightdeck/commit/316464b811b561be27b70b756dfdbbef1cc6b550))
+* **ingest:** guard malformed uploaded source maps and add delete route ([#137](https://github.com/iumalabs/flightdeck/issues/137)) ([82cedef](https://github.com/iumalabs/flightdeck/commit/82cedef194450a1b9a0899f5b6ab2a539de44f38))
+* **ingest:** reject oversized log queue messages, atomically dedup events ([#138](https://github.com/iumalabs/flightdeck/issues/138)) ([2181386](https://github.com/iumalabs/flightdeck/commit/21813861565f7e4b039d0bde2157dbc3f385ed72))
+* **issues:** surface regressed, environment, user, and contexts ([#139](https://github.com/iumalabs/flightdeck/issues/139)) ([1e7dabe](https://github.com/iumalabs/flightdeck/commit/1e7dabeea9874a7a0798ad266891ee0673b09e71))
+
 ## [0.13.7](https://github.com/iumalabs/flightdeck/compare/v0.13.6...v0.13.7) (2026-08-27)
 
 

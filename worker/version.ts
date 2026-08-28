@@ -2,4 +2,4 @@
 // extra-files entry, matched via the marker comment below) — the Worker bundle has no filesystem
 // access at request time, unlike the Vite frontend build (vite.config.ts reads VERSION directly),
 // so this is the Worker-side equivalent: a plain importable constant, not a runtime file read.
-export const APP_VERSION = "0.13.7"; // x-release-please-version
+export const APP_VERSION = "0.14.0"; // x-release-please-version
