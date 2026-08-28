@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
 import { getDsnKey } from "./support/dsn-key.ts";
+// Playwright's own storageState/session fixture isn't wired for this contract-test project — reuse
+// the same hand-rolled test-session minting Module 1's e2e tests already established (same pattern
+// as trace-ingest.spec.ts / log-ingest.spec.ts).
+import { mintTestSession } from "../e2e/support/session.ts";
 
 // Contract tests against a real wrangler dev (research.md's testing rationale,
 // specs/002-error-monitoring) — hand-crafted envelope bodies matching contracts/ingest-api.md's
@@ -62,6 +66,19 @@ function pythonShapedPayload(): Record<string, unknown> {
       }],
     },
   };
+}
+
+let cachedCookie: string | null = null;
+async function sessionCookieHeader(): Promise<string> {
+  if (!cachedCookie) {
+    const token = await mintTestSession({
+      sub: "contract-envelope",
+      email: "contract-envelope@example.com",
+      role: "member",
+    });
+    cachedCookie = `fd_session=${token}`;
+  }
+  return cachedCookie;
 }
 
 test("a JS-shaped event is accepted and produces an issue", async ({ request }) => {
@@ -133,6 +150,61 @@ test("submitting the same event twice does not duplicate it", async ({ request }
   expect(first.status()).toBe(200);
   const second = await request.post(url, { data: body });
   expect(second.status()).toBe(200); // still accepted, just a no-op — not an error
+});
+
+// Issue #127 — the previous SELECT-then-INSERT dedup was a race: multiple simultaneous requests
+// for the identical sdk_event_id could all pass the SELECT before any of them committed, each
+// increment the issue's event_count, and all but one then crash with an uncaught constraint-
+// violation 500 on the final INSERT INTO events (UNIQUE(project_id, sdk_event_id), migration
+// 0009). Unlike "submitting the same event twice" above (two sequential, awaited requests, which
+// never exercised the race at all), this fires genuinely concurrent requests via Promise.all —
+// none awaited before the next is issued — so they actually overlap in-flight against the same D1
+// database.
+test("concurrent submissions of the identical event_id never 500 and the issue's event_count stays at 1", async ({ request }) => {
+  const dsnKey = await getDsnKey();
+  const eventId = crypto.randomUUID();
+  const marker = `race-${crypto.randomUUID().slice(0, 8)}`;
+  const body = buildEnvelope(eventId, {
+    platform: "javascript",
+    level: "error",
+    exception: {
+      values: [{
+        type: "RaceError",
+        value: marker,
+        // computeFingerprint (fingerprint.ts) groups by stack frame module/filename/function, NOT
+        // by the exception's free-text `value` — a marker-bearing frame here (not an empty
+        // frames array) is what actually makes this test run's fingerprint distinct from any
+        // OTHER run's "RaceError", so this test creates its own fresh issue instead of folding
+        // into one left behind by a previous run.
+        stacktrace: {
+          frames: [{ filename: `${marker}.js`, function: marker, in_app: true }],
+        },
+      }],
+    },
+  });
+  const url = `/api/${DEMO_PROJECT_ID}/envelope?sentry_key=${dsnKey}&sentry_version=7`;
+
+  const CONCURRENCY = 12;
+  const responses = await Promise.all(
+    Array.from({ length: CONCURRENCY }, () => request.post(url, { data: body })),
+  );
+  for (const response of responses) {
+    expect(response.status()).toBe(200); // never a 500, even under a genuine concurrent write race
+  }
+
+  const cookie = await sessionCookieHeader();
+  const list = await request.get(`/api/internal/v1/issues`, { headers: { Cookie: cookie } });
+  expect(list.ok()).toBe(true);
+  const { issues } = await list.json() as { issues: { id: string; title: string }[] };
+  const matched = issues.find((issue) => issue.title.includes(marker));
+  expect(matched).toBeDefined();
+
+  const detail = await request.get(`/api/internal/v1/issues/${matched!.id}`, {
+    headers: { Cookie: cookie },
+  });
+  expect(detail.ok()).toBe(true);
+  const issueDetail = await detail.json() as { eventCount: number };
+  expect(issueDetail.eventCount).toBe(1); // exactly one occurrence, not one-per-racing-request
 });
 
 // T051 (specs/002-error-monitoring Phase 8 Convergence) — the whole-envelope-body size guard
