@@ -9,11 +9,19 @@ the ingest surface is never reachable through these.
 Returns the current project's issues, most-recently-active first.
 
 **Response `200`**:
+
 ```json
 {
   "issues": [
-    { "id": "string", "title": "string", "culprit": "string|null", "level": "string",
-      "eventCount": 0, "firstSeen": "string", "lastSeen": "string" }
+    {
+      "id": "string",
+      "title": "string",
+      "culprit": "string|null",
+      "level": "string",
+      "eventCount": 0,
+      "firstSeen": "string",
+      "lastSeen": "string"
+    }
   ]
 }
 ```
@@ -25,6 +33,7 @@ breadcrumbs, tags/context, and (if a repository is connected and a suspect commi
 suspect commit.
 
 **Response `200`**:
+
 ```json
 {
   "id": "string", "title": "string", "culprit": "string|null", "level": "string",
@@ -63,6 +72,18 @@ in R2 (research.md §7); writes the `source_maps` metadata row; writes an `audit
 
 **Response `201`**: `{ "id": "string" }`. **Response `413`**: file exceeds the configured maximum
 size.
+
+## `DELETE /api/internal/projects/{id}/source-maps/{sourceMapId}`
+
+Removes a previously uploaded source map (issue #125) — lets a bad/malformed upload actually be
+removed and replaced, rather than permanently leaving every subsequent event that references it
+unresolved.
+
+**Behavior**: deletes the `source_maps` row; deletes the underlying R2 object too, unless another
+`source_maps` row still references the same object key (repeated uploads for the same
+release/`minifiedPathPattern` share one R2 key); writes an `audit_log` entry.
+
+**Response `200`**: empty body. **Response `404`**: no source map with that id in this project.
 
 ## `POST /api/internal/projects/{id}/github/connect`
 

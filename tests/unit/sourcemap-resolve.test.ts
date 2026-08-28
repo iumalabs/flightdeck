@@ -40,6 +40,26 @@ class FakeR2 implements Partial<R2Bucket> {
   }
 }
 
+// issue #125's non-JSON repro: `object.json()` rejects rather than resolving to a value.
+class FakeR2NonJson implements Partial<R2Bucket> {
+  get(_key: string) {
+    return Promise.resolve({
+      json: () =>
+        Promise.reject(new SyntaxError("Unexpected token 'n', \"not json\" is not valid JSON")),
+    } as unknown as R2ObjectBody);
+  }
+}
+
+// Valid JSON, but not a structurally valid source map — throws inside `new TraceMap(...)` itself
+// rather than during the JSON parse.
+class FakeR2InvalidMap implements Partial<R2Bucket> {
+  get(_key: string) {
+    return Promise.resolve(
+      { json: () => Promise.resolve({ not: "a source map" }) } as unknown as R2ObjectBody,
+    );
+  }
+}
+
 function minifiedFrame(overrides: Partial<StackFrame> = {}): StackFrame {
   return { filename: "app.min.js", function: "n", lineno: 1, colno: 0, in_app: true, ...overrides };
 }
@@ -88,6 +108,26 @@ Deno.test("resolveStackTrace returns frames unresolved when the event has no rel
 Deno.test("resolveStackTrace returns frames unresolved when no map is uploaded for this release/path", async () => {
   const db = new FakeD1(null) as unknown as D1Database;
   const r2 = new FakeR2(new Map()) as unknown as R2Bucket;
+
+  const [resolved] = await resolveStackTrace(db, r2, "demo", "1.0.0", [minifiedFrame()]);
+
+  assertEquals(resolved.resolved, false);
+  assertEquals(resolved.filename, "app.min.js");
+});
+
+Deno.test("resolveStackTrace leaves a frame unresolved rather than throwing when the uploaded source map isn't valid JSON (issue #125)", async () => {
+  const db = new FakeD1({ r2_object_key: "demo/1.0.0/abc" }) as unknown as D1Database;
+  const r2 = new FakeR2NonJson() as unknown as R2Bucket;
+
+  const [resolved] = await resolveStackTrace(db, r2, "demo", "1.0.0", [minifiedFrame()]);
+
+  assertEquals(resolved.resolved, false);
+  assertEquals(resolved.filename, "app.min.js");
+});
+
+Deno.test("resolveStackTrace leaves a frame unresolved rather than throwing when the uploaded file is valid JSON but not a valid source map (issue #125)", async () => {
+  const db = new FakeD1({ r2_object_key: "demo/1.0.0/abc" }) as unknown as D1Database;
+  const r2 = new FakeR2InvalidMap() as unknown as R2Bucket;
 
   const [resolved] = await resolveStackTrace(db, r2, "demo", "1.0.0", [minifiedFrame()]);
 

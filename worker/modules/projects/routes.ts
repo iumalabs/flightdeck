@@ -201,3 +201,55 @@ projectsRoutes.post("/:id/source-maps", async (c) => {
 
   return c.json({ id }, 201);
 });
+
+interface SourceMapDeleteRow {
+  id: string;
+  r2_object_key: string;
+}
+
+// issue #125 — nothing previously existed to remove a bad/malformed source_maps row, so once one
+// was uploaded it permanently 500'd every subsequent event referencing it (loadTracer() now also
+// guards the parse itself, but a bad upload should also be removable/replaceable). Path convention
+// matches apiTokensRoutes' `DELETE /:id/api-tokens/:tokenId`.
+//
+// The R2 object is only deleted once no other source_maps row still references the same key — the
+// upload route's key is deterministic per project/release/path, so re-uploading the same
+// release+path combination without ever deleting the earlier row leaves multiple D1 rows pointing
+// at one (repeatedly overwritten) R2 object.
+projectsRoutes.delete("/:id/source-maps/:sourceMapId", async (c) => {
+  const projectId = c.req.param("id");
+  const sourceMapId = c.req.param("sourceMapId");
+
+  const existing = await c.env.DB
+    .prepare(`SELECT id, r2_object_key FROM source_maps WHERE id = ?1 AND project_id = ?2`)
+    .bind(sourceMapId, projectId)
+    .first<SourceMapDeleteRow>();
+  if (!existing) return c.text("Not Found", 404);
+
+  await c.env.DB
+    .prepare(`DELETE FROM source_maps WHERE id = ?1`)
+    .bind(sourceMapId)
+    .run();
+
+  const stillReferenced = await c.env.DB
+    .prepare(`SELECT id FROM source_maps WHERE r2_object_key = ?1 LIMIT 1`)
+    .bind(existing.r2_object_key)
+    .first();
+  if (!stillReferenced) {
+    await c.env.SOURCE_MAPS.delete(existing.r2_object_key);
+  }
+
+  // Constitution Principle X — every admin mutation is recorded.
+  const identity = c.get("identity");
+  await c.env.DB
+    .prepare(`INSERT INTO audit_log (id, actor_sub, action, before_json) VALUES (?1, ?2, ?3, ?4)`)
+    .bind(
+      crypto.randomUUID(),
+      identity.sub,
+      "source_map.delete",
+      JSON.stringify({ projectId, sourceMapId }),
+    )
+    .run();
+
+  return c.body(null, 200);
+});
