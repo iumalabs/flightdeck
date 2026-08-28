@@ -279,7 +279,7 @@ drift in this module's own governing artifacts, not functional defects — issue
 fully implemented and tested (contract + Playwright e2e), it just was never run through
 `/speckit-specify`/`/speckit-plan`/`/speckit-tasks` for this module.
 
-- [ ] T033 [HIGH] Backfill issue #72's `baseUrl` field and default-uptime-check-seeding behavior
+- [x] T033 [HIGH] Backfill issue #72's `baseUrl` field and default-uptime-check-seeding behavior
       into this module's own spec-of-record: add a Functional Requirement (and, if warranted, a User
       Story/acceptance scenario) to `spec.md` describing that project creation MAY accept an optional
       `baseUrl` and, when given, seeds a "Root" check (always) and a "Health" check (only when a live
