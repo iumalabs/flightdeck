@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { mintTestSession } from "./support/session.ts";
 import { getDsnKey } from "../contract/support/dsn-key.ts";
+import { CONTRACT_TEST_ACTOR, ensureContractTestActor } from "../contract/support/seed-actor.ts";
 
 // spec.md User Story 1 (real ingest) + User Story 2 (issue detail) navigation, end to end through
 // the actual UI: seeds one real issue via the public envelope endpoint (same D1 the e2e webServer
@@ -174,6 +175,118 @@ test("an issue whose only event was pruned by retention shows a retention notice
     .toHaveCount(2); // once under Stack trace, once under Breadcrumbs
   await expect(page.getByText("No stack trace recorded for this event.")).toHaveCount(0);
   await expect(page.getByText("No breadcrumbs recorded.")).toHaveCount(0);
+
+  await context.close();
+});
+
+// issues #128/#129/#130/#132 — regressed, environment, user, and contexts are all captured and
+// returned by the API already; this exercises the whole "captured -> surfaced in the UI" path in
+// one flow: an issue seeded with environment/user/contexts on its first event (checked on both the
+// list row and the detail page), then driven through a real resolve -> later-release regression so
+// the "Regressed" indicator (issue #128) is also checked on the list row, not just the detail view.
+test("environment, user, and contexts surface on the issue list/detail, and a regressed issue is flagged in the list", async ({ browser, request, baseURL }) => {
+  await ensureContractTestActor();
+  const dsnKey = await getDsnKey();
+  const token = await mintTestSession({ ...CONTRACT_TEST_ACTOR, role: "member" });
+  const cookie = `fd_session=${token}`;
+
+  const tokenRes = await request.post("/api/internal/v1/projects/1/api-tokens", {
+    headers: { Cookie: cookie },
+  });
+  const { token: apiToken } = await tokenRes.json() as { id: string; token: string };
+
+  const uniqueTitle = `e2e-surface-${crypto.randomUUID().slice(0, 8)}`;
+  const releaseA = `e2e-surface-a-${crypto.randomUUID().slice(0, 8)}`;
+  const releaseB = `e2e-surface-b-${crypto.randomUUID().slice(0, 8)}`;
+
+  await request.post("/api/0/organizations/anyorg/releases/", {
+    headers: { Authorization: `Bearer ${apiToken}`, "Content-Type": "application/json" },
+    data: { version: releaseA, projects: ["1"] },
+  });
+
+  const stackFrame = { filename: "checkout.js", function: "submitOrder", in_app: true };
+
+  const firstEventId = crypto.randomUUID();
+  const firstIngest = await request.post(`/api/1/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
+    data: buildEnvelope(firstEventId, {
+      level: "error",
+      release: releaseA,
+      environment: "production",
+      user: { id: "qa-user-42", email: "qa-user-42@example.com" },
+      contexts: {
+        device: { model: "MacBook Pro", arch: "arm64" },
+        app: { version: "3.2.1", build: "1042" },
+      },
+      exception: {
+        values: [{ type: uniqueTitle, value: "seeded", stacktrace: { frames: [stackFrame] } }],
+      },
+    }),
+  });
+  expect(firstIngest.status()).toBe(200);
+
+  const context = await browser.newContext();
+  await context.addCookies([{ name: "fd_session", value: token, url: baseURL!, sameSite: "Lax" }]);
+  const page = await context.newPage();
+  await page.goto("/");
+
+  // List row: environment tag visible, plus the (auto-appearing) environment filter pill.
+  await page.getByText("Issues", { exact: true }).click();
+  const issueRow = page.getByText(new RegExp(`^${uniqueTitle}:`));
+  await expect(issueRow).toBeVisible();
+  const issueRowContainer = page.locator('[role="button"]').filter({ hasText: uniqueTitle });
+  await expect(issueRowContainer.getByText("production", { exact: true })).toBeVisible();
+  await expect(page.getByText("All environments", { exact: true })).toBeVisible();
+
+  // Detail page: environment tag, User section, Contexts section.
+  await issueRow.click();
+  await expect(page.getByRole("heading", { name: new RegExp(`^${uniqueTitle}:`) })).toBeVisible();
+  await expect(page.getByText("production", { exact: true })).toBeVisible();
+
+  await expect(page.getByText("User", { exact: true })).toBeVisible();
+  await expect(page.getByText("qa-user-42@example.com")).toBeVisible();
+
+  // The group label is rendered with a CSS uppercase text-transform, but the underlying text
+  // content (what Playwright matches) is still the raw lowercase context key.
+  await expect(page.getByText("Contexts", { exact: true })).toBeVisible();
+  await expect(page.getByText("device", { exact: true })).toBeVisible();
+  await expect(page.getByText("MacBook Pro")).toBeVisible();
+  await expect(page.getByText("app", { exact: true })).toBeVisible();
+  await expect(page.getByText("3.2.1")).toBeVisible();
+
+  // Resolve against release A, then ingest a second occurrence on a later release B — the
+  // existing regression-detection flow (worker/modules/ingest/routes.ts, extended by #128's own
+  // reopen logic) flips the issue back to unresolved with resolved_release_id still set, i.e.
+  // "regressed".
+  await page.getByText("Resolve", { exact: true }).click();
+  await expect(page.getByText("Resolved", { exact: true })).toBeVisible();
+
+  await request.post("/api/0/organizations/anyorg/releases/", {
+    headers: { Authorization: `Bearer ${apiToken}`, "Content-Type": "application/json" },
+    data: { version: releaseB, projects: ["1"] },
+  });
+
+  const secondEventId = crypto.randomUUID();
+  const secondIngest = await request.post(`/api/1/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
+    data: buildEnvelope(secondEventId, {
+      level: "error",
+      release: releaseB,
+      environment: "staging",
+      exception: {
+        values: [{ type: uniqueTitle, value: "seeded", stacktrace: { frames: [stackFrame] } }],
+      },
+    }),
+  });
+  expect(secondIngest.status()).toBe(200);
+
+  // Back on the list, the regressed issue shows the "Regressed" tag and the latest event's
+  // (updated) environment.
+  await page.getByText("Issues", { exact: true }).click();
+  await expect(issueRowContainer.getByText("Regressed", { exact: true })).toBeVisible();
+  await expect(issueRowContainer.getByText("staging", { exact: true })).toBeVisible();
+
+  await issueRow.click();
+  await expect(page.getByText("Regressed", { exact: true })).toBeVisible();
+  await expect(page.getByText("staging", { exact: true })).toBeVisible();
 
   await context.close();
 });

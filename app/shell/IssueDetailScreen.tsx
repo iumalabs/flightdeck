@@ -32,6 +32,14 @@ interface LinkedFeedback {
   receivedAt: string;
 }
 
+// issue #130 — Sentry's standard `Sentry.setUser({...})` shape.
+interface EventUser {
+  id?: string;
+  email?: string;
+  username?: string;
+  ip_address?: string;
+}
+
 interface IssueDetail {
   id: string;
   title: string;
@@ -45,6 +53,7 @@ interface IssueDetail {
     breadcrumbs: Breadcrumb[];
     tags: Record<string, string>;
     contexts: Record<string, unknown>;
+    user: EventUser | null;
   } | null;
   // contracts/internal-api.md's addition (T050, specs/002-error-monitoring) — false only when
   // `latestEvent` is null AND an event WAS ingested at some point (eventCount > 0), meaning
@@ -56,6 +65,9 @@ interface IssueDetail {
   // event's trace_id, null when it carried no active trace (spec FR-009, "absent, not an error
   // state").
   traceId: string | null;
+  // issue #129 — the latest event's environment, null when no event carried one (or none
+  // retained).
+  environment: string | null;
   // contracts/releases-internal-api.md's addition (specs/005-releases).
   status: string;
   regressed: boolean;
@@ -209,6 +221,20 @@ export function IssueDetailScreen(
             </>
           )}
         {issue.regressed && <span style={{ color: "#FF4D4D", fontSize: 12.5 }}>Regressed</span>}
+        {issue.environment && (
+          <span
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: 11.5,
+              padding: "3px 8px",
+              background: "var(--chip)",
+              color: "var(--fg2)",
+              borderRadius: 4,
+            }}
+          >
+            {issue.environment}
+          </span>
+        )}
         {resolveStatus.kind === "error" && (
           <span style={{ color: "#FF4D4D", fontSize: 12.5 }}>Resolve failed.</span>
         )}
@@ -345,6 +371,81 @@ export function IssueDetailScreen(
               >
                 {key}: {value}
               </span>
+            ))}
+          </div>
+        </>
+      )}
+
+      {issue.latestEvent?.user && Object.values(issue.latestEvent.user).some(Boolean) && (
+        <>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>User</div>
+          <div
+            style={{
+              border: "1px solid var(--line)",
+              background: "var(--panel)",
+              padding: "10px 14px",
+              marginBottom: 24,
+              fontSize: 13,
+            }}
+          >
+            {(
+              [
+                ["ID", issue.latestEvent.user.id],
+                ["Email", issue.latestEvent.user.email],
+                ["Username", issue.latestEvent.user.username],
+                ["IP address", issue.latestEvent.user.ip_address],
+              ] as [string, string | undefined][]
+            )
+              .filter(([, value]) => !!value)
+              .map(([label, value]) => (
+                <div key={label} style={{ marginBottom: 4 }}>
+                  <span style={{ color: "var(--fg3)", fontSize: 11 }}>{label}:</span>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 12.5 }}>{value}</span>
+                </div>
+              ))}
+          </div>
+        </>
+      )}
+
+      {issue.latestEvent && Object.keys(issue.latestEvent.contexts).length > 0 && (
+        <>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Contexts</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 24 }}>
+            {Object.entries(issue.latestEvent.contexts).map(([groupKey, groupValue]) => (
+              <div
+                key={groupKey}
+                style={{
+                  border: "1px solid var(--line)",
+                  background: "var(--panel)",
+                  padding: "10px 14px",
+                  minWidth: 160,
+                }}
+              >
+                <div
+                  style={{
+                    color: "var(--fg3)",
+                    fontSize: 11,
+                    marginBottom: 6,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {groupKey}
+                </div>
+                {groupValue && typeof groupValue === "object" && !Array.isArray(groupValue)
+                  ? Object.entries(groupValue as Record<string, unknown>).map((
+                    [fieldKey, fieldValue],
+                  ) => (
+                    <div key={fieldKey} style={{ fontSize: 12.5, marginBottom: 3 }}>
+                      <span style={{ color: "var(--fg2)" }}>{fieldKey}:</span>
+                      <span style={{ fontFamily: "var(--font-mono)" }}>{String(fieldValue)}</span>
+                    </div>
+                  ))
+                  : (
+                    <div style={{ fontFamily: "var(--font-mono)", fontSize: 12.5 }}>
+                      {String(groupValue)}
+                    </div>
+                  )}
+              </div>
             ))}
           </div>
         </>

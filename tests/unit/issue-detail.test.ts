@@ -82,3 +82,15 @@ Deno.test("shapeLatestEvent returns null stacktrace when there's no exception", 
   const shaped = shapeLatestEvent({ message: "disk full" });
   assertEquals(shaped.stacktrace, null);
 });
+
+// issue #130 — `user` (Sentry.setUser) must be carried through from the raw payload the same way
+// tags/contexts already are, and default to null when absent.
+Deno.test("shapeLatestEvent passes through user, defaulting to null", () => {
+  const withUser = shapeLatestEvent({
+    user: { id: "qa-user-42", email: "qa-user-42@example.com" },
+  });
+  assertEquals(withUser.user, { id: "qa-user-42", email: "qa-user-42@example.com" });
+
+  const withoutUser = shapeLatestEvent({ message: "disk full" });
+  assertEquals(withoutUser.user, null);
+});
