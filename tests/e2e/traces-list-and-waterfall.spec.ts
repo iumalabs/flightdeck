@@ -15,13 +15,14 @@ function buildTransactionEnvelope(
   rootSpanId: string,
   childSpanId: string,
   name: string,
+  durationSeconds = 0.5,
 ): string {
   const startTimestamp = Date.now() / 1000 - 5;
   const payload = {
     event_id: eventId,
     type: "transaction",
     start_timestamp: startTimestamp,
-    timestamp: startTimestamp + 0.5,
+    timestamp: startTimestamp + durationSeconds,
     transaction_info: { source: "route", transaction: name },
     contexts: {
       trace: { trace_id: traceId, span_id: rootSpanId, parent_span_id: null, op: "http.server" },
@@ -129,6 +130,93 @@ test("traces list -> waterfall -> linked error -> issue detail -> back to trace"
   await viewTraceLink.click();
 
   await expect(page.getByRole("heading", { name: uniqueOpName })).toBeVisible();
+
+  await context.close();
+});
+
+// spec.md User Story 2 Acceptance Scenario 3 ("When a developer sorts or filters by duration,
+// Then the slowest operations are easy to identify without manually comparing every row") and
+// T041 (specs/003-distributed-tracing/tasks.md) — seeds three operations with distinct names,
+// durations, and transaction counts so each of the four sortable fields (Operation, p50, p95,
+// Count) produces a different row order, then drives the sort chips and asserts the list actually
+// reorders, in both directions.
+test("traces list sort controls reorder operations by each field and direction", async ({ browser, request, baseURL }) => {
+  const dsnKey = await getDsnKey();
+  const runId = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+
+  // Every transaction within one operation shares the same duration, so p50 === p95 === that
+  // duration regardless of count — keeping the expected ordering simple and unambiguous.
+  const ops = [
+    { suffix: "alpha", durationSeconds: 0.1, count: 1 },
+    { suffix: "beta", durationSeconds: 0.3, count: 2 },
+    { suffix: "gamma", durationSeconds: 0.2, count: 3 },
+  ] as const;
+
+  for (const op of ops) {
+    const name = `e2e-sort-${runId}-${op.suffix}`;
+    for (let i = 0; i < op.count; i++) {
+      const traceId = crypto.randomUUID().replace(/-/g, "");
+      const rootSpanId = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+      const childSpanId = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+      const envelope = buildTransactionEnvelope(
+        crypto.randomUUID(),
+        traceId,
+        rootSpanId,
+        childSpanId,
+        name,
+        op.durationSeconds,
+      );
+      const res = await request.post(`/api/1/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
+        data: envelope,
+      });
+      expect(res.status()).toBe(200);
+    }
+  }
+
+  // Bounded wait for the queue consumer's async write (research.md §9), same rationale as above.
+  await new Promise((resolve) => setTimeout(resolve, 7000));
+
+  const token = await mintTestSession({
+    sub: "e2e-traces-sort",
+    email: "traces-sort@example.com",
+    role: "member",
+  });
+  const context = await browser.newContext();
+  await context.addCookies([{ name: "fd_session", value: token, url: baseURL!, sameSite: "Lax" }]);
+  const page = await context.newPage();
+  await page.goto("/");
+  await page.getByText("Traces", { exact: true }).click();
+
+  const names = {
+    alpha: `e2e-sort-${runId}-alpha`,
+    beta: `e2e-sort-${runId}-beta`,
+    gamma: `e2e-sort-${runId}-gamma`,
+  };
+  await expect(page.getByText(names.beta, { exact: true })).toBeVisible();
+
+  const rowNameSelector = [names.alpha, names.beta, names.gamma]
+    .map((n) => `div:text-is("${n}")`)
+    .join(", ");
+  const visibleOrder = () => page.locator(rowNameSelector).allTextContents();
+
+  // Default state: unchanged fixed p95-descending behavior (beta 300ms, gamma 200ms, alpha 100ms).
+  await expect.poll(visibleOrder).toEqual([names.beta, names.gamma, names.alpha]);
+
+  // Operation name, ascending (the field's default direction) then descending on a second click.
+  await page.getByRole("button", { name: /^Operation/ }).click();
+  await expect.poll(visibleOrder).toEqual([names.alpha, names.beta, names.gamma]);
+  await page.getByRole("button", { name: /^Operation/ }).click();
+  await expect.poll(visibleOrder).toEqual([names.gamma, names.beta, names.alpha]);
+
+  // Count: descending (gamma=3, beta=2, alpha=1) by default, ascending on a second click.
+  await page.getByRole("button", { name: /^Count/ }).click();
+  await expect.poll(visibleOrder).toEqual([names.gamma, names.beta, names.alpha]);
+  await page.getByRole("button", { name: /^Count/ }).click();
+  await expect.poll(visibleOrder).toEqual([names.alpha, names.beta, names.gamma]);
+
+  // p50: switching field re-sorts back to duration order (descending default).
+  await page.getByRole("button", { name: /^p50/ }).click();
+  await expect.poll(visibleOrder).toEqual([names.beta, names.gamma, names.alpha]);
 
   await context.close();
 });

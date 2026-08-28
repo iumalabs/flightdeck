@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { EmptyState } from "../components/EmptyState.tsx";
 
 interface Operation {
@@ -15,9 +15,28 @@ export interface TracesScreenProps {
   onSelectTransaction: (id: string) => void;
 }
 
+type SortField = "name" | "p50Ms" | "p95Ms" | "count";
+type SortDir = "asc" | "desc";
+
+// spec.md User Story 2 Acceptance Scenario 3 ("sorts or filters by duration") — a clickable sort
+// control satisfies "sorts or filters" on its own; a separate duration-filter control would be
+// additive scope the scenario doesn't require. Numeric fields default to descending (slowest/
+// busiest first, matching the pre-existing fixed p95-desc behavior); the operation name defaults
+// to ascending (alphabetical) since "biggest name first" isn't a meaningful reading.
+const SORT_FIELDS: { field: SortField; label: string; defaultDir: SortDir }[] = [
+  { field: "name", label: "Operation", defaultDir: "asc" },
+  { field: "p50Ms", label: "p50", defaultDir: "desc" },
+  { field: "p95Ms", label: "p95", defaultDir: "desc" },
+  { field: "count", label: "Count", defaultDir: "desc" },
+];
+
 export function TracesScreen({ projectId, onSelectTransaction }: TracesScreenProps) {
   const [loading, setLoading] = useState(true);
   const [operations, setOperations] = useState<Operation[] | null>(null);
+  // Default state (p95 descending) matches the previous fixed sort exactly, so a developer who
+  // never interacts with the new controls sees unchanged behavior.
+  const [sortField, setSortField] = useState<SortField>("p95Ms");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   useEffect(() => {
     let cancelled = false;
@@ -38,7 +57,23 @@ export function TracesScreen({ projectId, onSelectTransaction }: TracesScreenPro
     };
   }, [projectId]);
 
-  const sorted = [...(operations ?? [])].sort((a, b) => b.p95Ms - a.p95Ms);
+  const sorted = useMemo(() => {
+    const list = [...(operations ?? [])];
+    list.sort((a, b) => {
+      const cmp = sortField === "name" ? a.name.localeCompare(b.name) : a[sortField] - b[sortField];
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return list;
+  }, [operations, sortField, sortDir]);
+
+  function handleSortClick(field: SortField, defaultDir: SortDir) {
+    if (field === sortField) {
+      setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDir(defaultDir);
+    }
+  }
 
   return (
     <div>
@@ -52,6 +87,41 @@ export function TracesScreen({ projectId, onSelectTransaction }: TracesScreenPro
       >
         Traces
       </h1>
+
+      {!loading && sorted.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+          <span style={{ fontSize: 11.5, color: "var(--fg3)" }}>Sort by</span>
+          {SORT_FIELDS.map(({ field, label, defaultDir }) => {
+            const active = field === sortField;
+            return (
+              <span
+                key={field}
+                onClick={() => handleSortClick(field, defaultDir)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleSortClick(field, defaultDir);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-pressed={active}
+                style={{
+                  cursor: "pointer",
+                  padding: "3px 8px",
+                  borderRadius: 4,
+                  fontSize: 11.5,
+                  background: active ? "rgba(184,241,53,.12)" : "var(--chip)",
+                  color: active ? "var(--accent)" : "var(--fg2)",
+                }}
+              >
+                {label}
+                {active ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
+              </span>
+            );
+          })}
+        </div>
+      )}
 
       {loading
         ? null
