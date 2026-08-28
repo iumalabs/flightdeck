@@ -10,6 +10,8 @@ interface Issue {
   firstSeen: string;
   lastSeen: string;
   status: string;
+  regressed: boolean;
+  environment: string | null;
 }
 
 const LEVEL_COLOR: Record<string, string> = {
@@ -35,10 +37,16 @@ export interface IssuesScreenProps {
   onSelectIssue: (id: string) => void;
 }
 
+// issue #129 — no server-side environment filter exists, so (mirroring the "Resolved" status
+// filter's own client-side narrowing above) this narrows the already-fetched `issues` array by
+// each issue's own `environment` field instead.
+const ALL_ENVIRONMENTS = "__all__";
+
 export function IssuesScreen({ projectId, onSelectIssue }: IssuesScreenProps) {
   const [loading, setLoading] = useState(true);
   const [issues, setIssues] = useState<Issue[] | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("unresolved");
+  const [environmentFilter, setEnvironmentFilter] = useState<string>(ALL_ENVIRONMENTS);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,9 +71,21 @@ export function IssuesScreen({ projectId, onSelectIssue }: IssuesScreenProps) {
     };
   }, [projectId, statusFilter]);
 
-  const visibleIssues = statusFilter === "resolved"
+  useEffect(() => {
+    setEnvironmentFilter(ALL_ENVIRONMENTS);
+  }, [projectId]);
+
+  const statusFilteredIssues = statusFilter === "resolved"
     ? issues?.filter((issue) => issue.status === "resolved") ?? null
     : issues;
+
+  const environments = Array.from(
+    new Set((issues ?? []).map((issue) => issue.environment).filter((env): env is string => !!env)),
+  ).sort();
+
+  const visibleIssues = environmentFilter === ALL_ENVIRONMENTS
+    ? statusFilteredIssues
+    : statusFilteredIssues?.filter((issue) => issue.environment === environmentFilter) ?? null;
 
   return (
     <div>
@@ -98,6 +118,43 @@ export function IssuesScreen({ projectId, onSelectIssue }: IssuesScreenProps) {
           </span>
         ))}
       </div>
+
+      {environments.length > 0 && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          <span
+            onClick={() => setEnvironmentFilter(ALL_ENVIRONMENTS)}
+            style={{
+              cursor: "pointer",
+              padding: "3px 8px",
+              borderRadius: 4,
+              fontSize: 11.5,
+              background: environmentFilter === ALL_ENVIRONMENTS
+                ? "rgba(184,241,53,.12)"
+                : "var(--chip)",
+              color: environmentFilter === ALL_ENVIRONMENTS ? "var(--accent)" : "var(--fg2)",
+            }}
+          >
+            All environments
+          </span>
+          {environments.map((env) => (
+            <span
+              key={env}
+              onClick={() => setEnvironmentFilter(env)}
+              style={{
+                cursor: "pointer",
+                padding: "3px 8px",
+                borderRadius: 4,
+                fontSize: 11.5,
+                fontFamily: "var(--font-mono)",
+                background: environmentFilter === env ? "rgba(184,241,53,.12)" : "var(--chip)",
+                color: environmentFilter === env ? "var(--accent)" : "var(--fg2)",
+              }}
+            >
+              {env}
+            </span>
+          ))}
+        </div>
+      )}
 
       {loading
         ? null
@@ -134,24 +191,52 @@ export function IssuesScreen({ projectId, onSelectIssue }: IssuesScreenProps) {
                     background: LEVEL_COLOR[issue.level] ?? "var(--fg3)",
                   }}
                 />
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontFamily: "var(--font-mono)",
-                      fontSize: 13,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {issue.title}
-                  </div>
-                  {issue.culprit && (
+                <span
+                  style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8 }}
+                >
+                  <span style={{ flex: 1, minWidth: 0 }}>
                     <div
-                      style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--fg3)" }}
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 13,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
                     >
-                      {issue.culprit}
+                      {issue.title}
                     </div>
+                    {issue.culprit && (
+                      <div
+                        style={{
+                          fontFamily: "var(--font-mono)",
+                          fontSize: 11,
+                          color: "var(--fg3)",
+                        }}
+                      >
+                        {issue.culprit}
+                      </div>
+                    )}
+                  </span>
+                  {issue.regressed && (
+                    <span style={{ color: "#FF4D4D", fontSize: 11, flex: "none" }}>
+                      Regressed
+                    </span>
+                  )}
+                  {issue.environment && (
+                    <span
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 11,
+                        padding: "2px 6px",
+                        background: "var(--chip)",
+                        color: "var(--fg2)",
+                        borderRadius: 4,
+                        flex: "none",
+                      }}
+                    >
+                      {issue.environment}
+                    </span>
                   )}
                 </span>
                 <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--fg2)" }}>
