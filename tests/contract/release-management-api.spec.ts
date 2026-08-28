@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { Buffer } from "node:buffer";
 import { mintTestSession } from "../e2e/support/session.ts";
 import { getDsnKey } from "./support/dsn-key.ts";
 import { CONTRACT_TEST_ACTOR, ensureContractTestActor } from "./support/seed-actor.ts";
@@ -64,6 +65,97 @@ test("a full sentry-cli release flow (create, upload-sourcemaps, finalize) succe
   expect(finalize.status()).toBe(200);
   const finalizeBody = await finalize.json() as { dateReleased: string | null };
   expect(finalizeBody.dateReleased).not.toBeNull();
+});
+
+// issue #142's exact live repro: a real `sentry-cli releases files <version> upload-sourcemaps`
+// names artifacts with a `~/`-prefix (Sentry's "relative to the release's URL, any origin"
+// convention — this endpoint's `name` field even defaults to "~/bundle.js"). A real browser SDK
+// reports `frame.filename` as the actual full URL the script loaded from, never tilde-prefixed —
+// prior to the fix these could never match and the frame stayed unresolved.
+test("a `~/`-prefixed sentry-cli upload resolves a frame whose filename is a full URL with any origin", async ({ request }) => {
+  const { token } = await generateApiToken(request);
+  const dsnKey = await getDsnKey();
+  const version = `contract-tilde-${crypto.randomUUID()}`;
+  const eventId = crypto.randomUUID();
+  const resolvedName = `tildeMatchTest_${eventId}`;
+
+  const create = await request.post("/api/0/organizations/anyorg/releases/", {
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    data: { version, projects: ["1"] },
+  });
+  expect(create.status()).toBe(201);
+
+  const sourceMap = JSON.stringify({
+    version: 3,
+    sources: ["app.js"],
+    names: [resolvedName],
+    mappings: "AAAAA",
+  });
+  const upload = await request.post(
+    `/api/0/projects/anyorg/1/releases/${version}/files/`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      multipart: {
+        name: "~/static/js/app.min.js",
+        file: {
+          name: "app.min.js.map",
+          mimeType: "application/json",
+          buffer: Buffer.from(sourceMap),
+        },
+      },
+    },
+  );
+  expect(upload.status()).toBe(201);
+
+  const uniqueMessage = `tilde-boom-${eventId}`;
+  const eventJson = JSON.stringify({
+    event_id: eventId,
+    release: version,
+    exception: {
+      values: [{
+        type: "TypeError",
+        value: uniqueMessage,
+        stacktrace: {
+          frames: [{
+            filename: "https://myapp.example.com/static/js/app.min.js",
+            function: "t",
+            lineno: 1,
+            colno: 0,
+          }],
+        },
+      }],
+    },
+  });
+  const envelopeHeader = JSON.stringify({ event_id: eventId });
+  const itemHeader = JSON.stringify({
+    type: "event",
+    length: new TextEncoder().encode(eventJson).length,
+  });
+  const body = [envelopeHeader, itemHeader, eventJson].join("\n");
+
+  const ingest = await request.post(`/api/1/envelope?sentry_key=${dsnKey}&sentry_version=7`, {
+    data: body,
+  });
+  expect(ingest.status()).toBe(200);
+
+  const cookie = await sessionCookieHeader();
+  const issues = await request.get(`/api/internal/v1/issues`, { headers: { Cookie: cookie } });
+  const { issues: issueList } = await issues.json() as { issues: { id: string; title: string }[] };
+  const issue = issueList.find((i) => i.title.includes(uniqueMessage));
+  expect(issue).toBeTruthy();
+
+  const detail = await request.get(`/api/internal/v1/issues/${issue!.id}`, {
+    headers: { Cookie: cookie },
+  });
+  const detailBody = await detail.json() as {
+    latestEvent: {
+      stacktrace: { frames: { resolved: boolean; filename: string; function: string }[] };
+    };
+  };
+  const frame = detailBody.latestEvent.stacktrace.frames[0];
+  expect(frame.resolved).toBe(true);
+  expect(frame.filename).toBe("app.js");
+  expect(frame.function).toBe(resolvedName);
 });
 
 test("a repeated 'releases new' for the same version is a no-op, not a duplicate", async ({ request }) => {
