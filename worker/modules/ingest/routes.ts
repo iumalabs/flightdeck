@@ -211,9 +211,19 @@ async function handleEnvelope(c: Context<{ Bindings: Env }, EnvelopeRoutePath>) 
         if (existing) continue;
       }
 
+      // Issue #124: mirrors the "transaction" branch's own guard below — a log batch well under
+      // MAX_ENVELOPE_BYTES (1 MB) can still serialize, as a QueuedLogBatch queue message, past
+      // Cloudflare Queues' ~127,000-byte single-message limit. Checked BEFORE either the queue send
+      // or the live-tail broadcast, since a rejection here must skip both, not just the send.
+      const queued: QueuedLogBatch = { projectId: project.id, records, envelopeEventId };
+      const serializedBytes = new TextEncoder().encode(JSON.stringify(queued)).length;
+      if (serializedBytes > MAX_QUEUE_MESSAGE_BYTES) {
+        return c.text("Payload Too Large", 413);
+      }
+
       const liveTailStub = c.env.LIVE_TAIL.get(c.env.LIVE_TAIL.idFromName(project.id));
       await Promise.all([
-        c.env.LOG_INGEST.send({ projectId: project.id, records, envelopeEventId }),
+        c.env.LOG_INGEST.send(queued),
         liveTailStub.broadcast(records.map(normalizeRecord)),
       ]);
       continue;
@@ -345,14 +355,6 @@ async function handleEnvelope(c: Context<{ Bindings: Env }, EnvelopeRoutePath>) 
     const event = parseEventPayload(item) as EventPayload | null;
     if (!event || !event.event_id) continue; // an unparseable/incomplete event item is dropped, not fatal to the rest of the envelope
 
-    // Dedup check (spec FR-014) happens before any issue mutation, per research.md §9's note on
-    // D1's write pattern — a retried submission of the same sdk_event_id is a no-op.
-    const existing = await c.env.DB
-      .prepare(`SELECT 1 FROM events WHERE project_id = ?1 AND sdk_event_id = ?2`)
-      .bind(project.id, event.event_id)
-      .first();
-    if (existing) continue;
-
     // Source-map resolution runs BEFORE fingerprinting (research.md §5) — a no-op stub until User
     // Story 3, but the call site is already in the correct pipeline position.
     const exceptionValue = event.exception?.values?.at(-1);
@@ -371,13 +373,18 @@ async function handleEnvelope(c: Context<{ Bindings: Env }, EnvelopeRoutePath>) 
     const culprit = deriveCulprit(event);
     const level = event.level ?? "error";
 
+    // Ensure the issue row exists for this fingerprint WITHOUT yet touching event_count/last_seen
+    // (issue #127) — those must only move for the request that actually wins the atomic events-
+    // table dedup below, not for every request that merely observes this fingerprint (including
+    // raced duplicates of an existing sdk_event_id). `ON CONFLICT ... DO UPDATE SET id = id` is a
+    // deliberate no-op write: D1/SQLite's RETURNING clause yields a row for a real DO NOTHING
+    // conflict branch, so a genuine DO NOTHING here would leave nothing to read the existing
+    // issue's id/status back from on the conflict path.
     const issue = await c.env.DB
       .prepare(
         `INSERT INTO issues (id, project_id, fingerprint, title, culprit, level, event_count, first_seen, last_seen)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, datetime('now'), datetime('now'))
-         ON CONFLICT(project_id, fingerprint) DO UPDATE SET
-           event_count = event_count + 1,
-           last_seen = datetime('now')
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, datetime('now'), datetime('now'))
+         ON CONFLICT(project_id, fingerprint) DO UPDATE SET id = id
          RETURNING id, status, resolved_release_id, resolved_mode`,
       )
       .bind(crypto.randomUUID(), project.id, fingerprint, title, culprit, level)
@@ -391,6 +398,47 @@ async function handleEnvelope(c: Context<{ Bindings: Env }, EnvelopeRoutePath>) 
       >();
 
     if (!issue) continue; // shouldn't happen — defensive, don't let one bad item 500 the request
+
+    // contexts.trace is the same context object transactions carry (specs/003-distributed-tracing
+    // research.md §3) — recorded here whether or not a transaction for this trace was ever
+    // ingested, per Sentry's own "recommended... even without performance monitoring" guidance.
+    const traceContext = extractTraceContext(event);
+
+    // Atomic dedup (issue #127, spec FR-014): a prior SELECT-then-INSERT check was a race under
+    // concurrency — multiple simultaneous requests for the identical sdk_event_id could all pass a
+    // SELECT before any of them committed, each proceed to mutate the issue, and all but one then
+    // crash on the events table's UNIQUE(project_id, sdk_event_id) constraint (migration 0009).
+    // Making the INSERT itself the dedup check — `ON CONFLICT DO NOTHING` plus reading back
+    // `meta.changes` — means only the ONE request that genuinely wrote a new row can ever proceed
+    // past this point, no matter how many concurrent duplicates raced to get here.
+    const eventInsert = await c.env.DB
+      .prepare(
+        `INSERT INTO events (id, issue_id, project_id, sdk_event_id, release, environment, payload, trace_id, span_id, received_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, datetime('now'))
+         ON CONFLICT(project_id, sdk_event_id) DO NOTHING`,
+      )
+      .bind(
+        crypto.randomUUID(),
+        issue.id,
+        project.id,
+        event.event_id,
+        event.release ?? null,
+        event.environment ?? null,
+        JSON.stringify(event),
+        traceContext?.traceId ?? null,
+        traceContext?.spanId ?? null,
+      )
+      .run();
+    if ((eventInsert.meta.changes ?? 0) === 0) continue; // a retried/raced duplicate — already recorded, no further mutation
+
+    // From here on, this request is the sole winner of the dedup race for this sdk_event_id — safe
+    // to apply the issue-counter increment and the regression-reopen check exactly once.
+    await c.env.DB
+      .prepare(
+        `UPDATE issues SET event_count = event_count + 1, last_seen = datetime('now') WHERE id = ?1`,
+      )
+      .bind(issue.id)
+      .run();
 
     // specs/005-releases research.md §7: a resolved issue automatically reopens when a later
     // release's occurrence arrives — extends this existing "event" path, not a new endpoint/job.
@@ -433,29 +481,6 @@ async function handleEnvelope(c: Context<{ Bindings: Env }, EnvelopeRoutePath>) 
         }
       }
     }
-
-    // contexts.trace is the same context object transactions carry (specs/003-distributed-tracing
-    // research.md §3) — recorded here whether or not a transaction for this trace was ever
-    // ingested, per Sentry's own "recommended... even without performance monitoring" guidance.
-    const traceContext = extractTraceContext(event);
-
-    await c.env.DB
-      .prepare(
-        `INSERT INTO events (id, issue_id, project_id, sdk_event_id, release, environment, payload, trace_id, span_id, received_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, datetime('now'))`,
-      )
-      .bind(
-        crypto.randomUUID(),
-        issue.id,
-        project.id,
-        event.event_id,
-        event.release ?? null,
-        event.environment ?? null,
-        JSON.stringify(event),
-        traceContext?.traceId ?? null,
-        traceContext?.spanId ?? null,
-      )
-      .run();
   }
 
   return c.text("", 200);

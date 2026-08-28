@@ -131,6 +131,26 @@ test("submitting the same envelope (same envelope header event_id) twice does no
   expect(resultBody.lines.length).toBe(1); // not 2 — the retried submission was deduplicated
 });
 
+// Issue #124 — a "log" item well under MAX_ENVELOPE_BYTES (1 MB) can still serialize, as the
+// QueuedLogBatch queue message, past Cloudflare Queues' ~127,000-byte single-message limit. Before
+// the fix this threw uncaught out of `LOG_INGEST.send()` into Hono's generic 500 handler; it must
+// now be rejected cleanly with 413, mirroring the existing "transaction" item guard
+// (trace-ingest.spec.ts's "an oversized transaction item is rejected with 413, not a generic 500").
+test("a log batch whose serialized queue message exceeds the size limit is rejected with 413, not a generic 500", async ({ request }) => {
+  const dsnKey = await getDsnKey();
+  // A single padded record's body comfortably pushes the serialized QueuedLogBatch over 127,000
+  // bytes while the whole envelope body stays well under the 1 MB MAX_ENVELOPE_BYTES ceiling.
+  const body = buildLogEnvelope(crypto.randomUUID(), [
+    { timestamp: Date.now() / 1000, level: "info", body: "x".repeat(150_000) },
+  ]);
+
+  const ingest = await request.post(
+    `/api/${DEMO_PROJECT_ID}/envelope?sentry_key=${dsnKey}&sentry_version=7`,
+    { data: body },
+  );
+  expect(ingest.status()).toBe(413);
+});
+
 test("submitting a batch of 3 log lines records all 3, not just the first", async ({ request }) => {
   const dsnKey = await getDsnKey();
   const marker = crypto.randomUUID().slice(0, 8);
