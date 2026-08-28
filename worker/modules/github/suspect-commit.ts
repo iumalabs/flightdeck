@@ -64,7 +64,15 @@ export async function lookupSuspectCommit(
   });
   if (!response.ok) return null;
 
-  const commits = await response.json() as GitHubCommit[];
+  let commits: GitHubCommit[];
+  try {
+    commits = await response.json() as GitHubCommit[];
+  } catch {
+    // A 2xx response with a non-JSON body — a known GitHub failure mode on abuse-detection
+    // soft-blocks/infra hiccups — is still "GitHub's API errors" per this function's contract
+    // above, not a thrown error.
+    return null;
+  }
   const commit = commits[0];
   if (!commit) return null;
 

@@ -133,12 +133,21 @@ issuesRoutes.get("/:id", async (c) => {
     }
   }
 
-  const suspectCommit = await lookupSuspectCommit(
-    c.env.DB,
-    c.env,
-    issue.project_id,
-    culpritFrame?.filename,
-  );
+  // Belt-and-suspenders: lookupSuspectCommit is documented to resolve to null (never throw) on
+  // every failure mode it knows about, but an unexpected throw here must still degrade to "no
+  // suspect commit shown" rather than 500ing the whole issue-detail response — same
+  // try/catch-and-continue treatment as the latestEventRow parse above.
+  let suspectCommit = null;
+  try {
+    suspectCommit = await lookupSuspectCommit(
+      c.env.DB,
+      c.env,
+      issue.project_id,
+      culpritFrame?.filename,
+    );
+  } catch {
+    suspectCommit = null;
+  }
 
   // contracts/feedback-internal-api.md's addition (specs/007-user-feedback) — non-empty only when
   // at least one Feedback row's issue_id matches (FR-008); an empty array is what tells the
