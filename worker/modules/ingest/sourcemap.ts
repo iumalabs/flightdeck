@@ -84,6 +84,15 @@ async function loadTracer(
   const object = await r2.get(row.r2_object_key);
   if (!object) return null;
 
-  const raw = await object.json();
-  return new TraceMap(raw as ConstructorParameters<typeof TraceMap>[0]);
+  // issue #125 — a malformed/non-JSON uploaded source map (bad upload, truncated file, etc.) must
+  // not permanently 500 every subsequent event referencing it. Both the JSON parse (non-JSON
+  // content) and the TraceMap constructor (structurally-invalid-but-valid-JSON, e.g. missing
+  // `mappings`/`sources`) can throw — treated the same as every other "can't resolve" case in this
+  // function: an unresolved frame, not a failed request.
+  try {
+    const raw = await object.json();
+    return new TraceMap(raw as ConstructorParameters<typeof TraceMap>[0]);
+  } catch {
+    return null;
+  }
 }

@@ -7,13 +7,20 @@ interface Project {
   dsn: string;
 }
 
-type UploadStatus = { kind: "idle" } | { kind: "success" } | { kind: "error"; message: string };
+type UploadStatus = { kind: "idle" } | { kind: "success" } | { kind: "error"; message: string } | {
+  kind: "deleted";
+};
 
+// issue #125 — no list-of-uploaded-source-maps UI exists yet (that's a separate, larger feature);
+// this wires a delete control to the id the upload itself just returned, so a bad upload (e.g. a
+// non-JSON file that would otherwise permanently 500 every event referencing it) can be undone and
+// replaced immediately, matching ApiTokenSection's generate-then-revoke-by-returned-id shape below.
 function SourceMapUpload({ project }: { project: Project | null }) {
   const [release, setRelease] = useState("");
   const [pathPattern, setPathPattern] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<UploadStatus>({ kind: "idle" });
+  const [lastUploadId, setLastUploadId] = useState("");
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,6 +38,8 @@ function SourceMapUpload({ project }: { project: Project | null }) {
     });
 
     if (res.ok) {
+      const body = await res.json() as { id: string };
+      setLastUploadId(body.id);
       setStatus({ kind: "success" });
       setRelease("");
       setPathPattern("");
@@ -40,6 +49,20 @@ function SourceMapUpload({ project }: { project: Project | null }) {
         kind: "error",
         message: res.status === 413 ? "File too large." : "Upload failed.",
       });
+    }
+  };
+
+  const deleteLastUpload = async () => {
+    if (!project || !lastUploadId) return;
+    const res = await fetch(
+      `/api/internal/v1/projects/${project.id}/source-maps/${lastUploadId}`,
+      { method: "DELETE", credentials: "same-origin" },
+    );
+    if (res.ok) {
+      setLastUploadId("");
+      setStatus({ kind: "deleted" });
+    } else {
+      setStatus({ kind: "error", message: "Delete failed." });
     }
   };
 
@@ -75,11 +98,24 @@ function SourceMapUpload({ project }: { project: Project | null }) {
           required
           style={{ fontSize: 12.5 }}
         />
-        <button type="submit" disabled={!project} style={buttonStyle}>
-          Upload
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button type="submit" disabled={!project} style={buttonStyle}>
+            Upload
+          </button>
+          <button
+            type="button"
+            onClick={deleteLastUpload}
+            disabled={!project || !lastUploadId}
+            style={secondaryButtonStyle}
+          >
+            Delete last upload
+          </button>
+        </div>
         {status.kind === "success" && (
           <span style={{ color: "var(--accent)", fontSize: 12.5 }}>Uploaded.</span>
+        )}
+        {status.kind === "deleted" && (
+          <span style={{ color: "var(--fg2)", fontSize: 12.5 }}>Source map deleted.</span>
         )}
         {status.kind === "error" && (
           <span style={{ color: "#FF4D4D", fontSize: 12.5 }}>{status.message}</span>
