@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.1](https://github.com/iumalabs/flightdeck/compare/v0.14.0...v0.14.1) (2026-08-28)
+
+
+### Bug Fixes
+
+* **ingest:** resolve `~/`-prefixed sentry-cli source map artifacts against browser frame URLs ([#144](https://github.com/iumalabs/flightdeck/issues/144)) ([290cf85](https://github.com/iumalabs/flightdeck/commit/290cf850d95e3371af2113808e2df0bb8285fb21))
+* **issues:** wrap long unbroken-string titles on the detail page ([#143](https://github.com/iumalabs/flightdeck/issues/143)) ([e53212a](https://github.com/iumalabs/flightdeck/commit/e53212a78f1f3a38065400659f63fc609f56355e))
+
 ## [0.14.0](https://github.com/iumalabs/flightdeck/compare/v0.13.7...v0.14.0) (2026-08-28)
 
 
