@@ -184,6 +184,7 @@ export function IssueDetailScreen(
           fontSize: 22,
           fontWeight: 600,
           margin: "12px 0 4px",
+          overflowWrap: "anywhere",
         }}
       >
         {issue.title}
