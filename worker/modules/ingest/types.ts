@@ -41,6 +41,16 @@ export interface Breadcrumb {
   data?: Record<string, unknown>;
 }
 
+// Sentry's standard user-context shape, set via `Sentry.setUser({...})` — see
+// https://develop.sentry.dev/sdk/event-payloads/user/. Deliberately loose like the rest of this
+// file: we surface what the SDK sends, we don't require any particular field.
+export interface UserContext {
+  id?: string;
+  email?: string;
+  username?: string;
+  ip_address?: string;
+}
+
 export interface EventPayload {
   event_id?: string;
   fingerprint?: string[];
@@ -55,4 +65,5 @@ export interface EventPayload {
   timestamp?: string | number;
   tags?: Record<string, string>;
   contexts?: Record<string, unknown>;
+  user?: UserContext;
 }
